@@ -18,7 +18,7 @@ if not os.path.exists(HISTORY_FILE):
 def load_leads():
     leads = []
     try:
-        with open('dummy_leads.csv', mode='r', encoding='utf-8') as file:
+        with open('leads_with_messages.csv', mode='r', encoding='utf-8') as file:
             csv_reader = csv.DictReader(file)
             for row in csv_reader:
                 leads.append(row)
@@ -50,9 +50,46 @@ def save_to_history(email_data):
 
 @app.route('/')
 def index():
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 3, type=int)
     leads = load_leads()
     history = load_history()
-    return render_template('index.html', leads=leads, history=history)
+    
+    # Calculate pagination for leads
+    total_leads = len(leads)
+    total_pages = (total_leads + per_page - 1) // per_page
+    start_idx = (page - 1) * per_page
+    end_idx = min(start_idx + per_page, total_leads)
+    paginated_leads = leads[start_idx:end_idx]
+    
+    return render_template('index.html', 
+                         leads=paginated_leads, 
+                         history=history,
+                         current_page=page,
+                         total_pages=total_pages,
+                         per_page=per_page,
+                         total_leads=total_leads)
+
+@app.route('/get_leads')
+def get_leads():
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 3, type=int)
+    leads = load_leads()
+    
+    # Calculate pagination
+    total_leads = len(leads)
+    total_pages = (total_leads + per_page - 1) // per_page
+    start_idx = (page - 1) * per_page
+    end_idx = min(start_idx + per_page, total_leads)
+    paginated_leads = leads[start_idx:end_idx]
+    
+    return jsonify({
+        'leads': paginated_leads,
+        'current_page': page,
+        'total_pages': total_pages,
+        'per_page': per_page,
+        'total_leads': total_leads
+    })
 
 @app.route('/preview_email', methods=['POST'])
 def preview_email():

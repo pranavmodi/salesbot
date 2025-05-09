@@ -57,7 +57,9 @@ The email should have:
 - A personalized opening
 - A clear value proposition that ties directly to the recipient's KPIs
 - Specific metrics or outcomes they can expect
-- A specific call to action"""
+- A specific call to action
+
+Important: Do not include any signature or closing lines in your response - these will be added automatically."""
 
     def _load_product_description(self) -> str:
         """Loads the product description from the file."""
@@ -169,6 +171,24 @@ Subject: [Your subject line]
         
         # Join the rest as body
         body = '\n'.join(lines[body_start:]).strip()
+        
+        # Remove any existing signature-like content
+        body = body.split('Looking forward to')[0].strip()
+        body = body.split('Best regards')[0].strip()
+        body = body.split('Best,')[0].strip()
+        
+        # Add signature
+        signature = """
+Looking forward to hearing from you!
+
+Best,
+Pranav Modi
+CEO
+Possible Minds
+https://possibleminds.in
+https://www.linkedin.com/in/pranav-modi-5a3a9b7/
+"""
+        body = body + signature
         
         return subject, body
 
