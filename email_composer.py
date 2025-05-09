@@ -14,6 +14,34 @@ class EmailComposer:
         self.client = OpenAI(api_key=os.getenv('OPENAI_KEY'))
         self.product_description = self._load_product_description()
         
+        # Position to KPI mapping
+        self.position_kpi_map = {
+            "CTO": {
+                "kpis": ["IT operational efficiency", "Digital transformation success", "Customer satisfaction with tech solutions"],
+                "impact": "Reduces IT support tickets, automates customer service, and improves digital customer experience"
+            },
+            "CEO": {
+                "kpis": ["Revenue growth", "Customer satisfaction", "Operational efficiency"],
+                "impact": "Increases customer engagement, reduces operational costs, and improves customer retention"
+            },
+            "COO": {
+                "kpis": ["Operational efficiency", "Cost reduction", "Process automation"],
+                "impact": "Automates customer service processes, reduces manual workload, and improves response times"
+            },
+            "CMO": {
+                "kpis": ["Customer acquisition cost", "Customer engagement", "Brand perception"],
+                "impact": "Enhances customer engagement, provides 24/7 brand presence, and improves customer experience"
+            },
+            "Customer Success": {
+                "kpis": ["Customer satisfaction", "Response time", "Support ticket resolution"],
+                "impact": "Reduces response time, handles routine queries automatically, and improves customer satisfaction"
+            },
+            "Sales Director": {
+                "kpis": ["Lead response time", "Sales conversion rate", "Customer acquisition cost"],
+                "impact": "Qualifies leads 24/7, provides instant responses, and reduces sales team workload"
+            }
+        }
+        
         # Default system prompt for email composition
         self.default_system_prompt = """You are an expert sales development representative.
 Your task is to write personalized, engaging cold emails that are:
@@ -22,11 +50,13 @@ Your task is to write personalized, engaging cold emails that are:
 3. Focused on the value proposition derived from the provided product description
 4. Natural and conversational
 5. Not overly salesy or pushy
+6. Explicitly tied to the recipient's position and their key performance indicators (KPIs)
 
 The email should have:
-- A compelling subject line
+- A compelling subject line that mentions a key KPI
 - A personalized opening
-- A clear value proposition (use the provided product description)
+- A clear value proposition that ties directly to the recipient's KPIs
+- Specific metrics or outcomes they can expect
 - A specific call to action"""
 
     def _load_product_description(self) -> str:
@@ -40,6 +70,19 @@ The email should have:
         except Exception as e:
             print(f"Error reading product description file: {e}")
             return "" # Return empty string on other errors
+
+    def _get_position_kpi_context(self, position: str) -> str:
+        """Get KPI context for a specific position."""
+        position = position.upper()
+        if position in self.position_kpi_map:
+            kpi_info = self.position_kpi_map[position]
+            return f"""
+Key KPIs for {position}:
+{', '.join(kpi_info['kpis'])}
+
+Our solution impacts these KPIs by: {kpi_info['impact']}
+"""
+        return ""
 
     def compose_email(
         self,
@@ -60,6 +103,10 @@ The email should have:
             print("Warning: Cannot compose email without product description.")
             return None
             
+        # Get KPI context based on position
+        position = lead_info.get('position', '').upper()
+        kpi_context = self._get_position_kpi_context(position)
+            
         # Construct the prompt
         prompt = f"""Please write a cold email for the following lead:
 
@@ -68,6 +115,9 @@ Lead Information:
 
 Product Description to use for the sales pitch:
 {self.product_description}
+
+Position-specific KPI Context:
+{kpi_context}
 
 {custom_context if custom_context else ''}
 
