@@ -1,0 +1,3 @@
+python-dotenv==1.1.0
+openai==1.75.0
+# sqlite3  # Usually comes with Python standard library 

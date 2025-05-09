@@ -1,0 +1,15 @@
+Ever wondered if it is possible to have a software agent which knew perfectly about your business and was able to answer any questions 
+and queries just like you would. 
+We have a chatbot solution just for your needs. 
+
+
+Chatbot, trained on any / your website content, answers FAQ etc, any information from website
+Quick and easy integration with any website
+Ability to authenticate users and provide information on appointment detail, locations
+Automatically updates content - crawl, scrape and index website periodically, trains itself in 30 mins
+Accurate answers backed by citations to sources
+Multi agent capabilities, ability to serve needs of multiple personas.
+Multilingual support
+Integration with backend CRMs and seamless handoff to human agent for escalation
+Accessible over Web, SMS and Mobile
+
