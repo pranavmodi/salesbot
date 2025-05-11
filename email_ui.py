@@ -121,12 +121,14 @@ def send_email_route():
         
         email_content = composer.compose_email(lead_info)
         if email_content:
-            success = send_email(lead_info['email'], email_content['subject'], email_content['body'])
+            # Temporarily send to test email instead of lead's email
+            test_email = 'pranav.modi@gmail.com'
+            success = send_email(test_email, email_content['subject'], email_content['body'])
             
             # Create email history entry
             email_data = {
                 'date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                'to': lead_info['email'],
+                'to': test_email,  # Store test email in history
                 'subject': email_content['subject'],
                 'body': email_content['body'],
                 'status': 'Success' if success else 'Failed'
@@ -137,7 +139,7 @@ def send_email_route():
             
             return jsonify({
                 'success': success,
-                'message': f"Email {'sent' if success else 'failed'} to {lead_info['email']}"
+                'message': f"Email {'sent' if success else 'failed'} to {test_email}"
             })
     
     return jsonify({

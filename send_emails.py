@@ -51,56 +51,124 @@ except (ValueError, TypeError):
 db = InteractionsDB()
 composer = EmailComposer()
 
-# --- Email Sending Function ---
-def send_email(recipient_email, subject, body):
-    """Sends a single email."""
+import re
+from email.utils import make_msgid
+
+# ------------------------------------------------------------------ #
+def _markdown_to_html(markdown: str) -> str:
+    """Basic Markdown-ish → HTML for cold-email body."""
+    text = markdown.strip()
+
+    # First convert markdown bold to HTML strong tags
+    text = re.sub(r"\*\*(.*?)\*\*", r"<strong>\1</strong>", text)
+
+    # escape any stray angle brackets
+    text = text.replace("<", "&lt;").replace(">", "&gt;")
+
+    # Now unescape the strong tags we want to keep
+    text = text.replace("&lt;strong&gt;", "<strong>").replace("&lt;/strong&gt;", "</strong>")
+
+    # split into lines so we can detect lists / paras
+    html_lines = []
+    for line in text.splitlines():
+        line = line.rstrip()
+        if not line:
+            html_lines.append("")                # blank line → paragraph break
+        elif re.match(r"^(\* |- |• )", line) or "<strong>" in line:
+            clean = re.sub(r"^(\* |- |• )\s*", "", line)
+            html_lines.append(f"<li>{clean}</li>")
+        else:
+            html_lines.append(line)
+
+    # Collapse into blocks
+    html_body = []
+    in_list = False
+    for l in html_lines:
+        if l.startswith("<li>"):
+            if not in_list:
+                html_body.append("<ul style='margin-top:0; margin-bottom:1em;'>"); in_list = True
+            html_body.append(l)
+        else:
+            if in_list:                          # close any open list
+                html_body.append("</ul>"); in_list = False
+            if l == "":
+                html_body.append("</p><p>")
+            else:
+                html_body.append(l)
+
+    if in_list:
+        html_body.append("</ul>")
+
+    # Split the body into main content and signature
+    content = "".join(html_body).strip()
+    signature_parts = content.split("Cheers,")
+    
+    if len(signature_parts) > 1:
+        main_content = signature_parts[0].strip()
+        signature = "Cheers," + signature_parts[1].strip()
+        
+        # Format signature with proper line breaks
+        signature_lines = signature.split('\n')
+        signature_html = []
+        for line in signature_lines:
+            if line.strip():
+                signature_html.append(line.strip())
+        
+        return f"<p>{main_content}</p><div class='signature'>{'<br>'.join(signature_html)}</div>"
+    else:
+        return f"<p>{content}</p>"
+
+def send_email(recipient_email: str, subject: str, body_markdown: str) -> bool:
+    """Render a nicer HTML template & send."""
     msg = EmailMessage()
-    msg['Subject'] = subject
-    msg['From'] = SENDER_EMAIL
-    msg['To'] = recipient_email
-    msg.set_content(body)
+    msg["Subject"] = subject
+    msg["From"]    = SENDER_EMAIL
+    msg["To"]      = recipient_email
+    msg["Message-ID"] = make_msgid()             # helpful for threading
 
+    # ---------- plain-text part -------------
+    msg.set_content(body_markdown)
+
+    # ---------- HTML part -------------------
+    html_body   = _markdown_to_html(body_markdown)
+    full_html = f"""\
+<!DOCTYPE html><html><head>
+<meta charset="UTF-8">
+<style>
+  body {{ font-family: Arial, sans-serif; color:#333; line-height: 1.6; }}
+  a {{ color:#0066cc; text-decoration: none; }}
+  .container {{ max-width:600px; margin:0 auto; padding:24px; }}
+  p {{ margin: 0 0 1.2em 0; }}
+  ul {{ margin: 0 0 1.2em 0; padding-left: 1.5em; }}
+  li {{ margin: 0.8em 0; }}
+  strong {{ color: #000; font-weight: 600; }}
+  .signature {{ margin-top: 2em; line-height: 1.8; }}
+</style>
+</head><body>
+  <table role="presentation" class="container" width="100%" cellspacing="0" cellpadding="0">
+    <tr><td>
+      {html_body}
+    </td></tr>
+  </table>
+</body></html>"""
+
+    msg.add_alternative(full_html, subtype="html")
+
+    # ---------- send ------------------------
     context = ssl.create_default_context()
-
     try:
-        # Use the validated integer port
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
             server.starttls(context=context)
             server.login(SENDER_EMAIL, SENDER_PASSWORD)
             server.send_message(msg)
-            print(f"Email successfully sent to {recipient_email}")
-            
-            # Log the interaction in the database
-            db.add_interaction(
-                lead_email=recipient_email,
-                event_type="email_sent",
-                details=f"Subject: {subject}"
-            )
-            
-            return True
-    except smtplib.SMTPAuthenticationError:
-        print(f"Authentication failed for {SENDER_EMAIL}. Check credentials in .env or environment variables.")
-        db.add_interaction(
-            lead_email=recipient_email,
-            event_type="email_failed",
-            details="Authentication failed"
-        )
-    except smtplib.SMTPConnectError:
-        print(f"Failed to connect to the SMTP server {SMTP_HOST}:{SMTP_PORT}. Check host/port in .env.")
-        db.add_interaction(
-            lead_email=recipient_email,
-            event_type="email_failed",
-            details="SMTP connection failed"
-        )
-    except smtplib.SMTPServerDisconnected:
-        print(f"Server disconnected unexpectedly.")
-    except ConnectionRefusedError:
-         print(f"Connection refused by the server {SMTP_HOST}:{SMTP_PORT}. Check host/port and firewall settings.")
-    except socket.gaierror:
-         print(f"Failed to resolve hostname {SMTP_HOST}. Check the SMTP_HOST in .env.")
+        print(f"✓ Email sent to {recipient_email}")
+        db.add_interaction(recipient_email, "email_sent", f"Subject: {subject}")
+        return True
     except Exception as e:
-        print(f"An error occurred while sending email to {recipient_email}: {e} ({type(e).__name__})")
-    return False
+        print(f"✗ Failed to send to {recipient_email}: {e}")
+        db.add_interaction(recipient_email, "email_failed", str(e))
+        return False
+
 
 # --- Main Logic ---
 def main():

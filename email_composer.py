@@ -1,4 +1,4 @@
-# email_composer.py  ── v2  (implements “proof-first, arrow-subject, bullets, greeting & full links”)
+# email_composer.py  ── v2  (implements "proof-first, arrow-subject, bullets, greeting & full links")
 
 import os, random, textwrap, json, pathlib, yaml
 from typing import Dict, Tuple, Any
@@ -21,7 +21,7 @@ class EmailComposer:
     """
     Compose cold emails that follow the high-conversion pattern:
     • Arrow subject (≤ 9 words) with KPI outcome
-    • Greeting line (“Hi <FirstName>,”)
+    • Greeting line ("Hi <FirstName>,")
     • Proof-point sentence
     • One-clause personalization anchor
     • Outcome-oriented bullets (bold benefit)
@@ -38,11 +38,11 @@ class EmailComposer:
             """
             You are an elite SDR writing ultra-concise, persuasive outbound emails.
 
-            • SUBJECT: outcome-question with an arrow “→” (<= 9 words). Example:
-              “Jane → Cut patient calls 40 %?”
+            • SUBJECT: outcome-question with an arrow "→" (<= 9 words). Example:
+              "Jane → Cut patient calls 40 %?"
 
             • BODY FORMAT (each part on its own line, exactly in this order):
-              1. “Hi <FirstName>,”
+              1. "Hi <FirstName>,"
               2. One-sentence proof metric from a similar company (use provided proof point).
               3. One clause personalisation about the prospect or their org (use data supplied).
               4. Bullets (3-4) — each begins with **bold benefit** then one-line mechanism.
@@ -123,7 +123,31 @@ class EmailComposer:
             return None
 
         subject, body = self._parse(rsp.choices[0].message.content)
-        body += self._signature()
+        
+        # Format the body with proper spacing
+        lines = body.split('\n')
+        formatted_lines = []
+        
+        for i, line in enumerate(lines):
+            line = line.strip()
+            if not line:
+                continue
+                
+            # Add proper spacing between sections
+            if i > 0 and not line.startswith('**'):  # Not a bullet point
+                formatted_lines.append('')  # Add blank line before new section
+            formatted_lines.append(line)
+            
+            # Add spacing after bullet points
+            if line.startswith('**'):
+                formatted_lines.append('')
+        
+        # Join lines and clean up extra spacing
+        body = '\n'.join(formatted_lines).strip()
+        
+        # Add signature with proper spacing
+        body += '\n\n' + self._signature()
+        
         return {"subject": subject, "body": body}
 
     # ----------------------------- helpers --------------------------------- #
@@ -153,7 +177,7 @@ class EmailComposer:
 
     @staticmethod
     def _parse(raw: str) -> Tuple[str, str]:
-        """Split the model’s response into subject & body, stripping rogue sigs."""
+        """Split the model's response into subject & body, stripping rogue sigs."""
         subj = body = ""
         lines = [l for l in raw.strip().splitlines() if l]
         for i, l in enumerate(lines):
@@ -169,15 +193,11 @@ class EmailComposer:
 
     @staticmethod
     def _signature() -> str:
-        return textwrap.dedent(
-            """
+        return """Cheers,
 
-            Cheers,
-            Pranav Modi
-            CEO · Possible Minds
-            https://possibleminds.in · https://www.linkedin.com/in/pranav-modi-5a3a9b7/
-            """
-        )
+Pranav Modi
+CEO · Possible Minds
+https://possibleminds.in · https://www.linkedin.com/in/pranav-modi-5a3a9b7/"""
 
 # --------------------------------------------------------------------------- #
 if __name__ == "__main__":
