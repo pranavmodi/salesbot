@@ -54,68 +54,6 @@ import re
 from email.utils import make_msgid
 
 # ------------------------------------------------------------------ #
-def _markdown_to_html(markdown: str) -> str:
-    """Basic Markdown-ish → HTML for cold-email body."""
-    text = markdown.strip()
-
-    # First convert markdown bold to HTML strong tags
-    text = re.sub(r"\*\*(.*?)\*\*", r"<strong>\1</strong>", text)
-
-    # escape any stray angle brackets
-    text = text.replace("<", "&lt;").replace(">", "&gt;")
-
-    # Now unescape the strong tags we want to keep
-    text = text.replace("&lt;strong&gt;", "<strong>").replace("&lt;/strong&gt;", "</strong>")
-
-    # split into lines so we can detect lists / paras
-    html_lines = []
-    for line in text.splitlines():
-        line = line.rstrip()
-        if not line:
-            html_lines.append("")                # blank line → paragraph break
-        elif re.match(r"^(\* |- |• )", line) or "<strong>" in line:
-            clean = re.sub(r"^(\* |- |• )\s*", "", line)
-            html_lines.append(f"<li>{clean}</li>")
-        else:
-            html_lines.append(line)
-
-    # Collapse into blocks
-    html_body = []
-    in_list = False
-    for l in html_lines:
-        if l.startswith("<li>"):
-            if not in_list:
-                html_body.append("<ul style='margin-top:0; margin-bottom:1em;'>"); in_list = True
-            html_body.append(l)
-        else:
-            if in_list:                          # close any open list
-                html_body.append("</ul>"); in_list = False
-            if l == "":
-                html_body.append("</p><p>")
-            else:
-                html_body.append(l)
-
-    if in_list:
-        html_body.append("</ul>")
-
-    # Split the body into main content and signature
-    content = "".join(html_body).strip()
-    signature_parts = content.split("Cheers,")
-    
-    if len(signature_parts) > 1:
-        main_content = signature_parts[0].strip()
-        signature = "Cheers," + signature_parts[1].strip()
-        
-        # Format signature with proper line breaks
-        signature_lines = signature.split('\n')
-        signature_html = []
-        for line in signature_lines:
-            if line.strip():
-                signature_html.append(line.strip())
-        
-        return f"<p>{main_content}</p><div class='signature'>{'<br>'.join(signature_html)}</div>"
-    else:
-        return f"<p>{content}</p>"
 
 def send_email(recipient_email: str, subject: str, body_markdown: str) -> bool:
     """Render a nicer HTML template & send."""
@@ -129,29 +67,29 @@ def send_email(recipient_email: str, subject: str, body_markdown: str) -> bool:
     msg.set_content(body_markdown)
 
     # ---------- HTML part -------------------
-    html_body   = _markdown_to_html(body_markdown)
-    full_html = f"""\
-<!DOCTYPE html><html><head>
-<meta charset="UTF-8">
-<style>
-  body {{ font-family: Arial, sans-serif; color:#333; line-height: 1.6; }}
-  a {{ color:#0066cc; text-decoration: none; }}
-  .container {{ max-width:600px; margin:0 auto; padding:24px; }}
-  p {{ margin: 0 0 1.2em 0; }}
-  ul {{ margin: 0 0 1.2em 0; padding-left: 1.5em; }}
-  li {{ margin: 0.8em 0; }}
-  strong {{ color: #000; font-weight: 600; }}
-  .signature {{ margin-top: 2em; line-height: 1.8; }}
-</style>
-</head><body>
-  <table role="presentation" class="container" width="100%" cellspacing="0" cellpadding="0">
-    <tr><td>
-      {html_body}
-    </td></tr>
-  </table>
-</body></html>"""
+    # html_body   = _markdown_to_html(body_markdown)
+    # full_html = f"""\
+# <!DOCTYPE html><html><head>
+# <meta charset="UTF-8">
+# <style>
+#  body {{ font-family: Arial, sans-serif; color:#333; line-height: 1.6; }}
+#  a {{ color:#0066cc; text-decoration: none; }}
+#  .container {{ max-width:600px; margin:0 auto; padding:24px; }}
+#  p {{ margin: 0 0 1.2em 0; }}
+#  ul {{ margin: 0 0 1.2em 0; padding-left: 1.5em; }}
+#  li {{ margin: 0.8em 0; }}
+#  strong {{ color: #000; font-weight: 600; }}
+#  .signature {{ margin-top: 2em; line-height: 1.8; }}
+# </style>
+# </head><body>
+#  <table role="presentation" class="container" width="100%" cellspacing="0" cellpadding="0">
+#    <tr><td>
+#      {html_body}
+#    </td></tr>
+#  </table>
+# </body></html>"""
 
-    msg.add_alternative(full_html, subtype="html")
+    # msg.add_alternative(full_html, subtype="html")
 
     # ---------- send ------------------------
     context = ssl.create_default_context()
