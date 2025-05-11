@@ -6,7 +6,7 @@ import os
 from email.message import EmailMessage
 from dotenv import load_dotenv
 from database import InteractionsDB
-from email_composer import EmailComposer  # Add this import
+from composer_instance import composer
 
 # Load environment variables from .env file
 load_dotenv()
@@ -47,9 +47,8 @@ except (ValueError, TypeError):
      print("Please check the SMTP_PORT value in your .env file.")
      exit(1)
 
-# Initialize the database and email composer
+# Initialize the database
 db = InteractionsDB()
-composer = EmailComposer()
 
 import re
 from email.utils import make_msgid

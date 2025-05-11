@@ -1,12 +1,11 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 import csv
 from send_emails import send_email
-from email_composer import EmailComposer
+from composer_instance import composer
 from datetime import datetime
 import os
 
 app = Flask(__name__)
-composer = EmailComposer()
 
 # Initialize email history file
 HISTORY_FILE = 'email_history.csv'
@@ -51,7 +50,7 @@ def save_to_history(email_data):
 @app.route('/')
 def index():
     page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 3, type=int)
+    per_page = request.args.get('per_page', 1, type=int)  # Default to 1 for debugging
     leads = load_leads()
     history = load_history()
     
@@ -94,7 +93,9 @@ def get_leads():
 @app.route('/preview_email', methods=['POST'])
 def preview_email():
     lead_info = request.json
+    print("Received lead info:", lead_info)  # Debug log
     email_content = composer.compose_email(lead_info)
+    print("Generated email content:", email_content)  # Debug log
     if email_content:
         return jsonify({
             'subject': email_content['subject'],
@@ -108,6 +109,8 @@ def preview_email():
 @app.route('/send_email', methods=['POST'])
 def send_email_route():
     lead_index = int(request.form.get('lead_index'))
+    preview_subject = request.form.get('preview_subject')  # Get the preview subject
+    preview_body = request.form.get('preview_body')        # Get the preview body
     leads = load_leads()
     
     if 0 <= lead_index < len(leads):
@@ -119,18 +122,18 @@ def send_email_route():
             'position': lead.get('Position', '')
         }
         
-        email_content = composer.compose_email(lead_info)
-        if email_content:
+        # Use the preview content instead of generating new content
+        if preview_subject and preview_body:
             # Temporarily send to test email instead of lead's email
             test_email = 'pranav.modi@gmail.com'
-            success = send_email(test_email, email_content['subject'], email_content['body'])
+            success = send_email(test_email, preview_subject, preview_body)
             
             # Create email history entry
             email_data = {
                 'date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 'to': test_email,  # Store test email in history
-                'subject': email_content['subject'],
-                'body': email_content['body'],
+                'subject': preview_subject,
+                'body': preview_body,
                 'status': 'Success' if success else 'Failed'
             }
             
@@ -144,7 +147,7 @@ def send_email_route():
     
     return jsonify({
         'success': False,
-        'message': 'Invalid lead index'
+        'message': 'Invalid lead index or missing preview content'
     })
 
 if __name__ == '__main__':

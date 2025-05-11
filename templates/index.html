@@ -212,8 +212,26 @@
             })
             .then(response => response.json())
             .then(data => {
+                console.log('Preview data received:', data);  // Debug log
                 const previewDiv = document.getElementById(`preview-${index}`);
-                previewDiv.innerHTML = `<strong>Subject:</strong> ${data.subject}\n\n${data.body}`;
+                if (!data.body) {
+                    console.error('No body in response:', data);
+                    previewDiv.innerHTML = 'Error: No email body received';
+                    return;
+                }
+                // Format the preview with proper line breaks and styling
+                const formattedBody = data.body.split('\n').map(line => {
+                    // Preserve empty lines
+                    if (!line.trim()) return '<br>';
+                    // Preserve indentation
+                    return line.replace(/^(\s+)/, match => '&nbsp;'.repeat(match.length)) + '<br>';
+                }).join('');
+                console.log('Formatted body:', formattedBody);  // Debug log
+                previewDiv.innerHTML = `
+                    <div class="mb-2"><strong>Subject:</strong> ${data.subject}</div>
+                    <div class="email-body">${formattedBody}</div>
+                `;
+                console.log('Final HTML:', previewDiv.innerHTML);  // Debug log
             })
             .catch(error => {
                 console.error('Error:', error);
@@ -223,6 +241,12 @@
 
         function sendEmail(button) {
             const leadIndex = button.dataset.leadIndex;
+            const previewDiv = document.getElementById(`preview-${leadIndex}`);
+            
+            // Get subject and body from the formatted preview
+            const subject = previewDiv.querySelector('strong').nextSibling.textContent.trim();
+            const body = previewDiv.querySelector('div.email-body').innerHTML.replace(/<br>/g, '\n');
+            
             button.disabled = true;
             button.innerHTML = 'Sending...';
 
@@ -231,7 +255,7 @@
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
-                body: `lead_index=${leadIndex}`
+                body: `lead_index=${leadIndex}&preview_subject=${encodeURIComponent(subject)}&preview_body=${encodeURIComponent(body)}`
             })
             .then(response => response.json())
             .then(data => {
