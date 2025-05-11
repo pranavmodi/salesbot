@@ -54,7 +54,7 @@ class WarmEmailComposer:
             2. A short and natural intro about who you are (1 sentence)
             3. Say what you found interesting about their work or company (use context if provided)
             4. Offer a light, low-pressure invitation to talk — leave room for them to say no
-            5. Friendly sign-off
+            5. Friendly sign-off (e.g. "Warm regards," "Best," - DO NOT include your name here, it will be added later)
             
             Stay under 120 words. Casual and kind tone. Let them feel safe and in control.
 
@@ -105,10 +105,13 @@ class WarmEmailComposer:
 
         subject, body = self._parse(rsp.choices[0].message.content)
         print("Parsed subject:", subject)  # Debug log
-        print("Parsed body:", body)  # Debug log
+        print("Parsed body (before signature):", body)  # Debug log
         
-        result = {"subject": subject, "body": body.strip()}
-        print("Final result:", result)  # Debug log
+        body = body.strip() # Ensure no trailing newlines before adding signature
+        body += '\n\n' + self._signature()
+        
+        result = {"subject": subject, "body": body}
+        print("Final result (with signature):", result)  # Debug log
         return result
 
     @staticmethod
@@ -129,24 +132,67 @@ class WarmEmailComposer:
         print("Split lines:", lines)  # Debug log
         
         # Find subject line
+        body_start_index = 0
         for i, line in enumerate(lines):
             print(f"Processing line {i}: {line}")  # Debug log
             if line.lower().startswith("subject:"):
                 subj = line.split(":", 1)[1].strip()
                 print(f"Found subject: {subj}")  # Debug log
-                # Get all lines after subject as body
-                body_lines = []
-                for body_line in lines[i+1:]:
-                    if body_line.lower().startswith("warm regards,"):
-                        break
-                    body_lines.append(body_line)
-                body = "\n".join(body_lines).strip()
+                body_start_index = i + 1
                 break
+            elif i == 0: # Fallback: if no "Subject:" prefix, assume first line is subject
+                subj = line.strip()
+                print(f"Assumed subject (no prefix): {subj}") # Debug log
+                body_start_index = i + 1
+
+
+        # Get all lines after subject as body, stopping before common sign-offs
+        body_lines = []
+        if body_start_index < len(lines):
+            stop_phrases = ("warm regards,", "best regards,", "sincerely,", "cheers,", "regards,", "best,", "thanks,", "yours,", "kind regards,")
+            for line_content in lines[body_start_index:]:
+                found_stop = False
+                for phrase in stop_phrases:
+                    # Check if the line *starts with* a stop phrase (case-insensitive, ignoring leading/trailing whitespace on the line)
+                    if line_content.lower().strip().startswith(phrase):
+                        found_stop = True
+                        break
+                if found_stop:
+                    break 
+                body_lines.append(line_content)
         
+        body = "\n".join(body_lines).strip()
+        
+        # If body is empty and subject wasn't prefixed, assume entire raw content (minus first line) was body
+        if not body and not raw.lower().strip().startswith("subject:"):
+            body = "\n".join(lines[1:]).strip()
+            # Re-apply stop phrase stripping
+            temp_body_lines = body.splitlines()
+            final_body_lines = []
+            for line_content in temp_body_lines:
+                found_stop = False
+                for phrase in stop_phrases:
+                    if line_content.lower().strip().startswith(phrase):
+                        found_stop = True
+                        break
+                if found_stop:
+                    break
+                final_body_lines.append(line_content)
+            body = "\n".join(final_body_lines).strip()
+
+
         print(f"Parsed subject: {subj}")  # Debug log
-        print(f"Parsed body: {body}")  # Debug log
+        print(f"Parsed body (after stripping stop phrases): {body}")  # Debug log
         
         return subj, body
+
+    @staticmethod
+    def _signature() -> str:
+        return """Cheers,
+
+Pranav Modi
+CEO · Possible Minds (https://possibleminds.in)
+https://www.linkedin.com/in/pranav-modi-5a3a9b7/"""
 
 # Example usage:
 if __name__ == "__main__":

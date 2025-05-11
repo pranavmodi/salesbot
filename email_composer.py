@@ -145,10 +145,14 @@ class EmailComposer:
         # Join lines and clean up extra spacing
         body = '\n'.join(formatted_lines).strip()
         
+        print(f"DEBUG: Body before adding signature: |{body}|")
+        signature = self._signature()
+        print(f"DEBUG: Generated signature: |{signature}|")
         # Add signature with proper spacing
-        body += '\n\n' + self._signature()
+        body_with_signature = body + '\n\n' + signature
+        print(f"DEBUG: Body after adding signature: |{body_with_signature}|")
         
-        return {"subject": subject, "body": body}
+        return {"subject": subject, "body": body_with_signature}
 
     # ----------------------------- helpers --------------------------------- #
     @staticmethod
@@ -196,8 +200,8 @@ class EmailComposer:
         return """Cheers,
 
 Pranav Modi
-CEO · Possible Minds
-https://possibleminds.in · https://www.linkedin.com/in/pranav-modi-5a3a9b7/"""
+CEO · Possible Minds (https://possibleminds.in)
+https://www.linkedin.com/in/pranav-modi-5a3a9b7/"""
 
 # --------------------------------------------------------------------------- #
 if __name__ == "__main__":
@@ -209,8 +213,8 @@ if __name__ == "__main__":
         "email": "kristin.graves@fastpacehealth.com",
     }
     email = composer.compose_email(lead_example)
-    if email:
-        print("=" * 72)
-        print("SUBJECT:", email["subject"])
-        print("-" * 72)
-        print(email["body"])
+    # if email:
+    #     print("=" * 72)
+    #     print("SUBJECT:", email["subject"])
+    #     print("-" * 72)
+    #     print(email["body"])
