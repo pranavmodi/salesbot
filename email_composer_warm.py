@@ -47,7 +47,7 @@ class WarmEmailComposer:
 
             Use this format:
             
-            Subject: A sincere, brief phrase (no marketing speak) ("Our work at Possible Minds")
+            Subject: use this text "Our work at Possible Minds" ( do not use name in subject)
             
             Body:
             1. Greeting using only the person's first name followed by a comma and newline (no "Hi" or "Hello")
@@ -55,9 +55,11 @@ class WarmEmailComposer:
             3. A short and natural intro about you (I'm the founder of Possible minds) and your interest in creating AI agents for healthcare (1-2 short sentences)
             4. Briefly mention the product and how it's deployed at healthcare companies like Precise Imaging (1 sentence)
             5. Offer a light, low-pressure invitation to talk — leave room for them to say no
-            7. End with "I know you’re busy in your journey so if you are not interested please let me know and I'll stop emailing :)"
+            7. End with "I know you're busy in your journey so if you are not interested please let me know and I'll stop emailing :)"
             8. Friendly sign-off (e.g. "Best," - DO NOT include name here, it will be added later)
 
+            IMPORTANT: You MUST include "Subject: Our work at Possible Minds" as the first line of your response.
+            DO NOT start with the person's name as the first line of your response.
             
             Stay under 120 words. Casual and kind tone. Let them feel safe and in control. Do not use overused, business-speak words like synergy.
 
@@ -143,11 +145,12 @@ class WarmEmailComposer:
                 print(f"Found subject: {subj}")  # Debug log
                 body_start_index = i + 1
                 break
-            elif i == 0: # Fallback: if no "Subject:" prefix, assume first line is subject
-                subj = line.strip()
-                print(f"Assumed subject (no prefix): {subj}") # Debug log
-                body_start_index = i + 1
-
+        
+        # If no subject line found, use default
+        if not subj:
+            subj = "Our work at Possible Minds"
+            print(f"No subject found, using default: {subj}")
+            body_start_index = 0  # Use all lines for body when no subject found
 
         # Get all lines after subject as body, stopping before common sign-offs
         body_lines = []
@@ -168,7 +171,8 @@ class WarmEmailComposer:
         
         # If body is empty and subject wasn't prefixed, assume entire raw content (minus first line) was body
         if not body and not raw.lower().strip().startswith("subject:"):
-            body = "\n".join(lines[1:]).strip()
+            # We're now handling this case with the default subject, so just use all lines
+            body = "\n".join(lines).strip()
             # Re-apply stop phrase stripping
             temp_body_lines = body.splitlines()
             final_body_lines = []
