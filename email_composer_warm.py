@@ -62,8 +62,9 @@ class WarmEmailComposer:
             10. Add a blank line
             11. Final line: "I know you're busy in your journey so if you are not interested please let me know and I'll stop emailing :)"
             12. Sign-off on its own line (e.g., "Best," - DO NOT include name here, it will be added later)
-            13. ALWAYS add a p.s. section (all lowercase, with a period after "p" and "s") mentioning "p.s. in good company - we've successfully deployed at Precise Imaging where our chatbot is helping reduce appointment no-shows and improving patient engagement."
+            13. ALWAYS add two blank lines after the sign-off, then include: "p.s. in good company - we've successfully deployed at Precise Imaging where our chatbot is helping reduce appointment no-shows and improving patient engagement."
 
+            IMPORTANT: The p.s. section MUST be included. This is REQUIRED in EVERY email.
             IMPORTANT: You MUST include "Subject: Our work at Possible Minds" as the first line of your response.
             DO NOT start with the person's name as the first line of your response.
             
@@ -120,6 +121,12 @@ class WarmEmailComposer:
         
         body = body.strip() # Ensure no trailing newlines before adding signature
         body += '\n\n' + self._signature()
+        
+        # Check if p.s. section is missing and add it if needed
+        ps_text = "p.s. in good company - we've successfully deployed at Precise Imaging where our chatbot is helping reduce appointment no-shows and improving patient engagement."
+        if not "p.s." in body.lower():
+            body += f"\n\n{ps_text}"
+            print("Added missing p.s. section")
         
         result = {"subject": subject, "body": body}
         print("Final result (with signature):", result)  # Debug log
