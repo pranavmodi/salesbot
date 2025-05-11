@@ -53,6 +53,7 @@
                     <div class="d-flex align-items-center">
                         <label for="perPage" class="me-2">Rows per page:</label>
                         <select id="perPage" class="form-select" style="width: auto;">
+                            <option value="1" {% if per_page == 1 %}selected{% endif %}>1</option>
                             <option value="3" {% if per_page == 3 %}selected{% endif %}>3</option>
                             <option value="5" {% if per_page == 5 %}selected{% endif %}>5</option>
                             <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
