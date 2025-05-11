@@ -50,13 +50,13 @@ class WarmEmailComposer:
             Subject: A sincere, brief phrase (no marketing speak)
             
             Body:
-            1. Greeting using the person's first name
-            2. A short and natural intro about who you are (1 sentence)
+            1. Greeting using only the person's first name (no "Hi" or "Hello")
+            2. A short and natural intro about who you are and how the product is helping Precise Imaging (2 sentences)
             3. Say what you found interesting about their work or company (use context if provided)
             4. Offer a light, low-pressure invitation to talk — leave room for them to say no
-            5. Friendly sign-off (e.g. "Warm regards," "Best," - DO NOT include your name here, it will be added later)
+            5. Friendly sign-off (e.g. "Best," - DO NOT include your name here, it will be added later)
             
-            Stay under 120 words. Casual and kind tone. Let them feel safe and in control.
+            Stay under 120 words. Casual and kind tone. Let them feel safe and in control. Do not use overused, business-speak words like synergy.
 
             Here is some context about the sender and their product:
             """ + SENDER_INFO)

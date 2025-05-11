@@ -66,31 +66,6 @@ def send_email(recipient_email: str, subject: str, body_markdown: str) -> bool:
     # ---------- plain-text part -------------
     msg.set_content(body_markdown)
 
-    # ---------- HTML part -------------------
-    # html_body   = _markdown_to_html(body_markdown)
-    # full_html = f"""\
-# <!DOCTYPE html><html><head>
-# <meta charset="UTF-8">
-# <style>
-#  body {{ font-family: Arial, sans-serif; color:#333; line-height: 1.6; }}
-#  a {{ color:#0066cc; text-decoration: none; }}
-#  .container {{ max-width:600px; margin:0 auto; padding:24px; }}
-#  p {{ margin: 0 0 1.2em 0; }}
-#  ul {{ margin: 0 0 1.2em 0; padding-left: 1.5em; }}
-#  li {{ margin: 0.8em 0; }}
-#  strong {{ color: #000; font-weight: 600; }}
-#  .signature {{ margin-top: 2em; line-height: 1.8; }}
-# </style>
-# </head><body>
-#  <table role="presentation" class="container" width="100%" cellspacing="0" cellpadding="0">
-#    <tr><td>
-#      {html_body}
-#    </td></tr>
-#  </table>
-# </body></html>"""
-
-    # msg.add_alternative(full_html, subtype="html")
-
     # ---------- send ------------------------
     context = ssl.create_default_context()
     try:
