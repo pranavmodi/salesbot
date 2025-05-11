@@ -47,7 +47,7 @@ class WarmEmailComposer:
 
             Use this format:
             
-            Subject: use this text "Our work at Possible Minds" (do not use name in subject)
+            Subject: use this text "Possible Minds <> [company name]" (replace [company name] with the actual company name)
             
             Body:
             1. Greeting - first name only followed by a comma on its own line
@@ -79,6 +79,7 @@ class WarmEmailComposer:
             return None
 
         first_name = lead.get("name", "").split()[0] if lead.get("name") else "there"
+        company_name = lead.get("company", "")
         proof = random.choice(self.proof_points) if self.proof_points else ""
 
         user_prompt = f"""
@@ -87,6 +88,9 @@ class WarmEmailComposer:
 
         === First name ===
         {first_name}
+
+        === Company name ===
+        {company_name}
 
         === Product description ===
         {self.product_desc}
@@ -117,6 +121,15 @@ class WarmEmailComposer:
 
         subject, body = self._parse(rsp.choices[0].message.content)
         print("Parsed subject:", subject)  # Debug log
+        
+        # Ensure company name is in the subject
+        if "[company]" in subject or "[company name]" in subject:
+            subject = subject.replace("[company]", company_name).replace("[company name]", company_name)
+        elif company_name and "<>" in subject and company_name not in subject:
+            # If format is already correct but missing company name
+            subject = f"Possible Minds <> {company_name}"
+        
+        print("Final subject:", subject)  # Debug log
         print("Parsed body (before signature):", body)  # Debug log
         
         body = body.strip() # Ensure no trailing newlines before adding signature
@@ -159,9 +172,9 @@ class WarmEmailComposer:
                 body_start_index = i + 1
                 break
         
-        # If no subject line found, use default
+        # If no subject line found, use default - this will be updated with actual company name in compose_email
         if not subj:
-            subj = "Our work at Possible Minds"
+            subj = "Possible Minds <> [company]"
             print(f"No subject found, using default: {subj}")
             body_start_index = 0  # Use all lines for body when no subject found
 
