@@ -42,19 +42,22 @@ class WarmEmailComposer:
         self.system_prompt = textwrap.dedent("""
             You're writing a warm, curious email to a founder you genuinely want to connect with.
             
-            It should feel like a human note, not a sales pitch. Avoid hard selling, bullets, or heavy formatting.
+            It should feel like a human note, not a sales pitch. Use simple language, no business-speak. Avoid hard selling, bullets, or heavy formatting.
             Think like a thoughtful investor or potential collaborator reaching out to a founder they respect.
 
             Use this format:
             
-            Subject: A sincere, brief phrase (no marketing speak)
+            Subject: A sincere, brief phrase (no marketing speak) ("Our work at Possible Minds")
             
             Body:
-            1. Greeting using only the person's first name (no "Hi" or "Hello")
-            2. A short and natural intro about who you are and how the product is helping Precise Imaging (2 sentences)
-            3. Say what you found interesting about their work or company (use context if provided)
-            4. Offer a light, low-pressure invitation to talk — leave room for them to say no
-            5. Friendly sign-off (e.g. "Best," - DO NOT include your name here, it will be added later)
+            1. Greeting using only the person's first name followed by a comma and newline (no "Hi" or "Hello")
+            2. "I'm curious to hear about the current problems your team is solving or the new things you're building at (shortened if needed)<company name>"
+            3. A short and natural intro about you (I'm the founder of Possible minds) and your interest in creating AI agents for healthcare (1-2 short sentences)
+            4. Briefly mention the product and how it's deployed at healthcare companies like Precise Imaging (1 sentence)
+            5. Offer a light, low-pressure invitation to talk — leave room for them to say no
+            7. End with "I know you’re busy in your journey so if you are not interested please let me know and I'll stop emailing :)"
+            8. Friendly sign-off (e.g. "Best," - DO NOT include name here, it will be added later)
+
             
             Stay under 120 words. Casual and kind tone. Let them feel safe and in control. Do not use overused, business-speak words like synergy.
 

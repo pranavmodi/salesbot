@@ -126,12 +126,12 @@ def send_email_route():
         if preview_subject and preview_body:
             # Temporarily send to test email instead of lead's email
             test_email = 'pranav.modi@gmail.com'
-            success = send_email(test_email, preview_subject, preview_body)
+            success = send_email(lead_info['email'], preview_subject, preview_body)
             
             # Create email history entry
             email_data = {
                 'date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                'to': test_email,  # Store test email in history
+                'to': lead_info['email'],  # Store lead's email in history
                 'subject': preview_subject,
                 'body': preview_body,
                 'status': 'Success' if success else 'Failed'
@@ -142,7 +142,7 @@ def send_email_route():
             
             return jsonify({
                 'success': success,
-                'message': f"Email {'sent' if success else 'failed'} to {test_email}"
+                'message': f"Email {'sent' if success else 'failed'} to {lead_info['email']}"
             })
     
     return jsonify({
