@@ -90,6 +90,31 @@ def get_leads():
         'total_leads': total_leads
     })
 
+@app.route('/get_unsent_leads')
+def get_unsent_leads():
+    """Identify leads who haven't received emails yet"""
+    leads = load_leads()
+    history = load_history()
+    
+    # Create a set of emails that have been sent to already
+    sent_emails = {record['to'].lower() for record in history}
+    
+    # Filter leads that haven't been sent emails
+    unsent_leads = []
+    for lead in leads:
+        # Skip leads without email addresses
+        if not lead.get('Work Email'):
+            continue
+            
+        email = lead['Work Email'].lower()
+        if email and email not in sent_emails:
+            unsent_leads.append(lead)
+    
+    return jsonify({
+        'unsent_leads': unsent_leads,
+        'count': len(unsent_leads)
+    })
+
 @app.route('/preview_email', methods=['POST'])
 def preview_email():
     lead_info = request.json
@@ -141,6 +166,81 @@ def send_email_route():
     return jsonify({
         'success': success,
         'message': f"Email {'sent' if success else 'failed'} to {recipient_email}"
+    })
+
+@app.route('/send_bulk_emails', methods=['POST'])
+def send_bulk_emails():
+    """Send emails to multiple leads"""
+    data = request.json
+    recipients = data.get('recipients', [])
+    
+    if not recipients:
+        return jsonify({
+            'success': False,
+            'message': 'No recipients provided'
+        })
+    
+    results = {
+        'success': 0,
+        'failed': 0,
+        'failures': []
+    }
+    
+    for recipient in recipients:
+        lead_info = {
+            'name': recipient.get('First Name', ''),
+            'email': recipient.get('Work Email', ''),
+            'company': recipient.get('Company Name', ''),
+            'position': recipient.get('Job Title', '')
+        }
+        
+        # Skip if no email is provided
+        if not lead_info['email']:
+            results['failed'] += 1
+            results['failures'].append({
+                'name': lead_info['name'], 
+                'reason': 'Missing email address'
+            })
+            continue
+        
+        # Generate email content
+        email_content = composer.compose_email(lead_info)
+        
+        if not email_content:
+            results['failed'] += 1
+            results['failures'].append({
+                'name': lead_info['name'],
+                'email': lead_info['email'],
+                'reason': 'Failed to generate email content'
+            })
+            continue
+        
+        # Send the email
+        success = send_email(lead_info['email'], email_content['subject'], email_content['body'])
+        
+        if success:
+            results['success'] += 1
+            # Save to history
+            email_data = {
+                'date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                'to': lead_info['email'],
+                'subject': email_content['subject'],
+                'body': email_content['body'],
+                'status': 'Success'
+            }
+            save_to_history(email_data)
+        else:
+            results['failed'] += 1
+            results['failures'].append({
+                'name': lead_info['name'],
+                'email': lead_info['email'],
+                'reason': 'Failed to send email'
+            })
+    
+    return jsonify({
+        'success': results['failed'] == 0,
+        'results': results,
+        'message': f"Successfully sent {results['success']} emails. Failed to send {results['failed']} emails."
     })
 
 if __name__ == '__main__':
