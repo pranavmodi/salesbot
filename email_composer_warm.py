@@ -54,7 +54,7 @@ class WarmEmailComposer:
             2. Add a blank line after the greeting
             3. First paragraph (EXACTLY ONE SENTENCE): Express genuine curiosity about how they're using AI to create impact at their company. Use phrasing like "I'm curious about how you're using AI to create impact at [shortened company name]". Keep it brief and focused - do not add additional sentences about enhancing specific aspects of their business.
             4. Add a blank line between paragraphs
-            5. Second paragraph (2-3 sentences): Brief intro about you and Possible Minds, mention your focus on AI Agents for healthcare
+            5. Second paragraph (2-3 sentences): Brief intro starting with "I'm the founder of Possible Minds", mention your focus on AI Agents for healthcare
             6. Add a blank line
             7. Third paragraph (1-2 sentences): Briefly mention your AI chatbot is helping "healthcare companies like yours" - do NOT mention Precise Imaging here
             8. Add a blank line

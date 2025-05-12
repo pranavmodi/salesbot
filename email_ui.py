@@ -111,43 +111,36 @@ def send_email_route():
     lead_index = int(request.form.get('lead_index'))
     preview_subject = request.form.get('preview_subject')  # Get the preview subject
     preview_body = request.form.get('preview_body')        # Get the preview body
-    leads = load_leads()
     
-    if 0 <= lead_index < len(leads):
-        lead = leads[lead_index]
-        lead_info = {
-            'name': lead.get('First Name', ''),
-            'email': lead.get('Work Email', ''),
-            'company': lead.get('Company', ''),
-            'position': lead.get('Position', '')
-        }
-        
-        # Use the preview content instead of generating new content
-        if preview_subject and preview_body:
-            # Temporarily send to test email instead of lead's email
-            test_email = 'pranav.modi@gmail.com'
-            success = send_email(lead_info['email'], preview_subject, preview_body)
-            
-            # Create email history entry
-            email_data = {
-                'date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                'to': lead_info['email'],  # Store lead's email in history
-                'subject': preview_subject,
-                'body': preview_body,
-                'status': 'Success' if success else 'Failed'
-            }
-            
-            # Save to history
-            save_to_history(email_data)
-            
-            return jsonify({
-                'success': success,
-                'message': f"Email {'sent' if success else 'failed'} to {lead_info['email']}"
-            })
+    # Get recipient information directly from form data
+    recipient_email = request.form.get('recipient_email')
+    recipient_name = request.form.get('recipient_name')
+    
+    # Validation
+    if not (preview_subject and preview_body and recipient_email):
+        return jsonify({
+            'success': False,
+            'message': 'Missing required email information'
+        })
+    
+    # Use the preview content directly with the specified recipient
+    success = send_email(recipient_email, preview_subject, preview_body)
+    
+    # Create email history entry
+    email_data = {
+        'date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        'to': recipient_email,  # Store the explicit recipient email
+        'subject': preview_subject,
+        'body': preview_body,
+        'status': 'Success' if success else 'Failed'
+    }
+    
+    # Save to history
+    save_to_history(email_data)
     
     return jsonify({
-        'success': False,
-        'message': 'Invalid lead index or missing preview content'
+        'success': success,
+        'message': f"Email {'sent' if success else 'failed'} to {recipient_email}"
     })
 
 if __name__ == '__main__':
