@@ -2,5 +2,5 @@ psycopg2-binary
 alembic
 SQLAlchemy
 python-dotenv
-pandas
-# sqlite3  # Usually comes with Python standard library 
+pandas>=1.5.0
+numpy>=1.21.0 
