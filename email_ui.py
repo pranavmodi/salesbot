@@ -1,18 +1,31 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for
-import csv
 from send_emails import send_email
 from composer_instance import composer
 from datetime import datetime
 import os
+from dotenv import load_dotenv
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
+import logging
 
 app = Flask(__name__)
+load_dotenv() # Load environment variables
 
-# Initialize email history file
-HISTORY_FILE = 'email_history.csv'
-if not os.path.exists(HISTORY_FILE):
-    with open(HISTORY_FILE, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-        writer.writerow(['date', 'to', 'subject', 'body', 'status'])
+# Configure basic logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+def get_db_engine():
+    if not DATABASE_URL:
+        logging.error("DATABASE_URL not configured.")
+        return None
+    try:
+        engine = create_engine(DATABASE_URL)
+        return engine
+    except Exception as e:
+        logging.error(f"Error creating database engine: {e}")
+        return None
 
 def load_leads():
     leads = []
@@ -26,26 +39,57 @@ def load_leads():
     return leads
 
 def load_history():
+    engine = get_db_engine()
+    if not engine:
+        return []
     history = []
     try:
-        with open(HISTORY_FILE, mode='r', encoding='utf-8') as file:
-            csv_reader = csv.DictReader(file)
-            for row in csv_reader:
-                history.append(row)
+        with engine.connect() as connection:
+            result = connection.execute(text("SELECT id, date, \"to\", subject, body, status FROM email_history ORDER BY date DESC"))
+            for row in result:
+                # Convert row to a dictionary-like object or a plain dictionary
+                # The template likely expects dictionary access (e.g., email['subject'])
+                history.append(dict(row._mapping)) # _mapping gives dict-like access to columns
+        logging.info(f"Loaded {len(history)} records from email_history table.")
+    except SQLAlchemyError as e:
+        logging.error(f"Error loading history from database: {e}")
     except Exception as e:
-        print(f"Error loading history: {str(e)}")
+        logging.error(f"An unexpected error occurred while loading history: {e}")
     return history
 
 def save_to_history(email_data):
-    with open(HISTORY_FILE, 'a', newline='', encoding='utf-8') as file:
-        writer = csv.writer(file)
-        writer.writerow([
-            email_data['date'],
-            email_data['to'],
-            email_data['subject'],
-            email_data['body'].replace('\n', '\\n'),
-            email_data['status']
-        ])
+    engine = get_db_engine()
+    if not engine:
+        logging.error("Failed to save to history: Database engine not available.")
+        return
+
+    try:
+        # Ensure date is in correct format or a datetime object
+        # The email_data['date'] is already a string from strftime
+        # The database expects a datetime object or a string that it can parse.
+        # If email_data['date'] is a string like "YYYY-MM-DD HH:MM:SS", it should work.
+        # For robustness, ensure it's a datetime object if not already:
+        if isinstance(email_data.get('date'), str):
+            email_data['date'] = datetime.strptime(email_data['date'], "%Y-%m-%d %H:%M:%S")
+
+        with engine.connect() as connection:
+            with connection.begin(): # Start a transaction
+                insert_query = text(
+                    'INSERT INTO email_history (date, "to", subject, body, status) '
+                    'VALUES (:date, :to, :subject, :body, :status)'
+                )
+                connection.execute(insert_query, {
+                    'date': email_data['date'],
+                    'to': email_data['to'],
+                    'subject': email_data['subject'],
+                    'body': email_data['body'], # CSV version had .replace('\\n', '\\\\n'), ensure this is handled or not needed
+                    'status': email_data['status']
+                })
+            logging.info(f"Successfully saved email to {email_data['to']} to history database.")
+    except SQLAlchemyError as e:
+        logging.error(f"Database error saving to history: {e}")
+    except Exception as e:
+        logging.error(f"An unexpected error occurred while saving to history: {e}")
 
 @app.route('/')
 def index():

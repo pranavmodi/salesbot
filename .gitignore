@@ -36,6 +36,7 @@ wheels/
 .env
 .env.local
 .env.*.local
+salesbot/
 
 # Logs
 *.log
