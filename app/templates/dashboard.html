@@ -31,8 +31,8 @@
     </div>
     <div class="col-lg-3 col-md-6 mb-3">
         <div class="stats-card">
-            <div class="stats-number" id="pendingContacts">{{ pending_contacts }}</div>
-            <div class="stats-label">Pending Outreach</div>
+            <div class="stats-number" id="uncontactedContacts">{{ uncontacted_count }}</div>
+            <div class="stats-label">Uncontacted</div>
         </div>
     </div>
 </div>
@@ -81,6 +81,13 @@
                                     <li><a class="dropdown-item" href="#" data-filter="has-phone">Has Phone</a></li>
                                     <li><a class="dropdown-item" href="#" data-filter="has-linkedin">Has LinkedIn</a></li>
                                     <li><a class="dropdown-item" href="#" data-filter="recent">Recently Added</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item" href="#" data-filter="uncontacted">
+                                        <i class="fas fa-envelope-open me-2 text-warning"></i>Uncontacted
+                                        {% if uncontacted_count > 0 %}
+                                        <span class="badge bg-warning text-dark ms-2">{{ uncontacted_count }}</span>
+                                        {% endif %}
+                                    </a></li>
                                 </ul>
                             </div>
                             <a href="/import" class="btn btn-primary">

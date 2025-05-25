@@ -26,6 +26,21 @@ def index():
     successful_emails = sum(1 for email in email_history if email['status'] == 'Success')
     success_rate = int((successful_emails / emails_sent * 100)) if emails_sent > 0 else 0
     
+    # Calculate uncontacted contacts
+    if total_contacts > 0:
+        all_contacts = Contact.load_all()
+        contacted_emails = set()
+        for email in email_history_objects:
+            if email.to:
+                contacted_emails.add(email.to.lower().strip())
+        
+        uncontacted_count = 0
+        for contact in all_contacts:
+            if contact.email and contact.email.lower().strip() not in contacted_emails:
+                uncontacted_count += 1
+    else:
+        uncontacted_count = 0
+    
     return render_template(
         'dashboard.html',
         contacts=contact_data['contacts'],
@@ -37,7 +52,8 @@ def index():
         email_history_json=email_history,     # JSON-serializable version for JavaScript
         emails_sent=emails_sent,
         success_rate=success_rate,
-        pending_contacts=len(contact_data['contacts'])
+        pending_contacts=len(contact_data['contacts']),
+        uncontacted_count=uncontacted_count
     )
 
 @bp.route('/import')

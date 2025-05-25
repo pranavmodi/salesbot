@@ -8,6 +8,7 @@ import tempfile
 import pandas as pd
 import numpy as np
 from data_ingestion_system import ContactDataIngester
+from app.models.email_history import EmailHistory
 
 bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -590,4 +591,36 @@ def preview_csv():
         
     except Exception as e:
         current_app.logger.error(f"Error in CSV preview: {str(e)}")
-        return jsonify({'error': 'Failed to preview CSV file'}), 500 
+        return jsonify({'error': 'Failed to preview CSV file'}), 500
+
+@bp.route('/contacts/uncontacted', methods=['GET'])
+def get_uncontacted_contacts():
+    """Get contacts who haven't received any emails yet."""
+    try:
+        # Get all contacts
+        all_contacts = Contact.load_all()
+        
+        # Get all email recipients from history
+        email_history = EmailHistory.load_all()
+        contacted_emails = set()
+        
+        for email in email_history:
+            if email.to:
+                contacted_emails.add(email.to.lower().strip())
+        
+        # Filter contacts who haven't been contacted
+        uncontacted_contacts = []
+        for contact in all_contacts:
+            if contact.email and contact.email.lower().strip() not in contacted_emails:
+                uncontacted_contacts.append(contact)
+        
+        return jsonify({
+            'contacts': [contact.to_dict() for contact in uncontacted_contacts],
+            'count': len(uncontacted_contacts),
+            'total_contacts': len(all_contacts),
+            'contacted_count': len(contacted_emails)
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting uncontacted contacts: {str(e)}")
+        return jsonify({'error': 'Failed to load uncontacted contacts'}), 500 

@@ -89,6 +89,12 @@ function setupFilters() {
 function applyFilter(filter) {
     const contactRows = document.querySelectorAll('.contact-row');
     
+    if (filter === 'uncontacted') {
+        // Handle uncontacted filter with API call
+        handleUncontactedFilter();
+        return;
+    }
+    
     contactRows.forEach(row => {
         let showRow = true;
         const text = row.textContent;
@@ -119,6 +125,150 @@ function applyFilter(filter) {
         }
     });
     
+    updateContactStats();
+}
+
+function handleUncontactedFilter() {
+    // Show loading state
+    const contactsContainer = document.getElementById('contactsContainer');
+    const originalContent = contactsContainer.innerHTML;
+    
+    contactsContainer.innerHTML = `
+        <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading uncontacted contacts...</p>
+        </div>
+    `;
+    
+    // Fetch uncontacted contacts
+    fetch('/api/contacts/uncontacted')
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            displayUncontactedContacts(data);
+        })
+        .catch(error => {
+            console.error('Error fetching uncontacted contacts:', error);
+            contactsContainer.innerHTML = originalContent;
+            showToast('errorToast', 'Failed to load uncontacted contacts: ' + error.message);
+        });
+}
+
+function displayUncontactedContacts(data) {
+    const contactsContainer = document.getElementById('contactsContainer');
+    
+    if (data.contacts.length === 0) {
+        contactsContainer.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                <h5 class="text-success">All contacts have been contacted!</h5>
+                <p class="text-muted">Every contact in your database has received at least one email.</p>
+                <div class="mt-3">
+                    <small class="text-muted">
+                        Total contacts: ${data.total_contacts} | 
+                        Contacted: ${data.contacted_count}
+                    </small>
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    let tableHtml = `
+        <div class="mb-3">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                Found <strong>${data.count}</strong> uncontacted contacts out of ${data.total_contacts} total contacts.
+            </div>
+        </div>
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th style="width: 50px;"></th>
+                    <th>Name</th>
+                    <th>Company</th>
+                    <th>Position</th>
+                    <th>Email</th>
+                    <th>Location</th>
+                    <th>Phone</th>
+                    <th style="width: 120px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+    
+    data.contacts.forEach(contact => {
+        const initials = contact.first_name ? contact.first_name[0].toUpperCase() : '?';
+        const displayName = contact.display_name || 'Unknown';
+        const company = contact.company || 'Not specified';
+        const jobTitle = contact.job_title || 'Not specified';
+        const location = contact.location || 'Not specified';
+        
+        tableHtml += `
+            <tr class="contact-row" data-contact-email="${contact.email}">
+                <td>
+                    <div class="contact-avatar" style="width: 36px; height: 36px; font-size: 0.875rem;">
+                        ${initials}
+                    </div>
+                </td>
+                <td>
+                    <div class="contact-name">
+                        <strong>${displayName}</strong>
+                        <br><small class="text-warning"><i class="fas fa-envelope-open me-1"></i>Not contacted</small>
+                    </div>
+                </td>
+                <td>
+                    <span class="fw-semibold">${company}</span>
+                </td>
+                <td>
+                    <span>${jobTitle}</span>
+                </td>
+                <td>
+                    <a href="mailto:${contact.email}" class="text-decoration-none">${contact.email}</a>
+                </td>
+                <td>
+                    <span>${location}</span>
+                </td>
+                <td>
+                    <span class="text-muted">Not available</span>
+                </td>
+                <td>
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-outline-primary btn-sm" onclick="viewContactDetails('${contact.email}')" title="View Details">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        ${contact.linkedin_profile ? `
+                        <a href="${contact.linkedin_profile}" target="_blank" class="btn btn-outline-info btn-sm" title="LinkedIn Profile">
+                            <i class="fab fa-linkedin"></i>
+                        </a>
+                        ` : ''}
+                        <button class="btn btn-outline-secondary btn-sm" onclick="exportContact('${contact.email}')" title="Export Contact">
+                            <i class="fas fa-download"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+    
+    tableHtml += `
+            </tbody>
+        </table>
+        <div class="mt-3">
+            <button class="btn btn-outline-secondary" onclick="window.location.reload()">
+                <i class="fas fa-arrow-left me-2"></i>Back to All Contacts
+            </button>
+        </div>
+    `;
+    
+    contactsContainer.innerHTML = tableHtml;
+    
+    // Update stats
     updateContactStats();
 }
 
