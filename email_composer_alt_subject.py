@@ -72,7 +72,7 @@ Subject: <one line>
   — "We're at the start of a new era of computing." — Satya Nadella  
   — "Companies that don't deploy it will get left behind." — Trey Lowe
 • Mention our deployment at  
-  Precise Imaging (<a href="https://precisemri.com">precisemri.com</a>).
+  Precise Imaging (https://precisemri.com).
 • Finish with this exact closing paragraph, verbatim:  
   — We're at the start of a new era of computing, and we're in active conversations with other healthcare and service companies exploring similar use cases. Got 15 minutes next week to see what AI could do for you? Lock in a slot here: {DEFAULT_CALENDAR}
 
@@ -115,7 +115,7 @@ No buzzwords, no signature – the script adds it.
 
         === Required examples ===
         The email MUST mention how we're helping other companies, specifically:
-        - Mention "Precise Imaging (precisemri.com)" as a hyperlink
+        - Mention "Precise Imaging (https://precisemri.com)" as a plain URL
         - Reference "other healthcare and service companies" we're working with
 
         {extra_context or ''}
@@ -156,7 +156,10 @@ No buzzwords, no signature – the script adds it.
         body = body.strip() # Ensure no trailing newlines before adding signature
         body += '\n\n' + self._signature()
         
-        result = {"subject": subject, "body": body, "format": "html"}
+        # Convert to plain text format (strip any HTML tags)
+        plain_text_body = self._convert_to_plain_text(body)
+        
+        result = {"subject": subject, "body": plain_text_body, "format": "text"}
         # print("Final result (with signature):", result)  # Debug log
         return result
 
@@ -224,8 +227,8 @@ No buzzwords, no signature – the script adds it.
         return """Cheers,
 
 Pranav Modi
-CEO · Possible Minds (<a href="https://possibleminds.in">https://possibleminds.in</a>)
-<a href="https://www.linkedin.com/in/pranav-modi-5a3a9b7/">https://www.linkedin.com/in/pranav-modi-5a3a9b7/</a>"""
+CEO · Possible Minds (https://possibleminds.in)
+https://www.linkedin.com/in/pranav-modi-5a3a9b7/"""
 
     @staticmethod
     def _load_kpi_hints() -> Dict[str, str]:
@@ -236,6 +239,32 @@ CEO · Possible Minds (<a href="https://possibleminds.in">https://possibleminds.
             "VP OF TALENT": "Focus on reducing hiring time and improving candidate experience.",
             "CHIEF TECHNOLOGY OFFICER": "Highlight scalability and integration capabilities."
         } 
+
+    def _convert_to_plain_text(self, text: str) -> str:
+        """Convert email body to plain text format, stripping all HTML tags."""
+        import re
+        
+        # Convert anchor tags to plain URLs
+        # Pattern: <a href="URL">text</a> -> text (URL)
+        def replace_anchor(match):
+            url = match.group(1)
+            link_text = match.group(2)
+            # If the link text is the same as URL (like precisemri.com), just return the URL
+            if link_text.strip() == url.replace('https://', '').replace('http://', ''):
+                return url
+            else:
+                return f"{link_text} ({url})"
+        
+        # Replace anchor tags with plain text
+        text = re.sub(r'<a href="([^"]*)"[^>]*>([^<]*)</a>', replace_anchor, text)
+        
+        # Strip any remaining HTML tags
+        text = re.sub(r'<[^>]+>', '', text)
+        
+        # Clean up any HTML entities that might remain
+        text = text.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>').replace('&quot;', '"')
+        
+        return text
 
 # Example usage (for testing this file directly)
 if __name__ == "__main__":
