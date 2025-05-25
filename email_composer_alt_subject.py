@@ -40,29 +40,40 @@ class AltSubjectEmailComposer:
         self.product_desc   = self._load_text(PRODUCT_DESC_PATH)
         self.proof_points   = self._load_text(PROOF_POINTS_PATH).splitlines()
         self.kpi_hints      = self._load_kpi_hints()
-        self.system_prompt  = (
+        self.system_prompt = (
             """
-            You are a helpful assistant that writes succinct, friendly, and professional sales emails from a CEO to potential B2B leads. 
-            Your goal is to secure a 15-minute meeting.
-            
-            Output format MUST be:
-            Subject: <subject>
-            <blank line>
-            <body, including greeting and closing>
-            
-            Strict rules:
-            - Subject line must NOT contain the lead's first name.
-            - Subject line should ideally be a question or a very short phrase.
-            - Email body MUST start with "Hi [first name]," followed by "I'm curious to know how you are leveraging AI at [company name]."
-            - Email body MUST mention how we're helping other companies, specifically mentioning "Precise Imaging (precisemri.com)" as a hyperlink and reference "other healthcare and service companies"
-            - Email body MUST be concise, 2-3 short paragraphs max.
-            - Use the provided proof point.
-            - End with the EXACT call-to-action (CTA) provided.
-            - Do NOT add a signature; it will be appended automatically.
-            - Do NOT use emojis.
-            - Be friendly and avoid overly formal language.
-            - Sound like a human founder, not a generic sales rep.
-            """ + SENDER_INFO)
+You are a helpful assistant who writes short, friendly founder-style
+outreach emails to B2B leads.  Your job is to get a **15-minute call**
+scheduled via the supplied Calendly link.
+
+===== FORMAT =====
+• Output exactly:
+  Subject: <one line>
+  <blank line>
+  <body>
+
+===== SUBJECT RULES =====
+• Do NOT include the lead's first name.
+• Keep it to a question or punchy 2-4-word phrase.
+• No emojis.
+
+===== BODY RULES =====
+• MUST start exactly:
+  Hi <first-name>, I'm curious to know how you are leveraging AI at <company-name>.
+• Keep to 2–3 very short paragraphs (under ~120 words total).
+• Mention that we've already deployed for
+  Precise Imaging (<a href="https://precisemri.com">precisemri.com</a>)
+  and "othe companies like yours".
+• Work in ONE of the supplied proof-points, verbatim.
+• End with this CTA, verbatim (no extra punctuation):
+  — "If you have 15 min next week, here's my link: {calendar}"
+
+===== STYLE =====
+• Friendly, human, mildly informal (think Lily from Flex Capital).
+• No jargon, no salesy exclamation marks, no signature – the script adds it.
+            """
+            .format(calendar=DEFAULT_CALENDAR)
+            + SENDER_INFO)
 
     def compose_email(self, lead: Dict[str, str], calendar_url: str = DEFAULT_CALENDAR, extra_context: str | None = None) -> Dict[str, str] | None:
         if not self.product_desc:
@@ -135,13 +146,7 @@ class AltSubjectEmailComposer:
         body = body.strip() # Ensure no trailing newlines before adding signature
         body += '\n\n' + self._signature()
         
-        # Check if p.s. section is missing and add it if needed
-        ps_text = "p.s. in good company - we've successfully deployed at Precise Imaging where our chatbot is helping reduce appointment no-shows and improving patient engagement."
-        if not "p.s." in body.lower():
-            body += f"\n\n{ps_text}"
-            # print("Added missing p.s. section")
-        
-        result = {"subject": subject, "body": body}
+        result = {"subject": subject, "body": body, "format": "html"}
         # print("Final result (with signature):", result)  # Debug log
         return result
 
@@ -209,8 +214,8 @@ class AltSubjectEmailComposer:
         return """Cheers,
 
 Pranav Modi
-CEO · Possible Minds (https://possibleminds.in)
-https://www.linkedin.com/in/pranav-modi-5a3a9b7/"""
+CEO · Possible Minds (<a href="https://possibleminds.in">https://possibleminds.in</a>)
+<a href="https://www.linkedin.com/in/pranav-modi-5a3a9b7/">https://www.linkedin.com/in/pranav-modi-5a3a9b7/</a>"""
 
     @staticmethod
     def _load_kpi_hints() -> Dict[str, str]:
