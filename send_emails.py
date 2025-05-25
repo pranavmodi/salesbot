@@ -1,4 +1,3 @@
-import csv
 import smtplib
 import time
 import ssl
@@ -7,9 +6,15 @@ from email.message import EmailMessage
 from dotenv import load_dotenv
 from database import InteractionsDB
 from composer_instance import composer
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
+import logging
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Import non-sensitive configuration
 try:
@@ -30,13 +35,17 @@ SMTP_HOST = os.getenv("SMTP_HOST")
 SMTP_PORT = os.getenv("SMTP_PORT")
 SENDER_EMAIL = os.getenv("SENDER_EMAIL")
 SENDER_PASSWORD = os.getenv("SENDER_PASSWORD")
-# Load CSV Path from .env, with a default value
-CSV_FILE_PATH = os.getenv("CSV_FILE_PATH", 'leads_with_messages.csv')
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 # Validate essential environment variables
 if not all([SMTP_HOST, SMTP_PORT, SENDER_EMAIL, SENDER_PASSWORD]):
     print("Error: One or more environment variables (SMTP_HOST, SMTP_PORT, SENDER_EMAIL, SENDER_PASSWORD) are missing.")
     print("Please ensure they are defined in your .env file or system environment.")
+    exit(1)
+
+if not DATABASE_URL:
+    print("Error: DATABASE_URL environment variable is missing.")
+    print("Please ensure it is defined in your .env file or system environment.")
     exit(1)
 
 # Try converting port to integer
@@ -54,6 +63,55 @@ import re
 from email.utils import make_msgid
 
 # ------------------------------------------------------------------ #
+
+def get_db_engine():
+    """Get database engine."""
+    try:
+        return create_engine(DATABASE_URL)
+    except Exception as e:
+        logging.error(f"Error creating database engine: {e}")
+        return None
+
+def load_contacts_from_db():
+    """Load all contacts from PostgreSQL database."""
+    contacts = []
+    engine = get_db_engine()
+    if not engine:
+        return contacts
+        
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT email, first_name, last_name, full_name, job_title, 
+                       company_name, company_domain, linkedin_profile, location, 
+                       phone, linkedin_message, created_at, updated_at
+                FROM contacts 
+                WHERE email IS NOT NULL AND email != ''
+                ORDER BY created_at DESC
+            """))
+            
+            for row in result:
+                contact_data = dict(row._mapping)
+                # Convert to the format expected by the email composer
+                lead_info = {
+                    'name': contact_data.get('first_name', ''),
+                    'email': contact_data.get('email', ''),
+                    'company': contact_data.get('company_name', ''),
+                    'position': contact_data.get('job_title', ''),
+                    'full_name': contact_data.get('full_name', ''),
+                    'last_name': contact_data.get('last_name', ''),
+                    'location': contact_data.get('location', ''),
+                    'linkedin_profile': contact_data.get('linkedin_profile', ''),
+                    'company_domain': contact_data.get('company_domain', ''),
+                }
+                contacts.append(lead_info)
+                
+    except SQLAlchemyError as e:
+        logging.error(f"Error loading contacts from database: {e}")
+    except Exception as e:
+        logging.error(f"Unexpected error loading contacts: {e}")
+        
+    return contacts
 
 def send_email(recipient_email: str, subject: str, body_markdown: str) -> bool:
     """Render a nicer HTML template & send."""
@@ -84,64 +142,41 @@ def send_email(recipient_email: str, subject: str, body_markdown: str) -> bool:
 
 # --- Main Logic ---
 def main():
-    """Reads CSV and sends emails."""
-    print(f"Attempting to read CSV file: {CSV_FILE_PATH}")
-    try:
-        with open(CSV_FILE_PATH, mode='r', encoding='utf-8') as file:
-            csv_reader = csv.reader(file)
-            header = next(csv_reader)  # Skip header row
+    """Loads contacts from PostgreSQL database and sends emails."""
+    print("Loading contacts from PostgreSQL database...")
+    contacts = load_contacts_from_db()
+    
+    if not contacts:
+        print("No contacts found in database. Please ensure contacts have been imported using the data ingestion system.")
+        return
+    
+    print(f"Found {len(contacts)} contacts in database")
+    print("Starting email sending process...")
+    
+    for i, lead_info in enumerate(contacts):
+        try:
+            # Basic validation
+            if not lead_info['email'] or "@" not in lead_info['email']:
+                print(f"Skipping contact {i+1}: Invalid or missing email address '{lead_info['email']}'")
+                continue
 
-            # Find column indices (more robust than fixed indices)
-            required_columns = ['Work Email', 'First Name', 'Company', 'Position']
-            column_indices = {}
-            
-            for col in required_columns:
-                try:
-                    column_indices[col] = header.index(col)
-                except ValueError:
-                    print(f"Error: Missing required column: {col}")
-                    return
+            # Generate email content using GPT-4
+            email_content = composer.compose_email(lead_info)
+            if not email_content:
+                print(f"Skipping contact {i+1}: Failed to generate email content")
+                continue
 
-            print("Starting email sending process...")
-            for i, row in enumerate(csv_reader):
-                try:
-                    # Extract lead information
-                    lead_info = {
-                        'name': row[column_indices['First Name']].strip(),
-                        'email': row[column_indices['Work Email']].strip(),
-                        'company': row[column_indices['Company']].strip(),
-                        'position': row[column_indices['Position']].strip()
-                    }
+            # Send the email
+            if send_email(lead_info['email'], email_content['subject'], email_content['body']):
+                # Optional: Add a delay to avoid rate limiting
+                time.sleep(1)  # Delay for 1 second between emails
+            else:
+                print(f"Failed to send email to {lead_info['email']}. Continuing...")
 
-                    # Basic validation
-                    if not lead_info['email'] or "@" not in lead_info['email']:
-                        print(f"Skipping row {i+2}: Invalid or missing email address '{lead_info['email']}'")
-                        continue
+        except Exception as e:
+            print(f"An unexpected error occurred processing contact {i+1}: {e}")
 
-                    # Generate email content using GPT-4
-                    email_content = composer.compose_email(lead_info)
-                    if not email_content:
-                        print(f"Skipping row {i+2}: Failed to generate email content")
-                        continue
-
-                    # Send the email
-                    if send_email(lead_info['email'], email_content['subject'], email_content['body']):
-                        # Optional: Add a delay to avoid rate limiting
-                        time.sleep(1)  # Delay for 1 second between emails
-                    else:
-                        print(f"Failed to send email to {lead_info['email']}. Continuing...")
-
-                except IndexError:
-                    print(f"Skipping row {i+2}: Row has fewer columns than expected.")
-                except Exception as e:
-                    print(f"An unexpected error occurred processing row {i+2}: {e}")
-
-            print("Email sending process finished.")
-
-    except FileNotFoundError:
-        print(f"Error: CSV file not found at {CSV_FILE_PATH}")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+    print("Email sending process finished.")
 
 if __name__ == "__main__":
     # Add socket import for error handling

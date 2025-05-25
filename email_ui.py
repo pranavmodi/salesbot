@@ -3,7 +3,6 @@ from send_emails import send_email
 from composer_instance import composer
 from datetime import datetime
 import os
-import csv
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -29,14 +28,46 @@ def get_db_engine():
         return None
 
 def load_leads():
+    """Load leads from PostgreSQL database."""
     leads = []
+    engine = get_db_engine()
+    if not engine:
+        return leads
+        
     try:
-        with open('contacts/leads_with_messages.csv', mode='r', encoding='utf-8') as file:
-            csv_reader = csv.DictReader(file)
-            for row in csv_reader:
-                leads.append(row)
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT email, first_name, last_name, full_name, job_title, 
+                       company_name, company_domain, linkedin_profile, location, 
+                       phone, linkedin_message, created_at, updated_at
+                FROM contacts 
+                WHERE email IS NOT NULL AND email != ''
+                ORDER BY created_at DESC
+            """))
+            
+            for row in result:
+                contact_data = dict(row._mapping)
+                # Convert to the format expected by the UI (maintaining backward compatibility)
+                lead_data = {
+                    'First Name': contact_data.get('first_name', ''),
+                    'Last Name': contact_data.get('last_name', ''),
+                    'Full Name': contact_data.get('full_name', ''),
+                    'Work Email': contact_data.get('email', ''),
+                    'Company Name': contact_data.get('company_name', ''),
+                    'Job Title': contact_data.get('job_title', ''),
+                    'Location': contact_data.get('location', ''),
+                    'LinkedIn Profile': contact_data.get('linkedin_profile', ''),
+                    'Company Domain': contact_data.get('company_domain', ''),
+                    'Position': contact_data.get('job_title', ''),  # Alias for compatibility
+                    'Company': contact_data.get('company_name', ''),  # Alias for compatibility
+                }
+                leads.append(lead_data)
+                
+    except SQLAlchemyError as e:
+        logging.error(f"Error loading leads from database: {e}")
     except Exception as e:
-        print(f"Error loading leads: {str(e)}")
+        logging.error(f"Unexpected error loading leads: {e}")
+        
     return leads
 
 def load_history():
