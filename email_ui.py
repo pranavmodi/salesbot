@@ -1,12 +1,15 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, jsonify, redirect, url_for, make_response
 from send_emails import send_email
 from composer_instance import composer
 from datetime import datetime
 import os
+import csv
+import io
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 import logging
+from app.models.contact import Contact
 
 app = Flask(__name__)
 load_dotenv() # Load environment variables
@@ -126,24 +129,39 @@ def save_to_history(email_data):
 @app.route('/')
 def index():
     page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 1, type=int)  # Default to 1 for debugging
+    per_page = request.args.get('per_page', 10, type=int)  # Increased default for better UX
+    
+    # Load data
     leads = load_leads()
     history = load_history()
     
-    # Calculate pagination for leads
-    total_leads = len(leads)
-    total_pages = (total_leads + per_page - 1) // per_page
-    start_idx = (page - 1) * per_page
-    end_idx = min(start_idx + per_page, total_leads)
-    paginated_leads = leads[start_idx:end_idx]
+    # Convert leads to contact objects for the template
+    contacts = [Contact(lead) for lead in leads]
     
-    return render_template('index.html', 
-                         leads=paginated_leads, 
-                         history=history,
+    # Calculate pagination for leads
+    total_contacts = len(contacts)
+    total_pages = (total_contacts + per_page - 1) // per_page
+    start_idx = (page - 1) * per_page
+    end_idx = min(start_idx + per_page, total_contacts)
+    paginated_contacts = contacts[start_idx:end_idx]
+    
+    # Calculate stats
+    contacts_with_company = [c for c in contacts if c.company]
+    contacts_with_linkedin = [c for c in contacts if c.linkedin_profile]
+    contacts_with_location = [c for c in contacts if c.location]
+    
+    return render_template('dashboard.html', 
+                         contacts=paginated_contacts,
+                         email_history=history,
+                         email_history_json=history,  # For JavaScript
                          current_page=page,
                          total_pages=total_pages,
                          per_page=per_page,
-                         total_leads=total_leads)
+                         total_contacts=total_contacts,
+                         # Stats for the dashboard
+                         contacts_with_company_count=len(contacts_with_company),
+                         contacts_with_linkedin_count=len(contacts_with_linkedin),
+                         contacts_with_location_count=len(contacts_with_location))
 
 @app.route('/get_leads')
 def get_leads():
@@ -318,6 +336,49 @@ def send_bulk_emails():
         'results': results,
         'message': f"Successfully sent {results['success']} emails. Failed to send {results['failed']} emails."
     })
+
+@app.route('/contact/<email>')
+def get_contact_details(email):
+    """Get detailed information for a specific contact."""
+    contacts = load_leads()  # Using existing function that loads from PostgreSQL
+    
+    # Find the contact by email
+    contact = None
+    for lead in contacts:
+        if lead.get('Work Email', '').lower() == email.lower():
+            contact = lead
+            break
+    
+    if contact:
+        return jsonify({
+            'success': True,
+            'contact': contact
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'message': 'Contact not found'
+        }), 404
+
+@app.route('/contacts/export')
+def export_contacts():
+    """Export all contacts as CSV."""
+    contacts = load_leads()
+    
+    # Create CSV content
+    output = io.StringIO()
+    if contacts:
+        fieldnames = contacts[0].keys()
+        writer = csv.DictWriter(output, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(contacts)
+    
+    # Create response
+    response = make_response(output.getvalue())
+    response.headers['Content-Type'] = 'text/csv'
+    response.headers['Content-Disposition'] = 'attachment; filename=contacts_export.csv'
+    
+    return response
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080, debug=True) 
