@@ -3,6 +3,7 @@ from send_emails import send_email
 from composer_instance import composer
 from datetime import datetime
 import os
+import csv
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -30,7 +31,7 @@ def get_db_engine():
 def load_leads():
     leads = []
     try:
-        with open('leads_with_messages.csv', mode='r', encoding='utf-8') as file:
+        with open('contacts/leads_with_messages.csv', mode='r', encoding='utf-8') as file:
             csv_reader = csv.DictReader(file)
             for row in csv_reader:
                 leads.append(row)
