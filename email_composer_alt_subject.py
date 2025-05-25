@@ -40,40 +40,44 @@ class AltSubjectEmailComposer:
         self.product_desc   = self._load_text(PRODUCT_DESC_PATH)
         self.proof_points   = self._load_text(PROOF_POINTS_PATH).splitlines()
         self.kpi_hints      = self._load_kpi_hints()
-        self.system_prompt = (
-            """
+        self.system_prompt = (f"""
 You are a helpful assistant who writes short, friendly founder-style
-outreach emails to B2B leads.  Your job is to get a **15-minute call**
-scheduled via the supplied Calendly link.
+outreach emails to B2B leads. Your single goal: book a 15-minute call
+(via the Calendly link you'll see below).
 
 ===== FORMAT =====
-• Output exactly:
-  Subject: <one line>
-  <blank line>
-  <body>
+Subject: <one line>
+<blank line>
+<body>
 
 ===== SUBJECT RULES =====
-• Do NOT include the lead's first name.
-• Keep it to a question or punchy 2-4-word phrase.
+• MUST contain both <first-name> and <company-name>.  
+  (e.g.  "Andy, AI momentum at GoHealth?")  
+• Keep it to ≤ 7 words.  
 • No emojis.
 
 ===== BODY RULES =====
-• MUST start exactly:
+• MUST open exactly:  
   Hi <first-name>, I'm curious to know how you are leveraging AI at <company-name>.
-• Keep to 2–3 very short paragraphs (under ~120 words total).
-• Mention that we've already deployed for
-  Precise Imaging (<a href="https://precisemri.com">precisemri.com</a>)
-  and "othe companies like yours".
-• Work in ONE of the supplied proof-points, verbatim.
-• End with this CTA, verbatim (no extra punctuation):
-  — "If you have 15 min next week, here's my link: {calendar}"
+• 2–3 micro-paragraphs, ≤ 120 words total.
+• Include the following THREE talking points (wording may vary):  
+  1. Business leaders warn that firms ignoring AI will be left behind.  
+  2. Others in <industry> are already leveraging AI.  
+  3. Possible Minds is trusted by Precise Imaging and others.
+• **Embed exactly ONE of these quotes where it has most impact**  
+  (use it verbatim, wrapped in quotation marks):  
+  — "AI is more profound than fire or electricity." — Sundar Pichai  
+  — "We're at the start of a new era of computing." — Satya Nadella  
+  — "Companies that don't deploy it will get left behind." — Trey Lowe
+• Mention our deployment at  
+  Precise Imaging (<a href="https://precisemri.com">precisemri.com</a>).
+• Finish with this CTA, verbatim (no extra punctuation):  
+  — If you have 15 min next week, here's my link: {DEFAULT_CALENDAR}
 
 ===== STYLE =====
-• Friendly, human, mildly informal (think Lily from Flex Capital).
-• No jargon, no salesy exclamation marks, no signature – the script adds it.
-            """
-            .format(calendar=DEFAULT_CALENDAR)
-            + SENDER_INFO)
+Friendly, human, mildly informal (Lily-from-Flex vibe).  
+No buzzwords, no signature – the script adds it.
+""" + SENDER_INFO)
 
     def compose_email(self, lead: Dict[str, str], calendar_url: str = DEFAULT_CALENDAR, extra_context: str | None = None) -> Dict[str, str] | None:
         if not self.product_desc:
@@ -135,9 +139,10 @@ scheduled via the supplied Calendly link.
         # print("Parsed AI subject:", ai_subject) # Debug log
         
         # --- START: New Subject Line Logic ---
-        # Use the company name from the lead data for the new subject line
-        contact_company_name = lead.get("company", "Your Company") # Fallback if company name is not available
-        subject = f"Are you AI pilled yet at {contact_company_name}?"
+        # Use the first name and company name for the new subject line format
+        first = prompt_first_name        # already computed above
+        company = prompt_company_name or "your company"
+        subject = f"{first}, AI momentum at {company}?"
         # --- END: New Subject Line Logic ---
 
         # print("Final subject:", subject)  # Debug log
