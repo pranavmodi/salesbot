@@ -30,7 +30,18 @@ class Contact:
     @property
     def display_name(self) -> str:
         """Get display name for the contact."""
-        return self.full_name or self.first_name or 'Unknown'
+        # Construct name from first_name and last_name to avoid corrupted full_name data
+        if self.first_name and self.last_name:
+            return f"{self.first_name} {self.last_name}".strip()
+        elif self.first_name:
+            return self.first_name
+        elif self.last_name:
+            return self.last_name
+        elif self.full_name and self.full_name != self.company:
+            # Only use full_name if it's different from company name
+            return self.full_name
+        else:
+            return 'Unknown'
 
     @staticmethod
     def _get_db_engine():
