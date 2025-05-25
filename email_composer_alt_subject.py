@@ -59,7 +59,9 @@ Subject: <one line>
 ===== BODY RULES =====
 • MUST open exactly:  
   Hi <first-name>, I'm curious to know how you are leveraging AI at <company-name>.
-• 2–3 micro-paragraphs, ≤ 120 words total.
+• MUST follow with this intro line:  
+  I'm Pranav, founder of Possible Minds — we help businesses boost support efficiency and customer experience with a 24/7 AI chatbot trained on their own content.
+• 2–3 micro-paragraphs, ≤ 150 words total.
 • Include the following THREE talking points (wording may vary):  
   1. Business leaders warn that firms ignoring AI will be left behind.  
   2. Others in <industry> are already leveraging AI.  
@@ -71,8 +73,8 @@ Subject: <one line>
   — "Companies that don't deploy it will get left behind." — Trey Lowe
 • Mention our deployment at  
   Precise Imaging (<a href="https://precisemri.com">precisemri.com</a>).
-• Finish with this CTA, verbatim (no extra punctuation):  
-  — If you have 15 min next week, here's my link: {DEFAULT_CALENDAR}
+• Finish with this exact closing paragraph, verbatim:  
+  — We're at the start of a new era of computing, and we're in active conversations with other healthcare and service companies exploring similar use cases. Got 15 minutes next week to see what AI could do for you? Lock in a slot here: {DEFAULT_CALENDAR}
 
 ===== STYLE =====
 Friendly, human, mildly informal (Lily-from-Flex vibe).  
@@ -107,6 +109,9 @@ No buzzwords, no signature – the script adds it.
 
         === Required opening ===
         The email body MUST start with: "Hi {prompt_first_name}, I'm curious to know how you are leveraging AI at {prompt_company_name}."
+
+        === Required intro line ===
+        The email body MUST follow the opening with: "I'm Pranav, founder of Possible Minds — we help businesses boost support efficiency and customer experience with a 24/7 AI chatbot trained on their own content."
 
         === Required examples ===
         The email MUST mention how we're helping other companies, specifically:

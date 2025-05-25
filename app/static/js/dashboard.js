@@ -759,7 +759,7 @@ Exported on: ${new Date().toLocaleString()}
 // Email composition functions (for compose tab)
 function generateEmailPreview() {
     const form = document.getElementById('composeForm');
-    const composerType = document.getElementById('composerType').value || 'warm';
+    const composerType = document.getElementById('composerType').value || 'alt_subject';
     
     const leadInfo = {
         name: form.recipientName.value,
@@ -1145,8 +1145,8 @@ function loadBulkEmailComposer(contacts) {
                                 <i class="fas fa-palette me-1"></i>Email Style
                             </label>
                             <select class="form-select" id="composerTypeSelect">
-                                <option value="warm">Warm & Personal (Default)</option>
-                                <option value="alt_subject">AI Pilled Subject Line</option>
+                                <option value="alt_subject">AI Pilled Subject Line (Default)</option>
+                                <option value="warm">Warm & Personal</option>
                             </select>
                             <small class="form-text text-muted">
                                 Choose the email style and subject line approach
@@ -1259,7 +1259,7 @@ function processEmailsSequentially(promises, index, results, completedCount, tot
 function generateEmailForContact(contact, index) {
     // Get the selected composer type
     const composerTypeSelect = document.getElementById('composerTypeSelect');
-    const composerType = composerTypeSelect ? composerTypeSelect.value : 'warm';
+    const composerType = composerTypeSelect ? composerTypeSelect.value : 'alt_subject';
     
     // Call the existing AI email preview API with composer type
     // Use email as contact_id since Contact model doesn't have id field
@@ -1443,7 +1443,7 @@ function sendAllEmails() {
     
     // Get the selected composer type
     const composerTypeSelect = document.getElementById('composerTypeSelect');
-    const composerType = composerTypeSelect ? composerTypeSelect.value : 'warm';
+    const composerType = composerTypeSelect ? composerTypeSelect.value : 'alt_subject';
     
     // Prepare recipients data for bulk sending
     const recipients_data = window.generatedEmails.map(email => ({
@@ -1648,7 +1648,7 @@ function sendPreviewedEmails() {
     
     // Get the selected composer type
     const composerTypeSelect = document.getElementById('composerTypeSelect');
-    const composerType = composerTypeSelect ? composerTypeSelect.value : 'warm';
+    const composerType = composerTypeSelect ? composerTypeSelect.value : 'alt_subject';
     
     // Prepare recipients data for bulk sending
     const recipients_data = window.previewedEmails.map(email => ({
