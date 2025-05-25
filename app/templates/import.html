@@ -1,0 +1,540 @@
+{% extends "base.html" %}
+
+{% block title %}Import Contacts - SalesBot CRM{% endblock %}
+
+{% block extra_css %}
+<style>
+    .upload-area {
+        border: 2px dashed #ddd;
+        border-radius: 10px;
+        padding: 60px 20px;
+        text-align: center;
+        background-color: #f8f9fa;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+    
+    .upload-area:hover {
+        border-color: #007bff;
+        background-color: #e3f2fd;
+    }
+    
+    .upload-area.drag-over {
+        border-color: #007bff;
+        background-color: #e3f2fd;
+        transform: scale(1.02);
+    }
+    
+    .upload-icon {
+        font-size: 3rem;
+        color: #6c757d;
+        margin-bottom: 20px;
+    }
+    
+    .upload-area.drag-over .upload-icon {
+        color: #007bff;
+    }
+    
+    .stats-card {
+        transition: transform 0.2s ease;
+    }
+    
+    .stats-card:hover {
+        transform: translateY(-2px);
+    }
+    
+    .preview-table {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    
+    .column-mapping {
+        background-color: #f8f9fa;
+        border-radius: 5px;
+        padding: 10px;
+        margin: 5px 0;
+    }
+    
+    .step-indicator {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 2rem;
+    }
+    
+    .step {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background-color: #e9ecef;
+        color: #6c757d;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 10px;
+        font-weight: bold;
+        position: relative;
+    }
+    
+    .step.active {
+        background-color: #007bff;
+        color: white;
+    }
+    
+    .step.completed {
+        background-color: #28a745;
+        color: white;
+    }
+    
+    .step:not(:last-child)::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        right: -20px;
+        width: 20px;
+        height: 2px;
+        background-color: #e9ecef;
+        transform: translateY(-50%);
+    }
+    
+    .step.completed:not(:last-child)::after {
+        background-color: #28a745;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3 mb-0">
+                    <i class="fas fa-file-upload me-2"></i>
+                    Import Contacts
+                </h1>
+                <a href="/" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>
+                    Back to Dashboard
+                </a>
+            </div>
+            
+            <!-- Step Indicator -->
+            <div class="step-indicator">
+                <div class="step active" id="step-1">1</div>
+                <div class="step" id="step-2">2</div>
+                <div class="step" id="step-3">3</div>
+            </div>
+            
+            <!-- Step 1: File Upload -->
+            <div class="card shadow-sm mb-4" id="upload-section">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-upload me-2"></i>
+                        Step 1: Upload CSV File
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="upload-area" id="upload-area">
+                        <div class="upload-icon">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                        </div>
+                        <h5>Drop your CSV file here or click to browse</h5>
+                        <p class="text-muted mb-3">Supports flexible CSV formats with automatic column mapping</p>
+                        <input type="file" id="csv-file" accept=".csv" style="display: none;">
+                        <button class="btn btn-primary" onclick="document.getElementById('csv-file').click()">
+                            <i class="fas fa-folder-open me-2"></i>
+                            Choose File
+                        </button>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            <strong>Supported columns:</strong> Email, First Name, Last Name, Company, Job Title, Location, LinkedIn Profile, Phone, etc.
+                        </small>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Step 2: Preview & Mapping -->
+            <div class="card shadow-sm mb-4" id="preview-section" style="display: none;">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-eye me-2"></i>
+                        Step 2: Preview & Column Mapping
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="preview-content">
+                        <!-- Preview content will be loaded here -->
+                    </div>
+                    
+                    <div class="mt-3">
+                        <button class="btn btn-success" id="import-btn" onclick="importContacts()">
+                            <i class="fas fa-download me-2"></i>
+                            Import Contacts
+                        </button>
+                        <button class="btn btn-secondary ms-2" onclick="resetUpload()">
+                            <i class="fas fa-redo me-2"></i>
+                            Upload Different File
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Step 3: Results -->
+            <div class="card shadow-sm mb-4" id="results-section" style="display: none;">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-check-circle me-2"></i>
+                        Step 3: Import Results
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="results-content">
+                        <!-- Results will be loaded here -->
+                    </div>
+                    
+                    <div class="mt-3">
+                        <a href="/" class="btn btn-primary">
+                            <i class="fas fa-eye me-2"></i>
+                            View Contacts
+                        </a>
+                        <button class="btn btn-outline-secondary ms-2" onclick="resetUpload()">
+                            <i class="fas fa-plus me-2"></i>
+                            Import Another File
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Loading Indicator -->
+            <div class="text-center" id="loading" style="display: none;">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Processing your file...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Notifications -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="successToast" class="toast" role="alert">
+        <div class="toast-header bg-success text-white">
+            <i class="fas fa-check-circle me-2"></i>
+            <strong class="me-auto">Success</strong>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body" id="successMessage"></div>
+    </div>
+    
+    <div id="errorToast" class="toast" role="alert">
+        <div class="toast-header bg-danger text-white">
+            <i class="fas fa-exclamation-circle me-2"></i>
+            <strong class="me-auto">Error</strong>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body" id="errorMessage"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentFile = null;
+let currentStep = 1;
+
+// Initialize drag and drop
+document.addEventListener('DOMContentLoaded', function() {
+    const uploadArea = document.getElementById('upload-area');
+    const fileInput = document.getElementById('csv-file');
+    
+    // Drag and drop events
+    uploadArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        uploadArea.classList.add('drag-over');
+    });
+    
+    uploadArea.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        uploadArea.classList.remove('drag-over');
+    });
+    
+    uploadArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        uploadArea.classList.remove('drag-over');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleFile(files[0]);
+        }
+    });
+    
+    uploadArea.addEventListener('click', function() {
+        fileInput.click();
+    });
+    
+    fileInput.addEventListener('change', function(e) {
+        if (e.target.files.length > 0) {
+            handleFile(e.target.files[0]);
+        }
+    });
+});
+
+function handleFile(file) {
+    if (!file.name.endsWith('.csv')) {
+        showToast('errorToast', 'Please select a CSV file.');
+        return;
+    }
+    
+    currentFile = file;
+    previewFile(file);
+}
+
+function previewFile(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    showLoading(true);
+    
+    fetch('/api/contacts/preview', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        showLoading(false);
+        
+        if (data.success) {
+            displayPreview(data.file_info);
+            setStep(2);
+        } else {
+            showToast('errorToast', data.error || 'Failed to preview file');
+        }
+    })
+    .catch(error => {
+        showLoading(false);
+        showToast('errorToast', 'Error previewing file: ' + error.message);
+    });
+}
+
+function displayPreview(fileInfo) {
+    const previewContent = document.getElementById('preview-content');
+    
+    let mappingHtml = '';
+    for (const [standardCol, csvCol] of Object.entries(fileInfo.column_mapping)) {
+        if (csvCol) {
+            mappingHtml += `
+                <div class="column-mapping">
+                    <strong>${standardCol}</strong> ← ${csvCol}
+                </div>
+            `;
+        }
+    }
+    
+    let sampleDataHtml = '';
+    if (fileInfo.sample_data && fileInfo.sample_data.length > 0) {
+        const headers = Object.keys(fileInfo.sample_data[0]);
+        sampleDataHtml = `
+            <div class="table-responsive preview-table">
+                <table class="table table-sm table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            ${headers.map(header => `<th>${header}</th>`).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${fileInfo.sample_data.map(row => `
+                            <tr>
+                                ${headers.map(header => `<td>${row[header] || ''}</td>`).join('')}
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+    
+    previewContent.innerHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6><i class="fas fa-file-alt me-2"></i>File Information</h6>
+                <ul class="list-unstyled">
+                    <li><strong>Filename:</strong> ${fileInfo.filename}</li>
+                    <li><strong>Total Rows:</strong> ${fileInfo.total_rows}</li>
+                    <li><strong>Columns:</strong> ${fileInfo.columns.length}</li>
+                    <li><strong>Email Columns:</strong> ${fileInfo.email_columns.join(', ') || 'None detected'}</li>
+                </ul>
+                
+                <h6 class="mt-4"><i class="fas fa-exchange-alt me-2"></i>Column Mapping</h6>
+                ${mappingHtml || '<p class="text-muted">No automatic mapping detected</p>'}
+            </div>
+            
+            <div class="col-md-6">
+                <h6><i class="fas fa-table me-2"></i>Sample Data</h6>
+                ${sampleDataHtml || '<p class="text-muted">No sample data available</p>'}
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('preview-section').style.display = 'block';
+}
+
+function importContacts() {
+    if (!currentFile) {
+        showToast('errorToast', 'No file selected');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file', currentFile);
+    
+    showLoading(true);
+    document.getElementById('import-btn').disabled = true;
+    
+    fetch('/api/contacts/import', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        showLoading(false);
+        document.getElementById('import-btn').disabled = false;
+        
+        if (data.success) {
+            displayResults(data);
+            setStep(3);
+            showToast('successToast', data.message);
+        } else {
+            showToast('errorToast', data.error || 'Import failed');
+        }
+    })
+    .catch(error => {
+        showLoading(false);
+        document.getElementById('import-btn').disabled = false;
+        showToast('errorToast', 'Error importing file: ' + error.message);
+    });
+}
+
+function displayResults(data) {
+    const resultsContent = document.getElementById('results-content');
+    const stats = data.statistics;
+    
+    resultsContent.innerHTML = `
+        <div class="row">
+            <div class="col-md-3 mb-3">
+                <div class="card stats-card border-primary">
+                    <div class="card-body text-center">
+                        <i class="fas fa-file-csv fa-2x text-primary mb-2"></i>
+                        <h5 class="card-title">${stats.total_rows}</h5>
+                        <p class="card-text text-muted">Total Rows</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-3 mb-3">
+                <div class="card stats-card border-success">
+                    <div class="card-body text-center">
+                        <i class="fas fa-user-plus fa-2x text-success mb-2"></i>
+                        <h5 class="card-title">${stats.new_contacts}</h5>
+                        <p class="card-text text-muted">New Contacts</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-3 mb-3">
+                <div class="card stats-card border-warning">
+                    <div class="card-body text-center">
+                        <i class="fas fa-user-edit fa-2x text-warning mb-2"></i>
+                        <h5 class="card-title">${stats.duplicates}</h5>
+                        <p class="card-text text-muted">Duplicates Updated</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-3 mb-3">
+                <div class="card stats-card border-danger">
+                    <div class="card-body text-center">
+                        <i class="fas fa-exclamation-triangle fa-2x text-danger mb-2"></i>
+                        <h5 class="card-title">${stats.errors}</h5>
+                        <p class="card-text text-muted">Errors</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>Import Summary</h6>
+                    </div>
+                    <div class="card-body">
+                        <p><strong>Database Status:</strong></p>
+                        <ul class="list-unstyled">
+                            <li>• Contacts before import: ${stats.contacts_before}</li>
+                            <li>• Contacts after import: ${stats.contacts_after}</li>
+                            <li>• Successfully processed: ${stats.successful_inserts} rows</li>
+                        </ul>
+                        
+                        <div class="progress mt-3">
+                            <div class="progress-bar bg-success" style="width: ${(stats.successful_inserts/stats.total_rows*100)}%"></div>
+                            <div class="progress-bar bg-danger" style="width: ${(stats.errors/stats.total_rows*100)}%"></div>
+                        </div>
+                        <small class="text-muted">
+                            ${((stats.successful_inserts/stats.total_rows)*100).toFixed(1)}% success rate
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('results-section').style.display = 'block';
+}
+
+function setStep(step) {
+    currentStep = step;
+    
+    // Update step indicators
+    for (let i = 1; i <= 3; i++) {
+        const stepEl = document.getElementById(`step-${i}`);
+        stepEl.classList.remove('active', 'completed');
+        
+        if (i < step) {
+            stepEl.classList.add('completed');
+        } else if (i === step) {
+            stepEl.classList.add('active');
+        }
+    }
+}
+
+function resetUpload() {
+    currentFile = null;
+    setStep(1);
+    
+    document.getElementById('preview-section').style.display = 'none';
+    document.getElementById('results-section').style.display = 'none';
+    document.getElementById('csv-file').value = '';
+    
+    // Reset upload area
+    const uploadArea = document.getElementById('upload-area');
+    uploadArea.classList.remove('drag-over');
+}
+
+function showLoading(show) {
+    document.getElementById('loading').style.display = show ? 'block' : 'none';
+}
+
+function showToast(toastId, message) {
+    const toast = document.getElementById(toastId);
+    const messageEl = document.getElementById(toastId.replace('Toast', 'Message'));
+    
+    messageEl.textContent = message;
+    
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+}
+</script>
+{% endblock %} 

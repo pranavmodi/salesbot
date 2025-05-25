@@ -38,4 +38,9 @@ def index():
         emails_sent=emails_sent,
         success_rate=success_rate,
         pending_contacts=len(contact_data['contacts'])
-    ) 
+    )
+
+@bp.route('/import')
+def import_contacts():
+    """CSV import page."""
+    return render_template('import.html') 

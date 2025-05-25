@@ -178,7 +178,7 @@ function showContactModal(contactData) {
         return;
     }
     
-    // Create detailed contact view
+    // Create detailed contact view with email conversation section
     const detailsHtml = `
         <div class="row">
             <div class="col-md-3 text-center mb-4">
@@ -241,6 +241,24 @@ function showContactModal(contactData) {
                         </div>
                     </div>
                 </div>
+                
+                <!-- Email Conversations Section -->
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <h6 class="text-muted mb-2">
+                            <i class="fas fa-envelope me-2"></i>Email Conversations
+                            <button class="btn btn-outline-primary btn-sm ms-2" onclick="loadEmailConversations('${contactData.email}')">
+                                <i class="fas fa-sync me-1"></i>Load Conversations
+                            </button>
+                        </h6>
+                        <div id="emailConversationsContainer" class="ms-3">
+                            <div class="text-muted">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Click "Load Conversations" to view email history with this contact
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     `;
@@ -250,6 +268,260 @@ function showContactModal(contactData) {
     // Show modal
     const bsModal = new bootstrap.Modal(modal);
     bsModal.show();
+}
+
+// Email conversation functions
+function loadEmailConversations(contactEmail) {
+    const container = document.getElementById('emailConversationsContainer');
+    
+    // Show loading state
+    container.innerHTML = `
+        <div class="text-center py-3">
+            <div class="loading-spinner me-2"></div>
+            Loading email conversations...
+        </div>
+    `;
+    
+    // Fetch conversations
+    fetch(`/api/email/conversations/${contactEmail}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayConversationSummary(data.conversation_summary, contactEmail);
+            } else {
+                let errorMessage = data.message || 'Failed to load conversations';
+                let helpText = '';
+                
+                if (data.feature_disabled) {
+                    // Feature is disabled - show a clean message
+                    container.innerHTML = `
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Email Conversations</strong><br>
+                            This feature requires IMAP access and is currently disabled. 
+                            <br><small class="text-muted">You can enable this later when IMAP access is available.</small>
+                        </div>
+                    `;
+                    return;
+                } else if (data.error && data.error.includes('not configured')) {
+                    helpText = `
+                        <div class="mt-3">
+                            <h6>To enable email reading:</h6>
+                            <ol class="small">
+                                <li>Login to <a href="https://www.zoho.com/mail" target="_blank">Zoho Mail</a></li>
+                                <li>Go to Settings > Mail Accounts</li>
+                                <li>Click on your email address</li>
+                                <li>Enable "IMAP Access" checkbox</li>
+                                <li>Click Save</li>
+                            </ol>
+                            <button class="btn btn-primary btn-sm" onclick="testEmailConnection()">
+                                <i class="fas fa-plug me-1"></i>Test Email Connection
+                            </button>
+                        </div>
+                    `;
+                }
+                
+                container.innerHTML = `
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        ${errorMessage}
+                        ${helpText}
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading conversations:', error);
+            container.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-times me-2"></i>
+                    Error loading conversations. Check email configuration.
+                    <div class="mt-2">
+                        <button class="btn btn-primary btn-sm" onclick="testEmailConnection()">
+                            <i class="fas fa-plug me-1"></i>Test Email Connection
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+}
+
+function displayConversationSummary(summary, contactEmail) {
+    const container = document.getElementById('emailConversationsContainer');
+    
+    if (summary.total_emails === 0) {
+        container.innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                No email conversations found with this contact.
+            </div>
+        `;
+        return;
+    }
+    
+    const summaryHtml = `
+        <div class="conversation-summary">
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <div class="stats-card text-center">
+                        <div class="stats-number">${summary.total_emails}</div>
+                        <div class="stats-label">Total Emails</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card text-center">
+                        <div class="stats-number">${summary.sent_count}</div>
+                        <div class="stats-label">Sent</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card text-center">
+                        <div class="stats-number">${summary.received_count}</div>
+                        <div class="stats-label">Received</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card text-center">
+                        <div class="stats-number">${Object.keys(summary.threads).length}</div>
+                        <div class="stats-label">Threads</div>
+                    </div>
+                </div>
+            </div>
+            
+            ${summary.last_email_date ? `
+                <div class="alert alert-info">
+                    <strong>Last Email:</strong> 
+                    ${new Date(summary.last_email_date).toLocaleDateString()} 
+                    (${summary.last_email_direction === 'sent' ? 'Sent by you' : 'Received from contact'})
+                </div>
+            ` : ''}
+            
+            <div class="mb-3">
+                <h6>Recent Emails:</h6>
+                <div class="list-group">
+                    ${summary.recent_emails.slice(0, 5).map(email => `
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="mb-1">${email.subject || 'No Subject'}</h6>
+                                    <p class="mb-1 text-truncate" style="max-width: 400px;">
+                                        ${email.body ? email.body.substring(0, 100) + '...' : 'No content'}
+                                    </p>
+                                    <small class="text-muted">
+                                        ${new Date(email.date).toLocaleDateString()} - 
+                                        ${email.direction === 'sent' ? 'Sent' : 'Received'}
+                                    </small>
+                                </div>
+                                <span class="badge ${email.direction === 'sent' ? 'bg-primary' : 'bg-success'}">
+                                    ${email.direction === 'sent' ? 'Sent' : 'Received'}
+                                </span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            
+            <div class="text-center">
+                <button class="btn btn-outline-primary" onclick="loadDetailedConversations('${contactEmail}')">
+                    <i class="fas fa-comments me-2"></i>View All Conversations
+                </button>
+            </div>
+        </div>
+    `;
+    
+    container.innerHTML = summaryHtml;
+}
+
+function loadDetailedConversations(contactEmail) {
+    const container = document.getElementById('emailConversationsContainer');
+    
+    // Show loading state
+    container.innerHTML = `
+        <div class="text-center py-3">
+            <div class="loading-spinner me-2"></div>
+            Loading detailed conversations...
+        </div>
+    `;
+    
+    // Fetch detailed conversations
+    fetch(`/api/email/conversations/${contactEmail}/detailed`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayDetailedConversations(data, contactEmail);
+            } else {
+                container.innerHTML = `
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Failed to load detailed conversations
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading detailed conversations:', error);
+            container.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-times me-2"></i>
+                    Error loading detailed conversations
+                </div>
+            `;
+        });
+}
+
+function displayDetailedConversations(data, contactEmail) {
+    const container = document.getElementById('emailConversationsContainer');
+    
+    let threadsHtml = '';
+    for (const threadId in data.threads) {
+        const thread = data.threads[threadId];
+        threadsHtml += `
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-comments me-2"></i>
+                        ${thread.emails[0].subject || 'No Subject'}
+                        <span class="badge bg-primary ms-2">${thread.email_count} emails</span>
+                    </h6>
+                </div>
+                <div class="card-body">
+                    ${thread.emails.map(email => `
+                        <div class="email-item border-start border-3 ${email.direction === 'sent' ? 'border-primary' : 'border-success'} ps-3 mb-3">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <strong>${email.direction === 'sent' ? 'You' : email.from}</strong>
+                                    <small class="text-muted ms-2">${new Date(email.date).toLocaleString()}</small>
+                                </div>
+                                <span class="badge ${email.direction === 'sent' ? 'bg-primary' : 'bg-success'}">
+                                    ${email.direction === 'sent' ? 'Sent' : 'Received'}
+                                </span>
+                            </div>
+                            <p class="mb-0">${email.body}</p>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    const detailedHtml = `
+        <div class="detailed-conversations">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6>All Conversations with ${contactEmail}</h6>
+                <button class="btn btn-outline-secondary btn-sm" onclick="loadEmailConversations('${contactEmail}')">
+                    <i class="fas fa-arrow-left me-1"></i>Back to Summary
+                </button>
+            </div>
+            
+            <div class="alert alert-info">
+                <strong>Total:</strong> ${data.total_emails} emails in ${data.thread_count} conversation threads
+            </div>
+            
+            ${threadsHtml || '<div class="text-muted">No conversation threads found</div>'}
+        </div>
+    `;
+    
+    container.innerHTML = detailedHtml;
 }
 
 function exportContact(email) {
@@ -438,4 +710,90 @@ function createToast(id, message) {
     const div = document.createElement('div');
     div.innerHTML = toastHtml;
     return div.firstElementChild;
+}
+
+// Email connection testing function
+function testEmailConnection() {
+    // Show loading state
+    const testButton = event.target;
+    const originalText = testButton.innerHTML;
+    testButton.innerHTML = '<div class="loading-spinner me-1"></div>Testing...';
+    testButton.disabled = true;
+    
+    fetch('/api/email/test-connection', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('successToast', `Email connection successful! Connected to ${data.email}`);
+        } else if (data.feature_disabled) {
+            showToast('errorToast', 'Email reading feature is currently disabled');
+        } else {
+            // Create a modal to show detailed error message
+            showEmailConfigModal(data.message, data.help_url);
+        }
+    })
+    .catch(error => {
+        console.error('Error testing email connection:', error);
+        showToast('errorToast', 'Failed to test email connection');
+    })
+    .finally(() => {
+        // Restore button
+        testButton.innerHTML = originalText;
+        testButton.disabled = false;
+    });
+}
+
+function showEmailConfigModal(message, helpUrl) {
+    const modalHtml = `
+        <div class="modal fade" id="emailConfigModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="fas fa-cog me-2"></i>Email Configuration Required
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            ${message.replace(/\n/g, '<br>')}
+                        </div>
+                        ${helpUrl ? `
+                            <div class="text-center mt-3">
+                                <a href="${helpUrl}" target="_blank" class="btn btn-primary">
+                                    <i class="fas fa-external-link-alt me-2"></i>
+                                    View Zoho IMAP Setup Guide
+                                </a>
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary" onclick="testEmailConnection()">
+                            <i class="fas fa-sync me-1"></i>Test Again
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    let modal = document.getElementById('emailConfigModal');
+    if (modal) {
+        modal.remove();
+    }
+    
+    const div = document.createElement('div');
+    div.innerHTML = modalHtml;
+    modal = div.firstElementChild;
+    document.body.appendChild(modal);
+    
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
 } 
