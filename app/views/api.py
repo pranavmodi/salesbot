@@ -57,15 +57,58 @@ def get_contact(email):
 def preview_email():
     """Generate email preview for a contact."""
     try:
-        contact_data = request.get_json()
-        if not contact_data:
-            return jsonify({'error': 'No contact data provided'}), 400
+        data = request.get_json()
+        composer_type = data.get('composer_type', 'warm')
         
-        email_content = EmailService.compose_email(contact_data)
-        if email_content:
-            return jsonify(email_content)
-        else:
-            return jsonify({'error': 'Failed to generate email content'}), 500
+        # Handle new format (contact_id)
+        contact_id = data.get('contact_id')
+        if contact_id:
+            email_content = EmailService.compose_email(
+                contact_id=contact_id, 
+                calendar_url=data.get('calendar_url'), 
+                extra_context=data.get('extra_context'), 
+                composer_type=composer_type
+            )
+            if email_content:
+                return jsonify(email_content)
+            else:
+                return jsonify({"error": "Failed to compose email"}), 500
+        
+        # Handle old format (contact_data) for backward compatibility
+        contact_data = data.get('contact_data')
+        if contact_data:
+            # For the old format, we need to create a temporary contact or use the composer directly
+            # Import the composers directly
+            if composer_type == "alt_subject":
+                from email_composer_alt_subject import AltSubjectEmailComposer
+                composer = AltSubjectEmailComposer()
+            else:
+                from email_composer_warm import WarmEmailComposer
+                composer = WarmEmailComposer()
+            
+            # Use the composer directly with the contact data
+            lead_data = {
+                "name": contact_data.get('name', ''),
+                "email": contact_data.get('email', ''),
+                "company": contact_data.get('company', ''),
+                "position": contact_data.get('position', ''),
+                "website": contact_data.get('website', ''),
+                "notes": contact_data.get('notes', ''),
+            }
+            
+            calendar_url = data.get('calendar_url') or os.getenv("CALENDAR_URL", "https://calendly.com/pranav-modi/15-minute-meeting")
+            email_content = composer.compose_email(lead=lead_data, calendar_url=calendar_url, extra_context=data.get('extra_context'))
+            
+            if email_content and 'subject' in email_content and 'body' in email_content:
+                return jsonify({
+                    'subject': email_content['subject'],
+                    'body': email_content['body']
+                })
+            else:
+                return jsonify({"error": "Failed to compose email"}), 500
+        
+        return jsonify({"error": "Missing contact_id or contact_data"}), 400
+        
     except Exception as e:
         current_app.logger.error(f"Error generating email preview: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
@@ -104,21 +147,22 @@ def send_bulk_emails():
     """Send emails to multiple recipients."""
     try:
         data = request.get_json()
-        recipients = data.get('recipients', [])
+        recipients_data = data.get('recipients_data')
+        composer_type = data.get('composer_type', 'warm')
+        calendar_url = data.get('calendar_url')
+        extra_context = data.get('extra_context')
+
+        if not recipients_data or not isinstance(recipients_data, list):
+            return jsonify({"error": "Missing or invalid recipients_data"}), 400
+
+        results = EmailService.send_bulk_emails(
+            recipients_data=recipients_data, 
+            composer_type=composer_type, 
+            calendar_url=calendar_url, 
+            extra_context=extra_context
+        )
         
-        if not recipients:
-            return jsonify({
-                'success': False,
-                'message': 'No recipients provided'
-            }), 400
-        
-        results = EmailService.send_bulk_emails(recipients)
-        
-        return jsonify({
-            'success': results['failed'] == 0,
-            'results': results,
-            'message': f"Successfully sent {results['success']} emails. Failed to send {results['failed']} emails."
-        })
+        return jsonify(results)
         
     except Exception as e:
         current_app.logger.error(f"Error in send_bulk_emails: {str(e)}")

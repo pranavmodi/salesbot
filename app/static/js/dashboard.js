@@ -759,6 +759,8 @@ Exported on: ${new Date().toLocaleString()}
 // Email composition functions (for compose tab)
 function generateEmailPreview() {
     const form = document.getElementById('composeForm');
+    const composerType = document.getElementById('composerType').value || 'warm';
+    
     const leadInfo = {
         name: form.recipientName.value,
         email: form.recipientEmail.value,
@@ -766,17 +768,24 @@ function generateEmailPreview() {
         position: form.position.value
     };
     
-    fetch('/preview_email', {
+    fetch('/api/preview_email', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify(leadInfo)
+        body: JSON.stringify({
+            contact_data: leadInfo,
+            composer_type: composerType
+        })
     })
     .then(response => response.json())
     .then(data => {
-        form.emailSubject.value = data.subject;
-        form.emailBody.value = data.body;
+        if (data.subject && data.body) {
+            form.emailSubject.value = data.subject;
+            form.emailBody.value = data.body;
+        } else {
+            showToast('errorToast', data.error || 'Failed to generate email preview');
+        }
     })
     .catch(error => {
         console.error('Error:', error);
@@ -1132,6 +1141,19 @@ function loadBulkEmailComposer(contacts) {
                     </div>
                     <div class="card-body">
                         <div class="mb-3">
+                            <label for="composerTypeSelect" class="form-label">
+                                <i class="fas fa-palette me-1"></i>Email Style
+                            </label>
+                            <select class="form-select" id="composerTypeSelect">
+                                <option value="warm">Warm & Personal (Default)</option>
+                                <option value="alt_subject">AI Pilled Subject Line</option>
+                            </select>
+                            <small class="form-text text-muted">
+                                Choose the email style and subject line approach
+                            </small>
+                        </div>
+                        
+                        <div class="mb-3">
                             <button class="btn btn-primary" id="generatePreviewBtn" onclick="generatePreviewEmails()" disabled>
                                 <i class="fas fa-eye me-2"></i>Generate Preview for Selected
                             </button>
@@ -1235,21 +1257,21 @@ function processEmailsSequentially(promises, index, results, completedCount, tot
 }
 
 function generateEmailForContact(contact, index) {
-    // Prepare contact data for AI composer
-    const contactData = {
-        name: contact.first_name || contact.display_name || 'There',
-        email: contact.email,
-        company: contact.company || '',
-        position: contact.job_title || ''
-    };
+    // Get the selected composer type
+    const composerTypeSelect = document.getElementById('composerTypeSelect');
+    const composerType = composerTypeSelect ? composerTypeSelect.value : 'warm';
     
-    // Call the existing AI email preview API
+    // Call the existing AI email preview API with composer type
+    // Use email as contact_id since Contact model doesn't have id field
     return fetch('/api/preview_email', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify(contactData)
+        body: JSON.stringify({
+            contact_id: contact.email,
+            composer_type: composerType
+        })
     })
     .then(response => response.json())
     .then(data => {
@@ -1259,7 +1281,8 @@ function generateEmailForContact(contact, index) {
                 subject: data.subject,
                 body: data.body,
                 success: true,
-                index: index
+                index: index,
+                composer_type: composerType
             };
         } else {
             throw new Error(data.error || 'Failed to generate email content');
@@ -1418,12 +1441,13 @@ function sendAllEmails() {
     sendButton.disabled = true;
     sendButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Sending...';
     
+    // Get the selected composer type
+    const composerTypeSelect = document.getElementById('composerTypeSelect');
+    const composerType = composerTypeSelect ? composerTypeSelect.value : 'warm';
+    
     // Prepare recipients data for bulk sending
-    const recipients = window.generatedEmails.map(email => ({
-        recipient_email: email.contact.email,
-        recipient_name: email.contact.display_name || email.contact.first_name || 'There',
-        subject: email.subject,
-        body: email.body
+    const recipients_data = window.generatedEmails.map(email => ({
+        contact_id: email.contact.email
     }));
     
     // Send bulk emails
@@ -1432,12 +1456,15 @@ function sendAllEmails() {
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ recipients: recipients })
+        body: JSON.stringify({ 
+            recipients_data: recipients_data,
+            composer_type: composerType
+        })
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
-            showToast('successToast', `Successfully sent ${data.results.success} emails!`);
+        if (data.sent && data.sent.length > 0) {
+            showToast('successToast', `Successfully sent ${data.sent.length} emails!`);
             
             // Close the bulk email modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('bulkEmailModal'));
@@ -1450,7 +1477,8 @@ function sendAllEmails() {
                 window.location.reload();
             }, 2000);
         } else {
-            showToast('errorToast', data.message || 'Failed to send emails');
+            const failedCount = data.failed ? data.failed.length : 0;
+            showToast('errorToast', `Failed to send emails. ${failedCount} failures.`);
         }
     })
     .catch(error => {
@@ -1618,12 +1646,13 @@ function sendPreviewedEmails() {
     sendButton.disabled = true;
     sendButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Sending...';
     
+    // Get the selected composer type
+    const composerTypeSelect = document.getElementById('composerTypeSelect');
+    const composerType = composerTypeSelect ? composerTypeSelect.value : 'warm';
+    
     // Prepare recipients data for bulk sending
-    const recipients = window.previewedEmails.map(email => ({
-        recipient_email: email.contact.email,
-        recipient_name: email.contact.display_name || email.contact.first_name || 'There',
-        subject: email.subject,
-        body: email.body
+    const recipients_data = window.previewedEmails.map(email => ({
+        contact_id: email.contact.email
     }));
     
     // Send bulk emails
@@ -1632,12 +1661,15 @@ function sendPreviewedEmails() {
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ recipients: recipients })
+        body: JSON.stringify({ 
+            recipients_data: recipients_data,
+            composer_type: composerType
+        })
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
-            showToast('successToast', `Successfully sent ${data.results.success} emails!`);
+        if (data.sent && data.sent.length > 0) {
+            showToast('successToast', `Successfully sent ${data.sent.length} emails!`);
             
             // Close the bulk email modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('bulkEmailModal'));
@@ -1650,7 +1682,8 @@ function sendPreviewedEmails() {
                 window.location.reload();
             }, 2000);
         } else {
-            showToast('errorToast', data.message || 'Failed to send emails');
+            const failedCount = data.failed ? data.failed.length : 0;
+            showToast('errorToast', `Failed to send emails. ${failedCount} failures.`);
         }
     })
     .catch(error => {
