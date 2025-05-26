@@ -51,6 +51,20 @@ function setupEventListeners() {
             }
         });
     }
+
+    // Add Contact form
+    const saveContactBtn = document.getElementById('saveContactBtn');
+    if (saveContactBtn) {
+        saveContactBtn.addEventListener('click', saveNewContact);
+    }
+
+    // Add Contact modal reset
+    const addContactModal = document.getElementById('addContactModal');
+    if (addContactModal) {
+        addContactModal.addEventListener('hidden.bs.modal', function() {
+            resetAddContactForm();
+        });
+    }
 }
 
 function setupSearch() {
@@ -1694,4 +1708,120 @@ function sendPreviewedEmails() {
         sendButton.disabled = false;
         sendButton.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Send Previewed';
     });
-} 
+}
+
+// Add Contact Form Functions
+function saveNewContact() {
+    const form = document.getElementById('addContactForm');
+    const formData = new FormData(form);
+    
+    // Convert FormData to JSON
+    const contactData = {};
+    for (let [key, value] of formData.entries()) {
+        contactData[key] = value.trim();
+    }
+    
+    // Validate required fields
+    if (!contactData.email) {
+        showToast('errorToast', 'Email address is required');
+        return;
+    }
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(contactData.email)) {
+        showToast('errorToast', 'Please enter a valid email address');
+        return;
+    }
+    
+    // Show loading state
+    const saveBtn = document.getElementById('saveContactBtn');
+    const originalText = saveBtn.innerHTML;
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+    
+    // Send request to backend
+    fetch('/api/contacts/add', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(contactData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('successToast', data.message);
+            
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('addContactModal'));
+            if (modal) {
+                modal.hide();
+            }
+            
+            // Reset form
+            resetAddContactForm();
+            
+            // Refresh the page to show the new contact
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            showToast('errorToast', data.message || 'Failed to add contact');
+        }
+    })
+    .catch(error => {
+        console.error('Error adding contact:', error);
+        showToast('errorToast', 'An error occurred while adding the contact');
+    })
+    .finally(() => {
+        // Restore button state
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalText;
+    });
+}
+
+function resetAddContactForm() {
+    const form = document.getElementById('addContactForm');
+    if (form) {
+        form.reset();
+        
+        // Clear any validation states
+        const inputs = form.querySelectorAll('.form-control');
+        inputs.forEach(input => {
+            input.classList.remove('is-valid', 'is-invalid');
+        });
+    }
+}
+
+// Auto-format URL fields
+document.addEventListener('DOMContentLoaded', function() {
+    const urlFields = ['addCompanyDomain', 'addLinkedInProfile'];
+    
+    urlFields.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (field) {
+            field.addEventListener('blur', function() {
+                let value = this.value.trim();
+                if (value && !value.startsWith('http://') && !value.startsWith('https://')) {
+                    this.value = 'https://' + value;
+                }
+            });
+        }
+    });
+    
+    // Auto-generate full name
+    const firstNameField = document.getElementById('addFirstName');
+    const lastNameField = document.getElementById('addLastName');
+    
+    if (firstNameField && lastNameField) {
+        function updateFullName() {
+            const firstName = firstNameField.value.trim();
+            const lastName = lastNameField.value.trim();
+            // This is just for display purposes - the backend will handle full_name generation
+        }
+        
+        firstNameField.addEventListener('input', updateFullName);
+        lastNameField.addEventListener('input', updateFullName);
+    }
+}); 

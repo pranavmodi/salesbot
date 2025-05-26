@@ -368,6 +368,117 @@ Then try testing the connection again.'''
             'message': f'Connection test failed: {str(e)}'
         }), 500
 
+@bp.route('/contacts/add', methods=['POST'])
+def add_contact():
+    """Add a new contact manually."""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        email = data.get('email', '').strip()
+        if not email:
+            return jsonify({
+                'success': False,
+                'message': 'Email is required'
+            }), 400
+        
+        # Basic email validation
+        if '@' not in email or '.' not in email.split('@')[-1]:
+            return jsonify({
+                'success': False,
+                'message': 'Please enter a valid email address'
+            }), 400
+        
+        # Check if contact already exists
+        existing_contacts = Contact.search(email)
+        if existing_contacts:
+            return jsonify({
+                'success': False,
+                'message': 'A contact with this email already exists'
+            }), 400
+        
+        # Prepare contact data
+        first_name = data.get('first_name', '').strip()
+        last_name = data.get('last_name', '').strip()
+        full_name = data.get('full_name', '').strip()
+        
+        # Auto-generate full_name if not provided
+        if not full_name and (first_name or last_name):
+            full_name = f"{first_name} {last_name}".strip()
+        
+        # Create contact data dictionary
+        contact_data = {
+            'email': email,
+            'first_name': first_name,
+            'last_name': last_name,
+            'full_name': full_name,
+            'job_title': data.get('job_title', '').strip(),
+            'company_name': data.get('company_name', '').strip(),
+            'company_domain': data.get('company_domain', '').strip(),
+            'linkedin_profile': data.get('linkedin_profile', '').strip(),
+            'location': data.get('location', '').strip(),
+            'phone': data.get('phone', '').strip(),
+            'linkedin_message': data.get('linkedin_message', '').strip(),
+        }
+        
+        # Use the Contact model to save the contact
+        # Since Contact model doesn't have a save method, we'll use the database directly
+        from sqlalchemy import create_engine, text
+        from datetime import datetime
+        import json
+        import os
+        
+        database_url = os.getenv("DATABASE_URL")
+        if not database_url:
+            return jsonify({
+                'success': False,
+                'message': 'Database connection error'
+            }), 500
+        
+        engine = create_engine(database_url)
+        with engine.connect() as conn:
+            # Insert new contact
+            with conn.begin():
+                conn.execute(text("""
+                    INSERT INTO contacts (
+                        email, first_name, last_name, full_name, job_title, 
+                        company_name, company_domain, linkedin_profile, location, 
+                        phone, linkedin_message, source_files, all_data
+                    ) VALUES (
+                        :email, :first_name, :last_name, :full_name, :job_title,
+                        :company_name, :company_domain, :linkedin_profile, :location,
+                        :phone, :linkedin_message, :source_files, :all_data
+                    )
+                """), {
+                    **contact_data,
+                    'source_files': json.dumps(["manual_entry"]),
+                    'all_data': json.dumps({
+                        'source': 'manual_entry',
+                        'created_by': 'user',
+                        'entry_date': datetime.now().isoformat()
+                    })
+                })
+        
+        current_app.logger.info(f"Successfully added new contact: {email}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Contact {full_name or email} added successfully',
+            'contact': {
+                'email': email,
+                'name': full_name or f"{first_name} {last_name}".strip() or email,
+                'company': contact_data['company_name'],
+                'job_title': contact_data['job_title']
+            }
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error adding contact: {e}")
+        return jsonify({
+            'success': False,
+            'message': 'An unexpected error occurred'
+        }), 500
+
 @bp.route('/contacts/export', methods=['GET'])
 def export_contacts():
     """Export contacts to CSV."""
