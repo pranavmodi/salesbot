@@ -22,7 +22,7 @@ try:
 except ImportError:
     print("Warning: Configuration file config.py not found or could not be imported.")
     # Set a default subject if config.py is missing
-    EMAIL_SUBJECT = "Following up" 
+    EMAIL_SUBJECT = "Following up"
     # Or exit if config.py is strictly required for other settings:
     # print("Please ensure config.py exists.")
     # exit(1)
@@ -36,6 +36,7 @@ SMTP_PORT = os.getenv("SMTP_PORT")
 SENDER_EMAIL = os.getenv("SENDER_EMAIL")
 SENDER_PASSWORD = os.getenv("SENDER_PASSWORD")
 DATABASE_URL = os.getenv("DATABASE_URL")
+EMAIL_DELAY_MINUTES = int(os.getenv("EMAIL_DELAY_MINUTES", "30"))  # Default to 30 minutes
 
 # Validate essential environment variables
 if not all([SMTP_HOST, SMTP_PORT, SENDER_EMAIL, SENDER_PASSWORD]):
@@ -168,8 +169,10 @@ def main():
 
             # Send the email
             if send_email(lead_info['email'], email_content['subject'], email_content['body']):
-                # Optional: Add a delay to avoid rate limiting
-                time.sleep(1)  # Delay for 1 second between emails
+                # Add configurable delay to avoid rate limiting and respect Zoho's policies
+                delay_seconds = EMAIL_DELAY_MINUTES * 60
+                print(f"Email sent. Waiting {EMAIL_DELAY_MINUTES} minutes before next email to avoid triggering spam detection...")
+                time.sleep(delay_seconds)
             else:
                 print(f"Failed to send email to {lead_info['email']}. Continuing...")
 
