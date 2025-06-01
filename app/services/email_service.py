@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from flask import current_app
 import os
+import time # Import the time module
 
 from app.models.contact import Contact
 from app.models.email_history import EmailHistory
@@ -221,4 +222,59 @@ class EmailService:
             
         except Exception as e:
             current_app.logger.error(f"Error getting unsent contacts: {str(e)}")
-            return [] 
+            return []
+
+    @staticmethod
+    def send_test_email(recipient_emails: List[str], subject: str, body: str) -> Dict[str, List[str]]:
+        """
+        Send a test email to a list of recipients.
+
+        Args:
+            recipient_emails: List of email addresses of recipients
+            subject: Email subject
+            body: Email body
+
+        Returns:
+            Dictionary with 'sent' and 'failed' lists of email addresses
+        """
+        sent_emails = []
+        failed_emails = []
+        total_emails = len(recipient_emails)
+        current_app.logger.info(f"Starting test email sending process for {total_emails} recipient(s).")
+
+        for i, email_address in enumerate(recipient_emails):
+            current_app.logger.info(f"Processing test email {i+1} of {total_emails} to: {email_address}")
+            try:
+                # We can reuse the existing send_email from send_emails.py for the actual sending
+                # Assuming a generic name for the recipient for test emails
+                success = send_email(recipient_email=email_address, subject=subject, body_markdown=body)
+                
+                # Save to history - reusing existing EmailHistory logic
+                email_data = {
+                    'date': datetime.now(),
+                    'to': email_address,
+                    'subject': subject,
+                    'body': body,
+                    'status': 'Success - Test Email' if success else 'Failed - Test Email'
+                }
+                EmailHistory.save(email_data)
+
+                if success:
+                    sent_emails.append(email_address)
+                    current_app.logger.info(f"Test email sent successfully to {email_address}")
+                else:
+                    failed_emails.append(email_address)
+                    current_app.logger.error(f"Failed to send test email to {email_address}")
+            
+            except Exception as e:
+                current_app.logger.error(f"Error sending test email to {email_address}: {str(e)}")
+                failed_emails.append(email_address)
+            
+            # Add delay if it's not the last email
+            if i < total_emails - 1:
+                current_app.logger.info(f"Waiting for 60 seconds before sending the next test email...")
+                time.sleep(60)
+                current_app.logger.info(f"Delay finished. Proceeding with the next email.")
+
+        current_app.logger.info(f"Test email sending process completed. Sent: {len(sent_emails)}, Failed: {len(failed_emails)}")
+        return {"sent": sent_emails, "failed": failed_emails} 

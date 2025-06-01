@@ -54,6 +54,21 @@
             <i class="fas fa-edit me-2"></i>Compose
         </button>
     </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="analytics-tab" data-bs-toggle="tab" data-bs-target="#analytics-tab-pane" type="button" role="tab" aria-controls="analytics-tab-pane" aria-selected="false">
+            <i class="fas fa-chart-line me-2"></i>Analytics
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="settings-tab" data-bs-toggle="tab" data-bs-target="#settings-tab-pane" type="button" role="tab" aria-controls="settings-tab-pane" aria-selected="false">
+            <i class="fas fa-cogs me-2"></i>Settings
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="test-email-tab" data-bs-toggle="tab" data-bs-target="#test-email-tab-pane" type="button" role="tab" aria-controls="test-email-tab-pane" aria-selected="false">
+            <i class="fas fa-vial me-2"></i>Test Emails
+        </button>
+    </li>
 </ul>
 
 <!-- Tab Content -->
@@ -415,6 +430,50 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Analytics Tab -->
+    <div class="tab-pane fade" id="analytics-tab-pane" role="tabpanel" aria-labelledby="analytics-tab" tabindex="0">
+        <div class="container-fluid p-3">
+            <h2><i class="fas fa-chart-line me-2"></i>Analytics</h2>
+            <p><em>Analytics page is under construction.</em></p>
+            <div id="analyticsContent"></div>
+        </div>
+    </div>
+
+    <!-- Settings Tab -->
+    <div class="tab-pane fade" id="settings-tab-pane" role="tabpanel" aria-labelledby="settings-tab" tabindex="0">
+        <div class="container-fluid p-3">
+            <h2><i class="fas fa-cogs me-2"></i>Settings</h2>
+            <!-- Settings content will go here -->
+            <p><em>Settings page is under construction.</em></p>
+            <div id="settingsContent"></div>
+        </div>
+    </div>
+
+    <!-- Test Emails Tab -->
+    <div class="tab-pane fade" id="test-email-tab-pane" role="tabpanel" aria-labelledby="test-email-tab" tabindex="0">
+        <div class="container-fluid p-3">
+            <h2><i class="fas fa-vial me-2"></i>Send Test Emails</h2>
+            <form id="sendTestEmailForm">
+                <div class="mb-3">
+                    <label for="testEmailAddresses" class="form-label">Recipient Email Addresses (comma-separated)</label>
+                    <input type="text" class="form-control" id="testEmailAddresses" name="testEmailAddresses" placeholder="email1@example.com, email2@example.com" required>
+                </div>
+                <div class="mb-3">
+                    <label for="testEmailSubject" class="form-label">Subject</label>
+                    <input type="text" class="form-control" id="testEmailSubject" name="testEmailSubject" value="Test Email">
+                </div>
+                <div class="mb-3">
+                    <label for="testEmailBody" class="form-label">Body</label>
+                    <textarea class="form-control" id="testEmailBody" name="testEmailBody" rows="5" placeholder="Enter your test email content here..." required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-paper-plane me-2"></i>Send Test Emails
+                </button>
+            </form>
+            <div id="testEmailStatus" class="mt-3"></div>
         </div>
     </div>
 </div>

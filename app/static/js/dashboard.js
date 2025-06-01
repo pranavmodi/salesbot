@@ -11,6 +11,10 @@ document.addEventListener('DOMContentLoaded', function() {
     setupEventListeners();
     setupSearch();
     setupFilters();
+    loadContacts();
+    loadEmailHistory();
+    // Update dashboard stats if needed
+    // updateDashboardStats();
 });
 
 function setupEventListeners() {
@@ -64,6 +68,11 @@ function setupEventListeners() {
         addContactModal.addEventListener('hidden.bs.modal', function() {
             resetAddContactForm();
         });
+    }
+
+    const sendTestEmailForm = document.getElementById('sendTestEmailForm');
+    if (sendTestEmailForm) {
+        sendTestEmailForm.addEventListener('submit', sendTestEmails);
     }
 }
 
@@ -1824,4 +1833,63 @@ document.addEventListener('DOMContentLoaded', function() {
         firstNameField.addEventListener('input', updateFullName);
         lastNameField.addEventListener('input', updateFullName);
     }
-}); 
+});
+
+// Function to handle sending test emails
+function sendTestEmails(event) {
+    event.preventDefault(); // Prevent default form submission
+
+    const emailAddresses = document.getElementById('testEmailAddresses').value.trim();
+    const subject = document.getElementById('testEmailSubject').value.trim();
+    const body = document.getElementById('testEmailBody').value.trim();
+    const statusDiv = document.getElementById('testEmailStatus');
+
+    if (!emailAddresses || !body) {
+        statusDiv.innerHTML = `<div class="alert alert-danger">Email addresses and body are required.</div>`;
+        return;
+    }
+
+    const recipient_emails = emailAddresses.split(',').map(email => email.trim()).filter(email => email);
+
+    if (recipient_emails.length === 0) {
+        statusDiv.innerHTML = `<div class="alert alert-danger">Please enter at least one valid email address.</div>`;
+        return;
+    }
+
+    statusDiv.innerHTML = `<div class="alert alert-info">Sending test emails...</div>`;
+
+    fetch('/api/send_test_email', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+            recipient_emails: recipient_emails,
+            subject: subject || 'Test Email', // Use default if subject is empty
+            body: body 
+        }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            let resultMessage = `<div class="alert alert-success">Test email process completed.`;
+            if (data.results) {
+                if (data.results.sent && data.results.sent.length > 0) {
+                    resultMessage += `<br>Successfully sent to: ${data.results.sent.join(', ')}.`;
+                }
+                if (data.results.failed && data.results.failed.length > 0) {
+                    resultMessage += `<br>Failed to send to: ${data.results.failed.join(', ')}.`;
+                }
+            }
+            resultMessage += `</div>`;
+            statusDiv.innerHTML = resultMessage;
+            document.getElementById('sendTestEmailForm').reset(); // Reset the form
+        } else {
+            statusDiv.innerHTML = `<div class="alert alert-danger">Error: ${data.message || 'Failed to send test emails.'}</div>`;
+        }
+    })
+    .catch(error => {
+        console.error('Error sending test emails:', error);
+        statusDiv.innerHTML = `<div class="alert alert-danger">An unexpected error occurred. Check console for details.</div>`;
+    });
+} 

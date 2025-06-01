@@ -778,4 +778,42 @@ def get_uncontacted_contacts():
         
     except Exception as e:
         current_app.logger.error(f"Error getting uncontacted contacts: {str(e)}")
-        return jsonify({'error': 'Failed to load uncontacted contacts'}), 500 
+        return jsonify({'error': 'Failed to load uncontacted contacts'}), 500
+
+@bp.route('/send_test_email', methods=['POST'])
+def send_test_email_route():
+    """Send a test email to a list of specified email addresses."""
+    try:
+        data = request.get_json()
+        recipient_emails = data.get('recipient_emails')
+        subject = data.get('subject', 'Test Email') # Default subject
+        body = data.get('body')
+
+        if not recipient_emails or not isinstance(recipient_emails, list) or not body:
+            return jsonify({
+                'success': False,
+                'message': 'Missing required information: recipient_emails (list) and body (string) are required.'
+            }), 400
+        
+        # Validate email formats in recipient_emails (basic check)
+        for email_address in recipient_emails:
+            if not isinstance(email_address, str) or "@" not in email_address:
+                return jsonify({
+                    'success': False,
+                    'message': f'Invalid email address format: {email_address}'
+                }), 400
+
+        results = EmailService.send_test_email(recipient_emails, subject, body)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Test email sending process initiated.',
+            'results': results
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error in send_test_email_route: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Internal server error'
+        }), 500 
