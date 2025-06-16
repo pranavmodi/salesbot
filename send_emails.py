@@ -128,10 +128,16 @@ def send_email(recipient_email: str, subject: str, body_markdown: str) -> bool:
     # ---------- send ------------------------
     context = ssl.create_default_context()
     try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.starttls(context=context)
-            server.login(SENDER_EMAIL, SENDER_PASSWORD)
-            server.send_message(msg)
+        use_ssl = int(SMTP_PORT) == 465 or os.getenv("SMTP_USE_SSL", "False").lower() == "true"
+        if use_ssl:
+            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=context) as server:
+                server.login(SENDER_EMAIL, SENDER_PASSWORD)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+                server.starttls(context=context)
+                server.login(SENDER_EMAIL, SENDER_PASSWORD)
+                server.send_message(msg)
         print(f"✓ Email sent to {recipient_email}")
         db.add_interaction(recipient_email, "email_sent", f"Subject: {subject}")
         return True

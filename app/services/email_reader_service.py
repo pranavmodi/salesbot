@@ -9,9 +9,6 @@ import re
 import os
 from flask import current_app
 
-# Feature flag to enable/disable email reading functionality
-EMAIL_READING_ENABLED = False  # Set to True when IMAP access is available
-
 class EmailReaderService:
     """Service for reading emails and extracting conversations with contacts."""
     
@@ -290,11 +287,6 @@ email_reader = EmailReaderService()
 
 def configure_email_reader():
     """Configure email reader from environment variables."""
-    
-    # Check if email reading is enabled
-    if not EMAIL_READING_ENABLED:
-        current_app.logger.info("Email reading feature is disabled")
-        return False
     
     # Try different email providers
     email_address = os.getenv('SENDER_EMAIL', '')

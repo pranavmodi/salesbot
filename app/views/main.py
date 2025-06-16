@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, current_app
 
 from app.models.contact import Contact
 from app.models.email_history import EmailHistory
+from app.services.email_reader_service import email_reader, configure_email_reader
 
 bp = Blueprint('main', __name__)
 
@@ -59,4 +60,28 @@ def index():
 @bp.route('/import')
 def import_contacts():
     """CSV import page."""
-    return render_template('import.html') 
+    return render_template('import.html')
+
+@bp.route('/inbox')
+def inbox():
+    """Inbox page showing all received and sent emails."""
+    # Ensure email reader is configured
+    if not email_reader.connection:
+        configure_email_reader()
+    # Fetch emails from INBOX and Sent folders
+    emails = []
+    for folder in ['INBOX', 'Sent']:
+        try:
+            email_reader.connection.select(folder)
+            status, message_ids = email_reader.connection.search(None, 'ALL')
+            if status == 'OK' and message_ids[0]:
+                ids = message_ids[0].split()
+                for msg_id in ids[-50:]:  # Limit to last 50 emails per folder
+                    email_data = email_reader._fetch_email_data(msg_id, folder)
+                    if email_data:
+                        emails.append(email_data)
+        except Exception as e:
+            current_app.logger.warning(f"Error fetching emails from {folder}: {e}")
+    # Sort emails by date, newest first
+    emails.sort(key=lambda x: x.get('date'), reverse=True)
+    return render_template('inbox.html', emails=emails) 

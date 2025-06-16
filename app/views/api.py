@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, current_app
 
 from app.models.contact import Contact
 from app.services.email_service import EmailService
-from app.services.email_reader_service import email_reader, configure_email_reader, EMAIL_READING_ENABLED
+from app.services.email_reader_service import email_reader, configure_email_reader
 import os
 import tempfile
 import pandas as pd
@@ -816,4 +816,34 @@ def send_test_email_route():
         return jsonify({
             'success': False,
             'message': 'Internal server error'
-        }), 500 
+        }), 500
+
+@bp.route('/email/all', methods=['GET'])
+def get_all_emails():
+    """Get all inbox and sent emails for the configured account."""
+    try:
+        if not email_reader.connection:
+            configure_email_reader()
+        emails = []
+        for folder in ['INBOX', 'Sent']:
+            try:
+                email_reader.connection.select(folder)
+                status, message_ids = email_reader.connection.search(None, 'ALL')
+                if status == 'OK' and message_ids[0]:
+                    ids = message_ids[0].split()
+                    for msg_id in ids[-50:]:  # Limit to last 50 emails per folder
+                        email_data = email_reader._fetch_email_data(msg_id, folder)
+                        if email_data:
+                            emails.append(email_data)
+            except Exception as e:
+                current_app.logger.warning(f"Error fetching emails from {folder}: {e}")
+        # Sort emails by date, newest first
+        emails.sort(key=lambda x: x.get('date'), reverse=True)
+        # Convert datetime to isoformat for JSON
+        for email in emails:
+            if email.get('date'):
+                email['date'] = email['date'].isoformat()
+        return jsonify({'emails': emails, 'success': True})
+    except Exception as e:
+        current_app.logger.error(f"Error fetching all emails: {str(e)}")
+        return jsonify({'error': 'Failed to fetch emails', 'success': False}), 500 

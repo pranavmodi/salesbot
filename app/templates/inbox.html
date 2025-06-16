@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Inbox & Sent Emails</h2>
+<table border="1" cellpadding="6" cellspacing="0">
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>From</th>
+            <th>To</th>
+            <th>Subject</th>
+            <th>Folder</th>
+            <th>Body Preview</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for email in emails %}
+        <tr>
+            <td>{{ email.date.strftime('%Y-%m-%d %H:%M') if email.date else '' }}</td>
+            <td>{{ email.from }}</td>
+            <td>{{ email.to }}</td>
+            <td>{{ email.subject }}</td>
+            <td>{{ email.folder }}</td>
+            <td>{{ email.body[:100] }}{% if email.body and email.body|length > 100 %}...{% endif %}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% if not emails %}
+<p>No emails found.</p>
+{% endif %}
+{% endblock %} 
