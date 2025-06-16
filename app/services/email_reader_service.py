@@ -306,7 +306,9 @@ def configure_email_reader():
         'hotmail.com': 'outlook.office365.com',
         'live.com': 'outlook.office365.com',
         'zoho.com': 'imap.zoho.com',
-        'possibleminds.in': 'imap.zoho.com',  # Your domain uses Zoho
+        'zoho.in': 'imap.zoho.in', # Added for Zoho India
+        'possibleminds.in': 'imap.zoho.in',  # Your domain uses Zoho India
+        'possiblemindshq.com': 'imap.zoho.in', # Updated for your domain to use Zoho India
         'yahoo.com': 'imap.mail.yahoo.com'
     }
     

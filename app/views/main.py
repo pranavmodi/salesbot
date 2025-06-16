@@ -64,10 +64,12 @@ def import_contacts():
 
 @bp.route('/inbox')
 def inbox():
-    """Inbox page showing all received and sent emails."""
-    # Ensure email reader is configured
+    """Inbox page showing all received and sent emails as threads."""
+    # Ensure email reader is configured and connected
     if not email_reader.connection:
         configure_email_reader()
+        if not email_reader.connection:
+            email_reader.connect()
     # Fetch emails from INBOX and Sent folders
     emails = []
     for folder in ['INBOX', 'Sent']:
@@ -82,6 +84,8 @@ def inbox():
                         emails.append(email_data)
         except Exception as e:
             current_app.logger.warning(f"Error fetching emails from {folder}: {e}")
-    # Sort emails by date, newest first
-    emails.sort(key=lambda x: x.get('date'), reverse=True)
-    return render_template('inbox.html', emails=emails) 
+    # Group emails by thread
+    threads = email_reader.group_emails_by_thread(emails)
+    # Sort threads by most recent email in each thread
+    sorted_threads = sorted(threads.values(), key=lambda thread: thread[-1]['date'] if thread else None, reverse=True)
+    return render_template('inbox.html', threads=sorted_threads) 

@@ -39,9 +39,27 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 EMAIL_DELAY_MINUTES = int(os.getenv("EMAIL_DELAY_MINUTES", "30"))  # Default to 30 minutes
 
 # Validate essential environment variables
+if not all([SENDER_EMAIL, SENDER_PASSWORD]):
+    logging.error("Error: SENDER_EMAIL and SENDER_PASSWORD must be set in environment.")
+    exit(1)
+
+# Auto-detect SMTP settings from email if not explicitly set
+if not SMTP_HOST:
+    domain = SENDER_EMAIL.split('@')[-1].lower()
+    if domain in ['zoho.in', 'possibleminds.in', 'possiblemindshq.com']:
+        SMTP_HOST = 'smtp.zoho.in'
+        SMTP_PORT = 465 # Or 587 for TLS
+        logging.info(f"Auto-detected Zoho India SMTP settings: {SMTP_HOST}:{SMTP_PORT}")
+    elif 'zoho.com' in domain:
+        SMTP_HOST = 'smtp.zoho.com'
+        SMTP_PORT = 465
+        logging.info(f"Auto-detected Zoho SMTP settings: {SMTP_HOST}:{SMTP_PORT}")
+    # Add other provider detections as needed
+
+# Validate essential environment variables
 if not all([SMTP_HOST, SMTP_PORT, SENDER_EMAIL, SENDER_PASSWORD]):
-    print("Error: One or more environment variables (SMTP_HOST, SMTP_PORT, SENDER_EMAIL, SENDER_PASSWORD) are missing.")
-    print("Please ensure they are defined in your .env file or system environment.")
+    logging.error("Error: One or more environment variables (SMTP_HOST, SMTP_PORT, SENDER_EMAIL, SENDER_PASSWORD) are missing.")
+    logging.error("Please ensure they are defined in your .env file or system environment.")
     exit(1)
 
 if not DATABASE_URL:
