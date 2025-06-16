@@ -132,6 +132,7 @@ class EmailReaderService:
             date_str = email_message.get('Date', '')
             message_id = email_message.get('Message-ID', '')
             in_reply_to = email_message.get('In-Reply-To', '')
+            references = email_message.get('References', '')
             
             # Parse date
             try:
@@ -150,6 +151,7 @@ class EmailReaderService:
                 'id': msg_id.decode(),
                 'message_id': message_id,
                 'in_reply_to': in_reply_to,
+                'references': references,
                 'subject': subject,
                 'from': from_addr,
                 'to': to_addr,
@@ -158,7 +160,6 @@ class EmailReaderService:
                 'body': body,
                 'direction': direction,
                 'folder': folder,
-                'thread_id': self._extract_thread_id(subject, message_id, in_reply_to)
             }
             
         except Exception as e:
@@ -185,7 +186,7 @@ class EmailReaderService:
         except Exception as e:
             current_app.logger.warning(f"Error decoding header: {e}")
             return header_value
-    
+
     def _extract_email_body(self, email_message) -> str:
         """Extract email body text."""
         body = ""
@@ -221,35 +222,79 @@ class EmailReaderService:
             
         return body.strip()
     
-    def _extract_thread_id(self, subject: str, message_id: str, in_reply_to: str) -> str:
-        """Generate a thread ID for grouping related emails."""
-        # Clean subject for threading
-        clean_subject = re.sub(r'^(Re:|Fwd?:|AW:|SV:)\s*', '', subject, flags=re.IGNORECASE).strip()
-        
-        # Use in_reply_to or clean subject as thread identifier
-        if in_reply_to:
-            return in_reply_to
-        elif clean_subject:
-            return f"subject:{clean_subject}"
-        else:
-            return message_id
-    
     def group_emails_by_thread(self, emails: List[Dict]) -> Dict[str, List[Dict]]:
         """Group emails by conversation thread."""
+        emails_by_id = {e['message_id']: e for e in emails if e.get('message_id')}
+        
+        parent_child_map = {}
+        for e in emails:
+            if not e.get('message_id'): continue
+            
+            parent_id = None
+            if e.get('in_reply_to'):
+                parent_id = e.get('in_reply_to')
+            elif e.get('references'):
+                parent_id = e.get('references').split()[-1]
+
+            if parent_id and parent_id in emails_by_id:
+                if parent_id not in parent_child_map:
+                    parent_child_map[parent_id] = []
+                parent_child_map[parent_id].append(e['message_id'])
+
+        all_children_ids = set(cid for children in parent_child_map.values() for cid in children)
+        
+        # Roots are emails that are not children of any other email in our fetched set
+        root_ids = set(emails_by_id.keys()) - all_children_ids
+        
+        # Additionally, group roots by cleaned subject for conversations that don't use headers
+        subject_to_roots = {}
+        for root_id in list(root_ids):
+            email_data = emails_by_id.get(root_id)
+            if not email_data or not email_data.get('subject'): continue
+            
+            clean_subject = re.sub(r'^(Re:|Fwd?:|AW:|SV:)\s*', '', email_data['subject'], flags=re.IGNORECASE).strip()
+            if not clean_subject: continue
+            
+            if clean_subject not in subject_to_roots:
+                subject_to_roots[clean_subject] = []
+            subject_to_roots[clean_subject].append(root_id)
+            
+        for subject, ids in subject_to_roots.items():
+            if len(ids) > 1:
+                # Sort by date and make the first one the main root
+                ids.sort(key=lambda i: emails_by_id[i].get('date', datetime.min))
+                main_root = ids[0]
+                for other_root in ids[1:]:
+                    if other_root in root_ids:
+                        root_ids.remove(other_root)
+                    # Merge the other root's children under the main root
+                    if main_root not in parent_child_map: parent_child_map[main_root] = []
+                    parent_child_map[main_root].append(other_root)
+                    if other_root in parent_child_map:
+                        parent_child_map[main_root].extend(parent_child_map.pop(other_root))
+
         threads = {}
-        
-        for email_data in emails:
-            thread_id = email_data.get('thread_id', email_data.get('message_id', 'unknown'))
+        processed_emails = set()
+        for root_id in root_ids:
+            if root_id in processed_emails: continue
             
-            if thread_id not in threads:
-                threads[thread_id] = []
+            thread_emails = []
+            q = [root_id]
+            
+            while q:
+                msg_id = q.pop(0)
+                if msg_id in processed_emails or msg_id not in emails_by_id: continue
                 
-            threads[thread_id].append(email_data)
-        
-        # Sort emails within each thread by date
-        for thread_id in threads:
-            threads[thread_id].sort(key=lambda x: x.get('date', datetime.min))
+                processed_emails.add(msg_id)
+                thread_emails.append(emails_by_id[msg_id])
+                
+                if msg_id in parent_child_map:
+                    q.extend(parent_child_map[msg_id])
             
+            if thread_emails:
+                thread_emails.sort(key=lambda x: x.get('date', datetime.min))
+                threads[root_id] = thread_emails
+        
         return threads
     
     def get_conversation_summary(self, contact_email: str) -> Dict:
