@@ -11,11 +11,16 @@ document.addEventListener('DOMContentLoaded', function() {
     setupEventListeners();
     setupSearch();
     setupFilters();
-    loadContacts();
-    loadEmailHistory();
     // Update dashboard stats if needed
     // updateDashboardStats();
+    initializePage();
 });
+
+function initializePage() {
+    // All other initializations can go here
+    // For example, setting up filters or other dynamic elements
+    console.log("Dashboard initialized");
+}
 
 function setupEventListeners() {
     // Pagination
@@ -819,16 +824,30 @@ function generateEmailPreview() {
 function sendComposedEmail(e) {
     e.preventDefault();
     const form = e.target;
-    const formData = new FormData(form);
     
-    fetch('/send_email', {
+    // Create a FormData object from the form
+    const formData = new FormData();
+    formData.append('recipient_email', document.getElementById('recipientEmail').value);
+    formData.append('recipient_name', document.getElementById('recipientName').value);
+    formData.append('preview_subject', document.getElementById('emailSubject').value);
+    formData.append('preview_body', document.getElementById('emailBody').value);
+
+    fetch('/api/send_email', {
         method: 'POST',
         body: formData
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            // If response is not ok, read as text to avoid JSON parsing errors
+            return response.text().then(text => {
+                throw new Error(text || 'Server error with no message');
+            });
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
-            showToast('successToast', 'Email sent successfully!');
+            showToast('successToast', data.message || 'Email sent successfully!');
             form.reset();
         } else {
             showToast('errorToast', data.message || 'Failed to send email');
@@ -836,7 +855,7 @@ function sendComposedEmail(e) {
     })
     .catch(error => {
         console.error('Error:', error);
-        showToast('errorToast', 'An error occurred while sending the email');
+        showToast('errorToast', 'An error occurred while sending the email. Check console for details.');
     });
 }
 
