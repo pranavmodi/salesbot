@@ -54,38 +54,46 @@ def index():
         emails_sent=emails_sent,
         success_rate=success_rate,
         pending_contacts=len(contact_data['contacts']),
-        uncontacted_count=uncontacted_count
+        uncontacted_count=uncontacted_count,
+        threads=get_inbox_threads() # Add threads to dashboard context
     )
 
-@bp.route('/import')
-def import_contacts():
-    """CSV import page."""
-    return render_template('import.html')
-
-@bp.route('/inbox')
-def inbox():
-    """Inbox page showing all received and sent emails as threads."""
-    # Ensure email reader is configured and connected
+def get_inbox_threads():
+    """Helper function to fetch and process inbox threads."""
     if not email_reader.connection:
         configure_email_reader()
         if not email_reader.connection:
-            email_reader.connect()
-    # Fetch emails from INBOX and Sent folders
+            if not email_reader.connect():
+                current_app.logger.error("Failed to connect to email reader for inbox.")
+                return [] # Return empty list on connection failure
+
     emails = []
     for folder in ['INBOX', 'Sent']:
         try:
-            email_reader.connection.select(folder)
+            # Check if connection is alive, otherwise reconnect
+            status, _ = email_reader.connection.noop()
+            if status != 'OK':
+                email_reader.connect()
+
+            email_reader.connection.select(folder, readonly=True)
             status, message_ids = email_reader.connection.search(None, 'ALL')
             if status == 'OK' and message_ids[0]:
                 ids = message_ids[0].split()
-                for msg_id in ids[-50:]:  # Limit to last 50 emails per folder
+                # Fetch recent emails, e.g., last 50
+                for msg_id in ids[-50:]:
                     email_data = email_reader._fetch_email_data(msg_id, folder)
                     if email_data:
                         emails.append(email_data)
         except Exception as e:
             current_app.logger.warning(f"Error fetching emails from {folder}: {e}")
-    # Group emails by thread
+            # Attempt to reconnect on error
+            email_reader.connect()
+
     threads = email_reader.group_emails_by_thread(emails)
-    # Sort threads by most recent email in each thread
-    sorted_threads = sorted(threads.values(), key=lambda thread: thread[-1]['date'] if thread else None, reverse=True)
-    return render_template('inbox.html', threads=sorted_threads) 
+    sorted_threads = sorted(threads.values(), key=lambda t: t[-1]['date'], reverse=True)
+    return sorted_threads
+
+@bp.route('/import')
+def import_contacts():
+    """CSV import page."""
+    return render_template('import.html') 

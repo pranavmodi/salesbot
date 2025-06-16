@@ -1,0 +1,84 @@
+<div class="row">
+    <div class="col-lg-8">
+        <div class="compose-form card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-edit me-2"></i>Compose New Email</h5>
+            </div>
+            <div class="card-body">
+                <form id="composeForm">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="recipientEmail" class="form-label">Recipient Email</label>
+                            <input type="email" class="form-control" id="recipientEmail" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="recipientName" class="form-label">Recipient Name</label>
+                            <input type="text" class="form-control" id="recipientName" required>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="companyName" class="form-label">Company Name</label>
+                            <input type="text" class="form-control" id="companyName">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="position" class="form-label">Position</label>
+                            <input type="text" class="form-control" id="position">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="composerType" class="form-label">
+                            <i class="fas fa-palette me-1"></i>Email Style
+                        </label>
+                        <select class="form-select" id="composerType">
+                            <option value="alt_subject">AI Pilled Subject Line (Default)</option>
+                            <option value="warm">Warm & Personal</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="emailSubject" class="form-label">Subject</label>
+                        <input type="text" class="form-control" id="emailSubject" placeholder="Will be auto-generated based on recipient info">
+                    </div>
+                    <div class="mb-4">
+                        <label for="emailBody" class="form-label">Message</label>
+                        <textarea class="form-control" id="emailBody" rows="12" placeholder="Will be auto-generated based on recipient info"></textarea>
+                    </div>
+                    <div class="d-flex gap-3">
+                        <button type="button" class="btn btn-outline-primary" id="generatePreview">
+                            <i class="fas fa-magic me-2"></i>Generate Preview
+                        </button>
+                        <button type="submit" class="btn btn-primary" id="sendComposedEmail">
+                            <i class="fas fa-paper-plane me-2"></i>Send Email
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-lightbulb me-2"></i>Email Tips
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <h6 class="text-primary">Our AI Chatbot Solution</h6>
+                    <ul class="list-unstyled small text-muted">
+                        <li><i class="fas fa-check text-success me-2"></i>FAQ automation</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Website integration</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Multi-agent capabilities</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Multilingual support</li>
+                        <li><i class="fas fa-check text-success me-2"></i>CRM integration</li>
+                    </ul>
+                </div>
+                <div class="alert alert-info">
+                    <small>
+                        <strong>Pro Tip:</strong> Our AI will personalize each email based on the recipient's industry and role for maximum engagement.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div> 

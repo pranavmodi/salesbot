@@ -1,0 +1,56 @@
+<div class="accordion" id="threadsAccordion">
+    {% if threads and threads|length > 0 %}
+        {% for thread in threads %}
+            {% set latest_email = thread[-1] %}
+            {% set thread_id = 'thread-' ~ loop.index %}
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="heading-{{ thread_id }}">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ thread_id }}" aria-expanded="false" aria-controls="collapse-{{ thread_id }}">
+                        <div class="d-flex w-100 justify-content-between">
+                            <span class="fw-bold text-truncate" style="max-width: 400px;">{{ latest_email.subject or 'No Subject' }}</span>
+                            <span class="text-muted small ms-3">
+                                {{ thread|length }} message{{ 's' if thread|length > 1 else '' }}
+                            </span>
+                        </div>
+                    </button>
+                </h2>
+                <div id="collapse-{{ thread_id }}" class="accordion-collapse collapse" aria-labelledby="heading-{{ thread_id }}" data-bs-parent="#threadsAccordion">
+                    <div class="accordion-body">
+                        <ul class="list-group">
+                            {% for email in thread | reverse %}
+                                <li class="list-group-item border-0">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <div class="d-flex">
+                                            <div class="flex-shrink-0">
+                                                <div class="contact-avatar contact-avatar-sm">
+                                                    {{ email.from.split('@')[0][:1] | upper }}
+                                                </div>
+                                            </div>
+                                            <div class="ms-3">
+                                                <h6 class="mb-0">{{ email.from }}</h6>
+                                                <small class="text-muted">to {{ email.to }}</small>
+                                            </div>
+                                        </div>
+                                        <small class="text-muted">{{ email.date.strftime('%b %d, %H:%M') if email.date else '' }}</small>
+                                    </div>
+                                    <div class="mt-3 ps-3">
+                                        <p style="white-space: pre-wrap; font-size: 0.9rem;">{{ email.body }}</p>
+                                    </div>
+                                    {% if not loop.last %}
+                                        <hr class="my-3">
+                                    {% endif %}
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="text-center p-5">
+            <i class="fas fa-envelope-open-text fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">Your inbox is empty.</h5>
+            <p>Sent and received emails will appear here as conversations.</p>
+        </div>
+    {% endif %}
+</div> 
