@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify, current_app
+from datetime import datetime
 
 from app.models.contact import Contact
 from app.services.email_service import EmailService
@@ -203,18 +204,31 @@ def test_email_account(account_name):
             'imap': {'success': False, 'message': ''}
         }
         
-        # Test SMTP connection
+        # Test SMTP connection (without sending email)
         try:
-            smtp_success = EmailService._send_with_account(
-                account, 
-                account.email,  # Send to self
-                "Test Email Configuration", 
-                "This is a test email to verify your SMTP configuration is working."
-            )
-            test_results['smtp']['success'] = smtp_success
-            test_results['smtp']['message'] = 'SMTP connection successful' if smtp_success else 'SMTP connection failed'
+            import smtplib
+            import ssl
+            
+            # Create SMTP connection
+            if account.smtp_use_ssl and account.smtp_port == 465:
+                # SSL connection
+                smtp_server = smtplib.SMTP_SSL(account.smtp_host, account.smtp_port)
+            else:
+                # TLS connection
+                smtp_server = smtplib.SMTP(account.smtp_host, account.smtp_port)
+                if account.smtp_use_ssl:
+                    smtp_server.starttls()
+            
+            # Test authentication
+            smtp_server.login(account.email, account.password)
+            smtp_server.quit()
+            
+            test_results['smtp']['success'] = True
+            test_results['smtp']['message'] = 'SMTP connection and authentication successful'
+            
         except Exception as e:
-            test_results['smtp']['message'] = f'SMTP error: {str(e)}'
+            test_results['smtp']['success'] = False
+            test_results['smtp']['message'] = f'SMTP connection failed: {str(e)}'
         
         # Test IMAP connection
         try:
