@@ -1,0 +1,551 @@
+{% extends "base.html" %}
+
+{% block title %}Email Configuration - SalesBot{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-cog"></i> Email Configuration</h2>
+                <div>
+                    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addAccountModal">
+                        <i class="fas fa-plus"></i> Add Account
+                    </button>
+                    <button class="btn btn-primary" onclick="saveConfiguration()">
+                        <i class="fas fa-save"></i> Save Configuration
+                    </button>
+                </div>
+            </div>
+
+            <!-- Alert for messages -->
+            <div id="configAlert" class="alert d-none" role="alert"></div>
+
+            <!-- Current Configuration Display -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Current Configuration</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Configuration Source</h6>
+                            <div id="configSource" class="badge bg-info fs-6">Loading...</div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Total Accounts</h6>
+                            <div id="totalAccounts" class="badge bg-primary fs-6">0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Email Accounts List -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Email Accounts</h5>
+                </div>
+                <div class="card-body">
+                    <div id="accountsList" class="row">
+                        <!-- Accounts will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Account Modal -->
+<div class="modal fade" id="addAccountModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Email Account</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addAccountForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="accountName" class="form-label">Account Name *</label>
+                                <input type="text" class="form-control" id="accountName" required>
+                                <div class="form-text">Unique identifier for this account</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="accountEmail" class="form-label">Email Address *</label>
+                                <input type="email" class="form-control" id="accountEmail" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="accountPassword" class="form-label">Password *</label>
+                        <input type="password" class="form-control" id="accountPassword" required>
+                        <div class="form-text">App password or regular password</div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="smtpHost" class="form-label">SMTP Host</label>
+                                <input type="text" class="form-control" id="smtpHost" placeholder="Auto-detected">
+                                <div class="form-text">Leave blank for auto-detection</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="smtpPort" class="form-label">SMTP Port</label>
+                                <input type="number" class="form-control" id="smtpPort" placeholder="465">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label class="form-label">SMTP SSL</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="smtpSsl" checked>
+                                    <label class="form-check-label" for="smtpSsl">Use SSL</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="imapHost" class="form-label">IMAP Host</label>
+                                <input type="text" class="form-control" id="imapHost" placeholder="Auto-detected">
+                                <div class="form-text">Leave blank for auto-detection</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="imapPort" class="form-label">IMAP Port</label>
+                                <input type="number" class="form-control" id="imapPort" placeholder="993">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label class="form-label">IMAP SSL</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="imapSsl" checked>
+                                    <label class="form-check-label" for="imapSsl">Use SSL</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="isDefault">
+                            <label class="form-check-label" for="isDefault">
+                                Set as default account
+                            </label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" onclick="addAccount()">Add Account</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Account Modal -->
+<div class="modal fade" id="editAccountModal" tabindex="-1" aria-labelledby="editAccountModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editAccountModalLabel">Edit Email Account</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editAccountForm">
+                    <input type="hidden" id="editAccountIndex">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editAccountName" class="form-label">Account Name *</label>
+                                <input type="text" class="form-control" id="editAccountName" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editAccountEmail" class="form-label">Email Address *</label>
+                                <input type="email" class="form-control" id="editAccountEmail" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="editAccountPassword" class="form-label">Password *</label>
+                        <input type="password" class="form-control" id="editAccountPassword" required>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editSmtpHost" class="form-label">SMTP Host</label>
+                                <input type="text" class="form-control" id="editSmtpHost">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="editSmtpPort" class="form-label">SMTP Port</label>
+                                <input type="number" class="form-control" id="editSmtpPort">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label class="form-label">SMTP SSL</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="editSmtpSsl">
+                                    <label class="form-check-label" for="editSmtpSsl">Use SSL</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editImapHost" class="form-label">IMAP Host</label>
+                                <input type="text" class="form-control" id="editImapHost">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="editImapPort" class="form-label">IMAP Port</label>
+                                <input type="number" class="form-control" id="editImapPort">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label class="form-label">IMAP SSL</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="editImapSsl">
+                                    <label class="form-check-label" for="editImapSsl">Use SSL</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="editIsDefault">
+                            <label class="form-check-label" for="editIsDefault">
+                                Set as default account
+                            </label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="updateAccount()">Update Account</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let emailAccounts = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadConfiguration();
+});
+
+function loadConfiguration() {
+    fetch('/api/email/accounts')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                emailAccounts = data.accounts;
+                document.getElementById('totalAccounts').textContent = emailAccounts.length;
+                document.getElementById('configSource').textContent = 'Multi-Account JSON';
+                document.getElementById('configSource').className = 'badge bg-success fs-6';
+                renderAccounts();
+            } else {
+                showAlert('Error loading configuration: ' + data.message, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading configuration:', error);
+            showAlert('Error loading configuration', 'danger');
+        });
+}
+
+function renderAccounts() {
+    const container = document.getElementById('accountsList');
+    container.innerHTML = '';
+
+    if (emailAccounts.length === 0) {
+        container.innerHTML = `
+            <div class="col-12">
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-envelope-open-text fa-3x mb-3"></i>
+                    <h5>No Email Accounts Configured</h5>
+                    <p>Add your first email account to get started.</p>
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    emailAccounts.forEach((account, index) => {
+        const accountCard = `
+            <div class="col-md-6 col-lg-4 mb-3">
+                <div class="card ${account.is_default ? 'border-primary' : ''}">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">
+                            ${account.name}
+                            ${account.is_default ? '<span class="badge bg-primary ms-2">Default</span>' : ''}
+                        </h6>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="#" onclick="testConnection('${account.name}')">
+                                    <i class="fas fa-check-circle"></i> Test Connection
+                                </a></li>
+                                <li><a class="dropdown-item" href="#" onclick="editAccount(${index})">
+                                    <i class="fas fa-edit"></i> Edit
+                                </a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item text-danger" href="#" onclick="deleteAccount(${index})">
+                                    <i class="fas fa-trash"></i> Delete
+                                </a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text">
+                            <strong>Email:</strong> ${account.email}<br>
+                            <strong>SMTP:</strong> ${account.smtp_host}:${account.smtp_port}<br>
+                            <strong>IMAP:</strong> ${account.imap_host}:${account.imap_port}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.innerHTML += accountCard;
+    });
+}
+
+function addAccount() {
+    const form = document.getElementById('addAccountForm');
+    
+    const account = {
+        name: document.getElementById('accountName').value,
+        email: document.getElementById('accountEmail').value,
+        password: document.getElementById('accountPassword').value,
+        smtp_host: document.getElementById('smtpHost').value || null,
+        smtp_port: parseInt(document.getElementById('smtpPort').value) || 465,
+        smtp_use_ssl: document.getElementById('smtpSsl').checked,
+        imap_host: document.getElementById('imapHost').value || null,
+        imap_port: parseInt(document.getElementById('imapPort').value) || 993,
+        imap_use_ssl: document.getElementById('imapSsl').checked,
+        is_default: document.getElementById('isDefault').checked
+    };
+
+    if (!account.name || !account.email || !account.password) {
+        showAlert('Please fill in all required fields', 'danger');
+        return;
+    }
+
+    if (emailAccounts.some(acc => acc.name === account.name)) {
+        showAlert('Account name already exists', 'danger');
+        return;
+    }
+
+    if (account.is_default) {
+        emailAccounts.forEach(acc => acc.is_default = false);
+    }
+
+    emailAccounts.push(account);
+    renderAccounts();
+    
+    const modal = bootstrap.Modal.getInstance(document.getElementById('addAccountModal'));
+    modal.hide();
+    form.reset();
+    
+    showAlert('Account added successfully', 'success');
+}
+
+function editAccount(index) {
+    const account = emailAccounts[index];
+    
+    document.getElementById('editAccountIndex').value = index;
+    document.getElementById('editAccountName').value = account.name;
+    document.getElementById('editAccountEmail').value = account.email;
+    document.getElementById('editAccountPassword').value = account.password;
+    document.getElementById('editSmtpHost').value = account.smtp_host || '';
+    document.getElementById('editSmtpPort').value = account.smtp_port;
+    document.getElementById('editSmtpSsl').checked = account.smtp_use_ssl;
+    document.getElementById('editImapHost').value = account.imap_host || '';
+    document.getElementById('editImapPort').value = account.imap_port;
+    document.getElementById('editImapSsl').checked = account.imap_use_ssl;
+    document.getElementById('editIsDefault').checked = account.is_default;
+    
+    const modal = new bootstrap.Modal(document.getElementById('editAccountModal'));
+    modal.show();
+}
+
+function updateAccount() {
+    const index = parseInt(document.getElementById('editAccountIndex').value);
+    
+    const account = {
+        name: document.getElementById('editAccountName').value,
+        email: document.getElementById('editAccountEmail').value,
+        password: document.getElementById('editAccountPassword').value,
+        smtp_host: document.getElementById('editSmtpHost').value || null,
+        smtp_port: parseInt(document.getElementById('editSmtpPort').value) || 465,
+        smtp_use_ssl: document.getElementById('editSmtpSsl').checked,
+        imap_host: document.getElementById('editImapHost').value || null,
+        imap_port: parseInt(document.getElementById('editImapPort').value) || 993,
+        imap_use_ssl: document.getElementById('editImapSsl').checked,
+        is_default: document.getElementById('editIsDefault').checked
+    };
+
+    if (account.is_default) {
+        emailAccounts.forEach((acc, i) => {
+            if (i !== index) acc.is_default = false;
+        });
+    }
+
+    emailAccounts[index] = account;
+    renderAccounts();
+    
+    const modal = bootstrap.Modal.getInstance(document.getElementById('editAccountModal'));
+    modal.hide();
+    
+    showAlert('Account updated successfully', 'success');
+}
+
+function deleteAccount(index) {
+    if (confirm('Are you sure you want to delete this account?')) {
+        const account = emailAccounts[index];
+        emailAccounts.splice(index, 1);
+        
+        if (account.is_default && emailAccounts.length > 0) {
+            emailAccounts[0].is_default = true;
+        }
+        
+        renderAccounts();
+        showAlert('Account deleted successfully', 'success');
+    }
+}
+
+function testConnection(accountName) {
+    showAlert('Testing connection...', 'info');
+    
+    fetch(`/api/email/accounts/${accountName}/test`, {
+        method: 'POST'
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert(`Connection test successful for ${accountName}`, 'success');
+            } else {
+                showAlert(`Connection test failed for ${accountName}: ${data.message}`, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error testing connection:', error);
+            showAlert('Error testing connection', 'danger');
+        });
+}
+
+function saveConfiguration() {
+    if (emailAccounts.length === 0) {
+        showAlert('Please add at least one email account', 'danger');
+        return;
+    }
+
+    const hasDefault = emailAccounts.some(acc => acc.is_default);
+    if (!hasDefault) {
+        emailAccounts[0].is_default = true;
+    }
+
+    const configData = {
+        accounts: emailAccounts
+    };
+
+    fetch('/api/email/config/save', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(configData)
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('Configuration saved successfully! Please restart the application.', 'success');
+            } else {
+                showAlert('Error saving configuration: ' + data.message, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error saving configuration:', error);
+            showAlert('Error saving configuration', 'danger');
+        });
+}
+
+function showAlert(message, type) {
+    const alert = document.getElementById('configAlert');
+    alert.className = `alert alert-${type}`;
+    alert.textContent = message;
+    alert.classList.remove('d-none');
+    
+    if (type === 'success') {
+        setTimeout(() => {
+            alert.classList.add('d-none');
+        }, 5000);
+    }
+}
+
+document.getElementById('accountEmail').addEventListener('blur', function() {
+    autoDetectSettings();
+});
+
+function autoDetectSettings() {
+    const email = document.getElementById('accountEmail').value.toLowerCase();
+    
+    if (!email.includes('@')) return;
+    
+    const domain = email.split('@')[1];
+    let smtpHost = '', imapHost = '', smtpPort = 465, imapPort = 993;
+    
+    if (domain.includes('zoho')) {
+        if (domain.includes('.in') || domain.includes('possibleminds')) {
+            smtpHost = 'smtppro.zoho.in';
+            imapHost = 'imap.zoho.com';
+        } else {
+            smtpHost = 'smtp.zoho.com';
+            imapHost = 'imap.zoho.com';
+        }
+    } else if (domain.includes('gmail')) {
+        smtpHost = 'smtp.gmail.com';
+        imapHost = 'imap.gmail.com';
+    } else if (domain.includes('outlook') || domain.includes('hotmail')) {
+        smtpHost = 'smtp-mail.outlook.com';
+        imapHost = 'outlook.office365.com';
+        smtpPort = 587;
+    }
+    
+    if (smtpHost) {
+        document.getElementById('smtpHost').value = smtpHost;
+        document.getElementById('imapHost').value = imapHost;
+        document.getElementById('smtpPort').value = smtpPort;
+        document.getElementById('imapPort').value = imapPort;
+    }
+}
+</script>
+{% endblock %} 

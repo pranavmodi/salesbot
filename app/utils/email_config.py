@@ -51,65 +51,31 @@ class EmailConfigManager:
         """Load email accounts from environment configuration."""
         self.accounts = []
         
-        # Try to load from JSON configuration first
+        # Load from JSON configuration
         email_accounts_json = os.getenv('EMAIL_ACCOUNTS')
-        if email_accounts_json:
-            try:
-                accounts_data = json.loads(email_accounts_json)
-                for account_data in accounts_data:
-                    account = EmailAccount(account_data)
-                    if account.is_valid():
-                        self.accounts.append(account)
-                    else:
-                        logger.warning(f"Invalid email account configuration: {account.name}")
-                
-                if self.accounts:
-                    logger.info(f"Loaded {len(self.accounts)} email accounts from JSON configuration")
-                    return
-                    
-            except json.JSONDecodeError as e:
-                logger.error(f"Error parsing EMAIL_ACCOUNTS JSON: {e}")
+        if not email_accounts_json:
+            logger.error("EMAIL_ACCOUNTS environment variable is not set")
+            raise ValueError("EMAIL_ACCOUNTS environment variable is required")
         
-        # Fallback to legacy single account configuration
-        legacy_account = self._load_legacy_account()
-        if legacy_account and legacy_account.is_valid():
-            self.accounts.append(legacy_account)
-            logger.info("Loaded legacy single email account configuration")
-    
-    def _load_legacy_account(self) -> Optional[EmailAccount]:
-        """Load legacy single account configuration."""
-        email = os.getenv('SENDER_EMAIL')
-        password = os.getenv('SENDER_PASSWORD')
-        smtp_host = os.getenv('SMTP_HOST')
-        imap_host = os.getenv('IMAP_HOST')
-        
-        if not all([email, password]):
-            return None
+        try:
+            accounts_data = json.loads(email_accounts_json)
+            for account_data in accounts_data:
+                account = EmailAccount(account_data)
+                if account.is_valid():
+                    self.accounts.append(account)
+                else:
+                    logger.warning(f"Invalid email account configuration: {account.name}")
             
-        # Auto-detect SMTP/IMAP hosts if not provided
-        if not smtp_host or not imap_host:
-            domain = email.split('@')[-1].lower()
-            if domain in ['zoho.in', 'possibleminds.in', 'possiblemindshq.com']:
-                smtp_host = smtp_host or 'smtppro.zoho.in'
-                imap_host = imap_host or 'imap.zoho.com'
-            elif 'zoho.com' in domain:
-                smtp_host = smtp_host or 'smtp.zoho.com'
-                imap_host = imap_host or 'imap.zoho.com'
-        
-        config = {
-            'name': 'legacy',
-            'email': email,
-            'password': password,
-            'smtp_host': smtp_host,
-            'smtp_port': int(os.getenv('SMTP_PORT', 465)),
-            'smtp_use_ssl': os.getenv('SMTP_USE_SSL', 'True').lower() == 'true',
-            'imap_host': imap_host,
-            'imap_port': int(os.getenv('IMAP_PORT', 993)),
-            'imap_use_ssl': os.getenv('IMAP_USE_SSL', 'True').lower() == 'true',
-            'is_default': True
-        }
-        
-        return EmailAccount(config)
+            if self.accounts:
+                logger.info(f"Loaded {len(self.accounts)} email accounts from JSON configuration")
+            else:
+                raise ValueError("No valid email accounts found in configuration")
+                
+        except json.JSONDecodeError as e:
+            logger.error(f"Error parsing EMAIL_ACCOUNTS JSON: {e}")
+            raise ValueError(f"Invalid JSON in EMAIL_ACCOUNTS: {e}")
+    
+
     
     def get_default_account(self) -> Optional[EmailAccount]:
         """Get the default email account."""

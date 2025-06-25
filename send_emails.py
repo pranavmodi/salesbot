@@ -32,60 +32,31 @@ else:
 
 
 # Constants from environment variables
-SMTP_HOST = os.getenv("SMTP_HOST")
-SMTP_PORT = os.getenv("SMTP_PORT")
-SENDER_EMAIL = os.getenv("SENDER_EMAIL")
-SENDER_PASSWORD = os.getenv("SENDER_PASSWORD")
 DATABASE_URL = os.getenv("DATABASE_URL")
 EMAIL_DELAY_MINUTES = int(os.getenv("EMAIL_DELAY_MINUTES", "30"))  # Default to 30 minutes
 
-# Check if we have either multi-account configuration or legacy single account
-accounts_available = email_config.get_all_accounts()
-has_legacy_config = SENDER_EMAIL and SENDER_PASSWORD
-
-if not accounts_available and not has_legacy_config:
-    logging.error("Error: No email configuration found.")
-    logging.error("Please configure either:")
-    logging.error("1. Multi-account system using EMAIL_ACCOUNTS in .env file, OR")
-    logging.error("2. Legacy single account using SENDER_EMAIL and SENDER_PASSWORD")
+# Check for multi-account configuration
+try:
+    accounts_available = email_config.get_all_accounts()
+    if not accounts_available:
+        logging.error("Error: No email accounts configured.")
+        logging.error("Please configure EMAIL_ACCOUNTS in .env file using the web UI at /config")
+        exit(1)
+    else:
+        logging.info(f"Using multi-account configuration with {len(accounts_available)} account(s)")
+except Exception as e:
+    logging.error(f"Error loading email configuration: {e}")
+    logging.error("Please configure EMAIL_ACCOUNTS in .env file using the web UI at /config")
     exit(1)
-elif accounts_available:
-    logging.info(f"Using multi-account configuration with {len(accounts_available)} account(s)")
-else:
-    logging.info("Using legacy single account configuration")
 
-# Auto-detect SMTP settings from email if not explicitly set (legacy mode only)
-if has_legacy_config and not SMTP_HOST and SENDER_EMAIL:
-    domain = SENDER_EMAIL.split('@')[-1].lower()
-    if domain in ['zoho.in', 'possibleminds.in', 'possiblemindshq.com']:
-        SMTP_HOST = 'smtp.zoho.in'
-        SMTP_PORT = 465 # Or 587 for TLS
-        logging.info(f"Auto-detected Zoho India SMTP settings: {SMTP_HOST}:{SMTP_PORT}")
-    elif 'zoho.com' in domain:
-        SMTP_HOST = 'smtp.zoho.com'
-        SMTP_PORT = 465
-        logging.info(f"Auto-detected Zoho SMTP settings: {SMTP_HOST}:{SMTP_PORT}")
-    # Add other provider detections as needed
-
-# Validate essential environment variables for legacy mode only
-if has_legacy_config and not all([SMTP_HOST, SMTP_PORT, SENDER_EMAIL, SENDER_PASSWORD]):
-    logging.error("Error: One or more environment variables (SMTP_HOST, SMTP_PORT, SENDER_EMAIL, SENDER_PASSWORD) are missing.")
-    logging.error("Please ensure they are defined in your .env file or system environment.")
-    exit(1)
+# Legacy environment variables no longer needed - using multi-account configuration
 
 if not DATABASE_URL:
     print("Error: DATABASE_URL environment variable is missing.")
     print("Please ensure it is defined in your .env file or system environment.")
     exit(1)
 
-# Try converting port to integer (only for legacy mode)
-if has_legacy_config:
-    try:
-        SMTP_PORT = int(SMTP_PORT)
-    except (ValueError, TypeError):
-         print(f"Error: SMTP_PORT ('{SMTP_PORT}') is not a valid integer.")
-         print("Please check the SMTP_PORT value in your .env file.")
-         exit(1)
+# SMTP configuration handled by EmailConfigManager
 
 # Initialize the database
 db = InteractionsDB()
@@ -177,37 +148,7 @@ def send_email(recipient_email: str, subject: str, body_markdown: str, account_n
         db.add_interaction(recipient_email, "email_failed", str(e))
         return False
 
-def send_email_legacy(recipient_email: str, subject: str, body_markdown: str) -> bool:
-    """Legacy send function using environment variables (for backward compatibility)."""
-    msg = EmailMessage()
-    msg["Subject"] = subject
-    msg["From"]    = SENDER_EMAIL
-    msg["To"]      = recipient_email
-    msg["Message-ID"] = make_msgid()             # helpful for threading
-
-    # ---------- plain-text part -------------
-    msg.set_content(body_markdown)
-
-    # ---------- send ------------------------
-    context = ssl.create_default_context()
-    try:
-        use_ssl = int(SMTP_PORT) == 465 or os.getenv("SMTP_USE_SSL", "False").lower() == "true"
-        if use_ssl:
-            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=context) as server:
-                server.login(SENDER_EMAIL, SENDER_PASSWORD)
-                server.send_message(msg)
-        else:
-            with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-                server.starttls(context=context)
-                server.login(SENDER_EMAIL, SENDER_PASSWORD)
-                server.send_message(msg)
-        print(f"✓ Email sent to {recipient_email}")
-        db.add_interaction(recipient_email, "email_sent", f"Subject: {subject}")
-        return True
-    except Exception as e:
-        print(f"✗ Failed to send to {recipient_email}: {e}")
-        db.add_interaction(recipient_email, "email_failed", str(e))
-        return False
+# Legacy send function removed - using multi-account system
 
 
 # --- Main Logic ---

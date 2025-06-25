@@ -96,4 +96,9 @@ def get_inbox_threads():
 @bp.route('/import')
 def import_contacts():
     """CSV import page."""
-    return render_template('import.html') 
+    return render_template('import.html')
+
+@bp.route('/config')
+def config():
+    """Email configuration page."""
+    return render_template('config.html') 

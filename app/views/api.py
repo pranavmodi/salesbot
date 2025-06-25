@@ -195,6 +195,76 @@ def test_email_account(account_name):
             'message': 'Failed to test email account'
         }), 500
 
+@bp.route('/email/config/save', methods=['POST'])
+def save_email_configuration():
+    """Save email configuration to environment file."""
+    try:
+        data = request.get_json()
+        if not data or 'accounts' not in data:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid configuration data'
+            }), 400
+        
+        accounts = data['accounts']
+        if not accounts:
+            return jsonify({
+                'success': False,
+                'message': 'At least one account must be configured'
+            }), 400
+        
+        # Validate accounts
+        for i, account in enumerate(accounts):
+            required_fields = ['name', 'email', 'password']
+            for field in required_fields:
+                if not account.get(field):
+                    return jsonify({
+                        'success': False,
+                        'message': f'Account {i+1}: {field} is required'
+                    }), 400
+        
+        # Convert to JSON string for environment file
+        import json
+        import os
+        
+        config_json = json.dumps(accounts, separators=(',', ':'))
+        
+        # Read current .env2 file
+        env_file_path = '.env2'
+        lines = []
+        
+        if os.path.exists(env_file_path):
+            with open(env_file_path, 'r') as f:
+                lines = f.readlines()
+        
+        # Update or add EMAIL_ACCOUNTS line
+        found = False
+        for i, line in enumerate(lines):
+            if line.startswith('EMAIL_ACCOUNTS='):
+                lines[i] = f'EMAIL_ACCOUNTS={config_json}\n'
+                found = True
+                break
+        
+        if not found:
+            lines.append(f'EMAIL_ACCOUNTS={config_json}\n')
+        
+        # Write back to file
+        with open(env_file_path, 'w') as f:
+            f.writelines(lines)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Configuration saved successfully',
+            'accounts_count': len(accounts)
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error saving email configuration: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Failed to save configuration: {str(e)}'
+        }), 500
+
 @bp.route('/send_bulk_emails', methods=['POST'])
 def send_bulk_emails():
     """Send emails to multiple recipients."""
