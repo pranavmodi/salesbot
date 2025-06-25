@@ -6,6 +6,7 @@ import time # Import the time module
 
 from app.models.contact import Contact
 from app.models.email_history import EmailHistory
+from app.utils.email_config import email_config, EmailAccount
 from composer_instance import composer
 from send_emails import send_email
 from email_composer_warm import WarmEmailComposer
@@ -13,6 +14,117 @@ from email_composer_alt_subject import AltSubjectEmailComposer
 
 class EmailService:
     """Service class for email operations."""
+
+    @staticmethod
+    def get_available_accounts() -> List[Dict]:
+        """Get all available email accounts."""
+        accounts = email_config.get_all_accounts()
+        return [
+            {
+                'name': account.name,
+                'email': account.email,
+                'is_default': account.is_default
+            }
+            for account in accounts
+        ]
+
+    @staticmethod
+    def send_email_with_account(recipient_email: str, recipient_name: str, subject: str, body: str, account_name: str = None) -> bool:
+        """
+        Send an email using a specific account.
+        
+        Args:
+            recipient_email: Email address of recipient
+            recipient_name: Name of recipient
+            subject: Email subject
+            body: Email body
+            account_name: Name of the account to use (None for default)
+            
+        Returns:
+            True if email was sent successfully, False otherwise
+        """
+        try:
+            # Get the account to use
+            if account_name:
+                account = email_config.get_account_by_name(account_name)
+                if not account:
+                    current_app.logger.error(f"Account '{account_name}' not found")
+                    return False
+            else:
+                account = email_config.get_default_account()
+                if not account:
+                    current_app.logger.error("No default account available")
+                    return False
+
+            # Send using the specific account
+            success = EmailService._send_with_account(account, recipient_email, subject, body)
+            
+            # Save to history
+            email_data = {
+                'date': datetime.now(),
+                'to': recipient_email,
+                'subject': subject,
+                'body': body,
+                'status': f'Success (via {account.email})' if success else f'Failed (via {account.email})'
+            }
+            
+            EmailHistory.save(email_data)
+            
+            return success
+            
+        except Exception as e:
+            current_app.logger.error(f"Error sending email to {recipient_email}: {str(e)}")
+            return False
+
+    @staticmethod
+    def _send_with_account(account: EmailAccount, recipient_email: str, subject: str, body: str) -> bool:
+        """
+        Send email using a specific account configuration.
+        
+        Args:
+            account: EmailAccount instance
+            recipient_email: Recipient email address
+            subject: Email subject
+            body: Email body
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            from email.message import EmailMessage
+            from email.utils import make_msgid
+            import smtplib
+            import ssl
+            
+            msg = EmailMessage()
+            msg["Subject"] = subject
+            msg["From"] = account.email
+            msg["To"] = recipient_email
+            msg["Message-ID"] = make_msgid()
+            
+            # Set content
+            msg.set_content(body)
+            
+            # Create SSL context
+            context = ssl.create_default_context()
+            
+            # Send the email
+            if account.smtp_use_ssl:
+                with smtplib.SMTP_SSL(account.smtp_host, account.smtp_port, context=context) as server:
+                    server.login(account.email, account.password)
+                    server.send_message(msg)
+            else:
+                with smtplib.SMTP(account.smtp_host, account.smtp_port) as server:
+                    server.starttls(context=context)
+                    server.login(account.email, account.password)
+                    server.send_message(msg)
+            
+            current_app.logger.info(f"Email sent successfully to {recipient_email} from {account.email}")
+            return True
+            
+        except Exception as e:
+            current_app.logger.error(f"Failed to send email from {account.email} to {recipient_email}: {str(e)}")
+            return False
 
     @staticmethod
     def compose_email(contact_id: int, calendar_url: str = None, extra_context: str = None, composer_type: str = "warm") -> Dict[str, str] | None:
@@ -120,7 +232,7 @@ class EmailService:
             return False
 
     @staticmethod
-    def send_bulk_emails(recipients_data: List[Dict], composer_type: str = "warm", calendar_url: str = None, extra_context: str = None) -> Dict[str, List[str]]:
+    def send_bulk_emails(recipients_data: List[Dict], composer_type: str = "warm", calendar_url: str = None, extra_context: str = None, account_name: str = None) -> Dict[str, List[str]]:
         """
         Send emails to a list of recipients.
         Composes email for each using the specified composer_type.
@@ -129,6 +241,7 @@ class EmailService:
             composer_type: Identifier for the email composer to use (e.g., 'warm', 'alt_subject').
             calendar_url: Optional calendar URL to use for all emails.
             extra_context: Optional extra context for all emails.
+            account_name: Optional account name to use for sending all emails.
         Returns:
             Dictionary with 'sent' and 'failed' lists of email addresses.
         """
@@ -182,12 +295,13 @@ class EmailService:
                     failed_emails.append(f"Contact ID {contact_id} not found")
                     continue
 
-                # Send the email (actual sending logic)
-                success = EmailService.send_email(
+                # Send the email using specified account (actual sending logic)
+                success = EmailService.send_email_with_account(
                     recipient_email=contact.email, 
                     recipient_name=contact.display_name, 
                     subject=email_content['subject'], 
-                    body=email_content['body']
+                    body=email_content['body'],
+                    account_name=account_name
                 )
                 
                 if success:

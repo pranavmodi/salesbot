@@ -6,6 +6,7 @@ from email.message import EmailMessage
 from dotenv import load_dotenv
 from database import InteractionsDB
 from composer_instance import composer
+from app.utils.email_config import email_config, EmailAccount
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 import logging
@@ -132,8 +133,41 @@ def load_contacts_from_db():
         
     return contacts
 
-def send_email(recipient_email: str, subject: str, body_markdown: str) -> bool:
-    """Render a nicer HTML template & send."""
+def send_email(recipient_email: str, subject: str, body_markdown: str, account_name: str = None) -> bool:
+    """Send email using configured account (multi-account support)."""
+    try:
+        # Get the account to use
+        if account_name:
+            account = email_config.get_account_by_name(account_name)
+            if not account:
+                print(f"✗ Account '{account_name}' not found")
+                return False
+        else:
+            account = email_config.get_default_account()
+            if not account:
+                print("✗ No default account available")
+                return False
+
+        # Use the EmailService method
+        from app.services.email_service import EmailService
+        success = EmailService._send_with_account(account, recipient_email, subject, body_markdown)
+        
+        if success:
+            print(f"✓ Email sent to {recipient_email} from {account.email}")
+            db.add_interaction(recipient_email, "email_sent", f"Subject: {subject} (via {account.email})")
+        else:
+            print(f"✗ Failed to send to {recipient_email} from {account.email}")
+            db.add_interaction(recipient_email, "email_failed", f"Failed via {account.email}")
+        
+        return success
+        
+    except Exception as e:
+        print(f"✗ Failed to send to {recipient_email}: {e}")
+        db.add_interaction(recipient_email, "email_failed", str(e))
+        return False
+
+def send_email_legacy(recipient_email: str, subject: str, body_markdown: str) -> bool:
+    """Legacy send function using environment variables (for backward compatibility)."""
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"]    = SENDER_EMAIL

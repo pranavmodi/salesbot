@@ -5,6 +5,7 @@ let currentContacts = [];
 let emailHistory = window.emailHistoryData || [];
 let currentContactEmail = null; // For modal export functionality
 let selectedContacts = []; // For bulk email composition
+let currentGlobalAccount = null; // Currently selected global account
 
 // Initialize application
 document.addEventListener('DOMContentLoaded', function() {
@@ -20,6 +21,10 @@ function initializePage() {
     // All other initializations can go here
     // For example, setting up filters or other dynamic elements
     console.log("Dashboard initialized");
+    
+    // Load global email accounts and setup global selector
+    loadGlobalEmailAccounts();
+    setupGlobalAccountSelector();
 }
 
 function setupEventListeners() {
@@ -784,6 +789,135 @@ Exported on: ${new Date().toLocaleString()}
     }
 }
 
+// Load available email accounts for global selector
+function loadGlobalEmailAccounts() {
+    const globalAccountSelect = document.getElementById('globalAccountSelector');
+    if (!globalAccountSelect) return;
+    
+    fetch('/api/email/accounts')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.accounts) {
+                globalAccountSelect.innerHTML = '';
+                
+                // Add account options
+                data.accounts.forEach(account => {
+                    const option = document.createElement('option');
+                    option.value = account.name;
+                    option.textContent = account.email;
+                    option.dataset.isDefault = account.is_default;
+                    option.dataset.email = account.email;
+                    
+                    // Select the default account
+                    if (account.is_default) {
+                        option.selected = true;
+                        currentGlobalAccount = account;
+                        updateActiveAccountInfo(account);
+                    }
+                    globalAccountSelect.appendChild(option);
+                });
+                
+                // If no default found but accounts exist, select the first
+                if (!currentGlobalAccount && data.accounts.length > 0) {
+                    const firstAccount = data.accounts[0];
+                    currentGlobalAccount = firstAccount;
+                    globalAccountSelect.value = firstAccount.name;
+                    updateActiveAccountInfo(firstAccount);
+                }
+                
+                // Load inbox for the selected account
+                loadInboxForAccount(currentGlobalAccount);
+                
+            } else {
+                globalAccountSelect.innerHTML = '<option value="">No accounts available</option>';
+                updateActiveAccountInfo(null);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading email accounts:', error);
+            globalAccountSelect.innerHTML = '<option value="">Error loading accounts</option>';
+            updateActiveAccountInfo(null);
+        });
+}
+
+// Setup global account selector event listeners
+function setupGlobalAccountSelector() {
+    const globalAccountSelect = document.getElementById('globalAccountSelector');
+    const testAccountBtn = document.getElementById('testGlobalAccount');
+    
+    if (globalAccountSelect) {
+        globalAccountSelect.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            if (selectedOption && selectedOption.value) {
+                currentGlobalAccount = {
+                    name: selectedOption.value,
+                    email: selectedOption.dataset.email,
+                    is_default: selectedOption.dataset.isDefault === 'true'
+                };
+                updateActiveAccountInfo(currentGlobalAccount);
+                
+                // Reload inbox for new account
+                loadInboxForAccount(currentGlobalAccount);
+                
+                console.log('Global account changed to:', currentGlobalAccount);
+            }
+        });
+    }
+    
+    if (testAccountBtn) {
+        testAccountBtn.addEventListener('click', function() {
+            if (currentGlobalAccount) {
+                testGlobalAccountConnection();
+            }
+        });
+    }
+}
+
+// Update the active account info display
+function updateActiveAccountInfo(account) {
+    const activeAccountInfo = document.getElementById('activeAccountInfo');
+    if (activeAccountInfo) {
+        if (account) {
+            activeAccountInfo.innerHTML = `<strong>${account.email}</strong>${account.is_default ? ' <span class="badge bg-primary">Default</span>' : ''}`;
+        } else {
+            activeAccountInfo.textContent = 'No account selected';
+        }
+    }
+}
+
+// Test the global account connection
+function testGlobalAccountConnection() {
+    if (!currentGlobalAccount) {
+        showToast('errorToast', 'No account selected');
+        return;
+    }
+    
+    const testBtn = document.getElementById('testGlobalAccount');
+    const originalHTML = testBtn.innerHTML;
+    testBtn.disabled = true;
+    testBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    
+    fetch(`/api/email/accounts/${currentGlobalAccount.name}/test`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('successToast', `✓ ${currentGlobalAccount.email} connection successful`);
+        } else {
+            showToast('errorToast', `✗ ${data.message}`);
+        }
+    })
+    .catch(error => {
+        console.error('Error testing account:', error);
+        showToast('errorToast', 'Failed to test account connection');
+    })
+    .finally(() => {
+        testBtn.disabled = false;
+        testBtn.innerHTML = originalHTML;
+    });
+}
+
 // Email composition functions (for compose tab)
 function generateEmailPreview() {
     const form = document.getElementById('composeForm');
@@ -821,6 +955,194 @@ function generateEmailPreview() {
     });
 }
 
+// Load inbox emails for the selected account
+function loadInboxForAccount(account) {
+    if (!account) {
+        console.log('No account selected for inbox');
+        return;
+    }
+    
+    console.log('Loading inbox for account:', account.email);
+    
+    // Update inbox tab to show loading state
+    const inboxContainer = document.querySelector('#inbox-tab-pane .card-body');
+    if (inboxContainer) {
+        inboxContainer.innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading emails for ${account.email}...</p>
+            </div>
+        `;
+    }
+    
+    // Load emails for the specific account
+    fetch(`/api/email/accounts/${account.name}/emails`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayAccountEmails(data.emails, account);
+            } else {
+                if (inboxContainer) {
+                    inboxContainer.innerHTML = `
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Unable to load emails for ${account.email}</strong>
+                            <br><small>${data.message}</small>
+                        </div>
+                        <div class="text-center py-4">
+                            <p class="text-muted">Check your email account configuration and try again.</p>
+                            <button class="btn btn-primary" onclick="loadInboxForAccount(currentGlobalAccount)">
+                                <i class="fas fa-refresh me-2"></i>Retry
+                            </button>
+                        </div>
+                    `;
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error loading emails:', error);
+            if (inboxContainer) {
+                inboxContainer.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        <strong>Error loading emails</strong>
+                        <br><small>Please check your connection and try again.</small>
+                    </div>
+                    <div class="text-center py-4">
+                        <button class="btn btn-primary" onclick="loadInboxForAccount(currentGlobalAccount)">
+                            <i class="fas fa-refresh me-2"></i>Retry
+                        </button>
+                    </div>
+                `;
+            }
+        });
+}
+
+// Display emails for the account
+function displayAccountEmails(emails, account) {
+    const inboxContainer = document.querySelector('#inbox-tab-pane .card-body');
+    if (!inboxContainer) return;
+    
+    let emailsHtml = `
+        <div class="alert alert-success mb-4">
+            <i class="fas fa-check-circle me-2"></i>
+            <strong>Loaded ${emails.length} emails from ${account.email}</strong>
+            <button class="btn btn-sm btn-outline-success ms-3" onclick="loadInboxForAccount(currentGlobalAccount)">
+                <i class="fas fa-refresh me-1"></i>Refresh
+            </button>
+        </div>
+    `;
+    
+    if (emails.length === 0) {
+        emailsHtml += `
+            <div class="text-center py-5">
+                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No emails found</h5>
+                <p class="text-muted">No emails found in ${account.email}</p>
+            </div>
+        `;
+    } else {
+        emailsHtml += `
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>From/To</th>
+                            <th>Subject</th>
+                            <th>Folder</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        emails.forEach((email, index) => {
+            const date = email.date ? new Date(email.date).toLocaleDateString() : 'Unknown';
+            const fromTo = email.folder === 'Sent' ? `To: ${email.to || 'Unknown'}` : `From: ${email.from || 'Unknown'}`;
+            const subject = email.subject || '(No subject)';
+            const folder = email.folder || 'Unknown';
+            
+            emailsHtml += `
+                <tr>
+                    <td>${date}</td>
+                    <td class="text-truncate" style="max-width: 200px;">${fromTo}</td>
+                    <td class="text-truncate" style="max-width: 300px;">${subject}</td>
+                    <td><span class="badge ${folder === 'Sent' ? 'bg-success' : 'bg-primary'}">${folder}</span></td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="viewEmailDetails(${index}, '${account.name}')">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        emailsHtml += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+    
+    inboxContainer.innerHTML = emailsHtml;
+    
+    // Store emails globally for viewing details
+    window.currentAccountEmails = emails;
+}
+
+// View email details
+function viewEmailDetails(emailIndex, accountName) {
+    if (!window.currentAccountEmails || !window.currentAccountEmails[emailIndex]) {
+        showToast('errorToast', 'Email not found');
+        return;
+    }
+    
+    const email = window.currentAccountEmails[emailIndex];
+    
+    // Create modal content
+    const modalContent = `
+        <div class="row mb-3">
+            <div class="col-sm-3"><strong>From:</strong></div>
+            <div class="col-sm-9">${email.from || 'Unknown'}</div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-sm-3"><strong>To:</strong></div>
+            <div class="col-sm-9">${email.to || 'Unknown'}</div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-sm-3"><strong>Subject:</strong></div>
+            <div class="col-sm-9">${email.subject || '(No subject)'}</div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-sm-3"><strong>Date:</strong></div>
+            <div class="col-sm-9">${email.date ? new Date(email.date).toLocaleString() : 'Unknown'}</div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-sm-3"><strong>Folder:</strong></div>
+            <div class="col-sm-9"><span class="badge ${email.folder === 'Sent' ? 'bg-success' : 'bg-primary'}">${email.folder || 'Unknown'}</span></div>
+        </div>
+        <hr>
+        <div>
+            <strong>Content:</strong>
+            <div class="mt-2 p-3 bg-light rounded">
+                <pre style="white-space: pre-wrap; word-wrap: break-word;">${email.body || 'No content available'}</pre>
+            </div>
+        </div>
+    `;
+    
+    // Show in existing email details modal
+    const emailDetailsContent = document.getElementById('emailDetailsContent');
+    if (emailDetailsContent) {
+        emailDetailsContent.innerHTML = modalContent;
+        
+        const modal = new bootstrap.Modal(document.getElementById('emailDetailsModal'));
+        modal.show();
+    }
+}
+
 function sendComposedEmail(e) {
     e.preventDefault();
     const form = e.target;
@@ -831,6 +1153,11 @@ function sendComposedEmail(e) {
     formData.append('recipient_name', document.getElementById('recipientName').value);
     formData.append('preview_subject', document.getElementById('emailSubject').value);
     formData.append('preview_body', document.getElementById('emailBody').value);
+    
+    // Use the globally selected account
+    if (currentGlobalAccount) {
+        formData.append('account_name', currentGlobalAccount.name);
+    }
 
     fetch('/api/send_email', {
         method: 'POST',
@@ -847,7 +1174,7 @@ function sendComposedEmail(e) {
     })
     .then(data => {
         if (data.success) {
-            showToast('successToast', data.message || 'Email sent successfully!');
+            showToast('successToast', data.message || `Email sent successfully from ${currentGlobalAccount ? currentGlobalAccount.email : 'default account'}!`);
             form.reset();
         } else {
             showToast('errorToast', data.message || 'Failed to send email');
@@ -1195,6 +1522,12 @@ function loadBulkEmailComposer(contacts) {
                             </small>
                         </div>
                         
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Sending from:</strong> ${currentGlobalAccount ? currentGlobalAccount.email : 'Default account'}
+                            <br><small class="text-muted">All bulk emails will be sent from the currently selected global account</small>
+                        </div>
+                        
                         <div class="mb-3">
                             <button class="btn btn-primary" id="generatePreviewBtn" onclick="generatePreviewEmails()" disabled>
                                 <i class="fas fa-eye me-2"></i>Generate Preview for Selected
@@ -1487,6 +1820,9 @@ function sendAllEmails() {
     const composerTypeSelect = document.getElementById('composerTypeSelect');
     const composerType = composerTypeSelect ? composerTypeSelect.value : 'alt_subject';
     
+    // Use the globally selected account
+    const account_name = currentGlobalAccount ? currentGlobalAccount.name : '';
+    
     // Prepare recipients data for bulk sending
     const recipients_data = window.generatedEmails.map(email => ({
         contact_id: email.contact.email
@@ -1500,7 +1836,8 @@ function sendAllEmails() {
         },
         body: JSON.stringify({ 
             recipients_data: recipients_data,
-            composer_type: composerType
+            composer_type: composerType,
+            account_name: account_name
         })
     })
     .then(response => response.json())
@@ -1692,6 +2029,9 @@ function sendPreviewedEmails() {
     const composerTypeSelect = document.getElementById('composerTypeSelect');
     const composerType = composerTypeSelect ? composerTypeSelect.value : 'alt_subject';
     
+    // Use the globally selected account
+    const account_name = currentGlobalAccount ? currentGlobalAccount.name : '';
+    
     // Prepare recipients data for bulk sending
     const recipients_data = window.previewedEmails.map(email => ({
         contact_id: email.contact.email
@@ -1705,7 +2045,8 @@ function sendPreviewedEmails() {
         },
         body: JSON.stringify({ 
             recipients_data: recipients_data,
-            composer_type: composerType
+            composer_type: composerType,
+            account_name: account_name
         })
     })
     .then(response => response.json())

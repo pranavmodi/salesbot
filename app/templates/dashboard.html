@@ -37,6 +37,41 @@
     </div>
 </div>
 
+<!-- Global Email Account Selector -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body py-2">
+                <div class="row align-items-center">
+                    <div class="col-auto">
+                        <i class="fas fa-envelope text-primary"></i>
+                    </div>
+                    <div class="col">
+                        <label for="globalAccountSelector" class="form-label mb-1 fw-semibold">Active Email Account</label>
+                        <select class="form-select form-select-sm" id="globalAccountSelector">
+                            <option value="">Loading accounts...</option>
+                        </select>
+                    </div>
+                    <div class="col-auto">
+                        <button class="btn btn-outline-primary btn-sm" id="testGlobalAccount" title="Test Connection">
+                            <i class="fas fa-plug"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="alert alert-info mb-0 py-2">
+            <small>
+                <i class="fas fa-info-circle me-1"></i>
+                <strong>Active Account:</strong> <span id="activeAccountInfo">Loading...</span><br>
+                <span class="text-muted">Emails will be sent from and loaded for this account</span>
+            </small>
+        </div>
+    </div>
+</div>
+
 <!-- Tab Navigation -->
 <ul class="nav nav-tabs" id="mainTabs" role="tablist">
     <li class="nav-item" role="presentation">

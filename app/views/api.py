@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify, current_app
 from app.models.contact import Contact
 from app.services.email_service import EmailService
 from app.services.email_reader_service import email_reader, configure_email_reader
+from app.utils.email_config import email_config, EmailAccount
 import os
 import tempfile
 import pandas as pd
@@ -121,6 +122,7 @@ def send_email():
         recipient_name = request.form.get('recipient_name')
         subject = request.form.get('preview_subject')
         body = request.form.get('preview_body')
+        account_name = request.form.get('account_name')  # Optional account selection
         
         if not all([recipient_email, recipient_name, subject, body]):
             return jsonify({
@@ -128,7 +130,10 @@ def send_email():
                 'message': 'Missing required email information'
             }), 400
         
-        success = EmailService.send_email(recipient_email, recipient_name, subject, body)
+        # Use the new multi-account send method
+        success = EmailService.send_email_with_account(
+            recipient_email, recipient_name, subject, body, account_name
+        )
         
         return jsonify({
             'success': success,
@@ -142,6 +147,54 @@ def send_email():
             'message': 'Internal server error'
         }), 500
 
+@bp.route('/email/accounts', methods=['GET'])
+def get_email_accounts():
+    """Get all configured email accounts."""
+    try:
+        accounts = EmailService.get_available_accounts()
+        return jsonify({
+            'success': True,
+            'accounts': accounts
+        })
+    except Exception as e:
+        current_app.logger.error(f"Error getting email accounts: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Failed to load email accounts'
+        }), 500
+
+@bp.route('/email/accounts/<account_name>/test', methods=['POST'])
+def test_email_account(account_name):
+    """Test a specific email account connection."""
+    try:
+        account = email_config.get_account_by_name(account_name)
+        if not account:
+            return jsonify({
+                'success': False,
+                'message': f'Account "{account_name}" not found'
+            }), 404
+        
+        # Try to send a test email to verify the account works
+        test_success = EmailService._send_with_account(
+            account, 
+            account.email,  # Send to self
+            "Test Email Configuration", 
+            "This is a test email to verify your account configuration is working."
+        )
+        
+        return jsonify({
+            'success': test_success,
+            'message': f'Account "{account_name}" {"works correctly" if test_success else "failed to send test email"}',
+            'account_email': account.email
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error testing email account {account_name}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Failed to test email account'
+        }), 500
+
 @bp.route('/send_bulk_emails', methods=['POST'])
 def send_bulk_emails():
     """Send emails to multiple recipients."""
@@ -151,6 +204,7 @@ def send_bulk_emails():
         composer_type = data.get('composer_type', 'warm')
         calendar_url = data.get('calendar_url')
         extra_context = data.get('extra_context')
+        account_name = data.get('account_name')  # New account selection parameter
 
         if not recipients_data or not isinstance(recipients_data, list):
             return jsonify({"error": "Missing or invalid recipients_data"}), 400
@@ -159,7 +213,8 @@ def send_bulk_emails():
             recipients_data=recipients_data, 
             composer_type=composer_type, 
             calendar_url=calendar_url, 
-            extra_context=extra_context
+            extra_context=extra_context,
+            account_name=account_name
         )
         
         return jsonify(results)
@@ -187,6 +242,76 @@ def configure_email():
         return jsonify({
             'success': False,
             'message': 'Failed to configure email reader'
+        }), 500
+
+@bp.route('/email/accounts/<account_name>/emails', methods=['GET'])
+def get_account_emails(account_name):
+    """Get emails for a specific account."""
+    try:
+        from app.utils.email_config import email_config
+        
+        account = email_config.get_account_by_name(account_name)
+        if not account:
+            return jsonify({
+                'success': False,
+                'message': f'Account "{account_name}" not found'
+            }), 404
+        
+        # Configure email reader for this specific account
+        from app.services.email_reader_service import EmailReaderService
+        
+        account_reader = EmailReaderService()
+        account_reader.configure_imap(
+            host=account.imap_host,
+            email=account.email,
+            password=account.password,
+            port=account.imap_port
+        )
+        
+        if not account_reader.connect():
+            return jsonify({
+                'success': False,
+                'message': f'Failed to connect to {account.email}'
+            }), 500
+        
+        # Fetch emails from both INBOX and Sent folders
+        emails = []
+        for folder in ['INBOX', 'Sent']:
+            try:
+                account_reader.connection.select(folder)
+                status, message_ids = account_reader.connection.search(None, 'ALL')
+                if status == 'OK' and message_ids[0]:
+                    ids = message_ids[0].split()
+                    # Limit to last 50 emails per folder for performance
+                    for msg_id in ids[-50:]:
+                        email_data = account_reader._fetch_email_data(msg_id, folder)
+                        if email_data:
+                            emails.append(email_data)
+            except Exception as e:
+                current_app.logger.warning(f"Error fetching emails from {folder} for {account.email}: {e}")
+        
+        # Sort emails by date, newest first
+        emails.sort(key=lambda x: x.get('date', datetime.min), reverse=True)
+        
+        # Convert datetime to isoformat for JSON
+        for email in emails:
+            if email.get('date') and hasattr(email['date'], 'isoformat'):
+                email['date'] = email['date'].isoformat()
+        
+        account_reader.connection.close()
+        
+        return jsonify({
+            'success': True,
+            'emails': emails,
+            'account': account.email,
+            'count': len(emails)
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error fetching emails for account {account_name}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Failed to fetch emails'
         }), 500
 
 @bp.route('/email/conversations/<contact_email>', methods=['GET'])
