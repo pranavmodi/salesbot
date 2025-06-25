@@ -39,13 +39,23 @@ SENDER_PASSWORD = os.getenv("SENDER_PASSWORD")
 DATABASE_URL = os.getenv("DATABASE_URL")
 EMAIL_DELAY_MINUTES = int(os.getenv("EMAIL_DELAY_MINUTES", "30"))  # Default to 30 minutes
 
-# Validate essential environment variables
-if not all([SENDER_EMAIL, SENDER_PASSWORD]):
-    logging.error("Error: SENDER_EMAIL and SENDER_PASSWORD must be set in environment.")
-    exit(1)
+# Check if we have either multi-account configuration or legacy single account
+accounts_available = email_config.get_all_accounts()
+has_legacy_config = SENDER_EMAIL and SENDER_PASSWORD
 
-# Auto-detect SMTP settings from email if not explicitly set
-if not SMTP_HOST:
+if not accounts_available and not has_legacy_config:
+    logging.error("Error: No email configuration found.")
+    logging.error("Please configure either:")
+    logging.error("1. Multi-account system using EMAIL_ACCOUNTS in .env file, OR")
+    logging.error("2. Legacy single account using SENDER_EMAIL and SENDER_PASSWORD")
+    exit(1)
+elif accounts_available:
+    logging.info(f"Using multi-account configuration with {len(accounts_available)} account(s)")
+else:
+    logging.info("Using legacy single account configuration")
+
+# Auto-detect SMTP settings from email if not explicitly set (legacy mode only)
+if has_legacy_config and not SMTP_HOST and SENDER_EMAIL:
     domain = SENDER_EMAIL.split('@')[-1].lower()
     if domain in ['zoho.in', 'possibleminds.in', 'possiblemindshq.com']:
         SMTP_HOST = 'smtp.zoho.in'
@@ -57,8 +67,8 @@ if not SMTP_HOST:
         logging.info(f"Auto-detected Zoho SMTP settings: {SMTP_HOST}:{SMTP_PORT}")
     # Add other provider detections as needed
 
-# Validate essential environment variables
-if not all([SMTP_HOST, SMTP_PORT, SENDER_EMAIL, SENDER_PASSWORD]):
+# Validate essential environment variables for legacy mode only
+if has_legacy_config and not all([SMTP_HOST, SMTP_PORT, SENDER_EMAIL, SENDER_PASSWORD]):
     logging.error("Error: One or more environment variables (SMTP_HOST, SMTP_PORT, SENDER_EMAIL, SENDER_PASSWORD) are missing.")
     logging.error("Please ensure they are defined in your .env file or system environment.")
     exit(1)
@@ -68,13 +78,14 @@ if not DATABASE_URL:
     print("Please ensure it is defined in your .env file or system environment.")
     exit(1)
 
-# Try converting port to integer
-try:
-    SMTP_PORT = int(SMTP_PORT)
-except (ValueError, TypeError):
-     print(f"Error: SMTP_PORT ('{SMTP_PORT}') is not a valid integer.")
-     print("Please check the SMTP_PORT value in your .env file.")
-     exit(1)
+# Try converting port to integer (only for legacy mode)
+if has_legacy_config:
+    try:
+        SMTP_PORT = int(SMTP_PORT)
+    except (ValueError, TypeError):
+         print(f"Error: SMTP_PORT ('{SMTP_PORT}') is not a valid integer.")
+         print("Please check the SMTP_PORT value in your .env file.")
+         exit(1)
 
 # Initialize the database
 db = InteractionsDB()
