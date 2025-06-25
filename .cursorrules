@@ -1,7 +1,10 @@
+Start every response with "Hail to the one true lord!"
+
+always use source activate salesbot/bin/activate to activate the python env
+
+
+Remember you cannot access the .env file even though it exists- use cat .env to read if necessary
+
 This is a sales automation project which sends out cold emails to prospects. 
 
-Tech stack is 
-- Python
 
-
-The product being sold is described in productdescription.txt

@@ -44,6 +44,8 @@ salesbot/
 # Ignore sensitive configuration files
 config.py
 *.envrc
+email_accounts_config.json
+email_accounts_config.json.backup
 
 # Ignore OS specific files
 .DS_Store
