@@ -1254,18 +1254,23 @@ def research_companies():
         script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'scripts', 'research_companies.py')
         current_app.logger.info(f"Starting company research script: {script_path}")
         
+        # Get the current app instance to pass to the background thread
+        app_instance = current_app._get_current_object()
+        
         def run_research():
-            try:
-                result = subprocess.run([
-                    'python', script_path, '--max-companies', str(max_companies)
-                ], capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-                
-                current_app.logger.info(f"Company research completed with return code: {result.returncode}")
-                current_app.logger.info(f"Research output: {result.stdout}")
-                if result.stderr:
-                    current_app.logger.error(f"Research errors: {result.stderr}")
-            except Exception as e:
-                current_app.logger.error(f"Error in background research process: {str(e)}")
+            # Set up Flask application context for background thread
+            with app_instance.app_context():
+                try:
+                    result = subprocess.run([
+                        'python', script_path, '--max-companies', str(max_companies)
+                    ], capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+                    
+                    app_instance.logger.info(f"Company research completed with return code: {result.returncode}")
+                    app_instance.logger.info(f"Research output: {result.stdout}")
+                    if result.stderr:
+                        app_instance.logger.error(f"Research errors: {result.stderr}")
+                except Exception as e:
+                    app_instance.logger.error(f"Error in background research process: {str(e)}")
         
         # Start the research in a background thread
         research_thread = threading.Thread(target=run_research)
@@ -1368,18 +1373,23 @@ def research_single_company(company_id):
         script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'scripts', 'research_companies.py')
         current_app.logger.info(f"Starting research for company ID {company_id}: {company.company_name}")
         
+        # Get the current app instance to pass to the background thread
+        app_instance = current_app._get_current_object()
+        
         def run_single_research():
-            try:
-                result = subprocess.run([
-                    'python', script_path, '--company-id', str(company_id)
-                ], capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-                
-                current_app.logger.info(f"Company research completed for {company.company_name} with return code: {result.returncode}")
-                current_app.logger.info(f"Research output: {result.stdout}")
-                if result.stderr:
-                    current_app.logger.error(f"Research errors: {result.stderr}")
-            except Exception as e:
-                current_app.logger.error(f"Error in background research process for company {company_id}: {str(e)}")
+            # Set up Flask application context for background thread
+            with app_instance.app_context():
+                try:
+                    result = subprocess.run([
+                        'python', script_path, '--company-id', str(company_id)
+                    ], capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+                    
+                    app_instance.logger.info(f"Company research completed for {company.company_name} with return code: {result.returncode}")
+                    app_instance.logger.info(f"Research output: {result.stdout}")
+                    if result.stderr:
+                        app_instance.logger.error(f"Research errors: {result.stderr}")
+                except Exception as e:
+                    app_instance.logger.error(f"Error in background research process for company {company_id}: {str(e)}")
         
         # Start the research in a background thread
         research_thread = threading.Thread(target=run_single_research)
