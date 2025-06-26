@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, current_app
 from datetime import datetime
 
 from app.models.contact import Contact
+from app.models.company import Company
 from app.services.email_service import EmailService
 from app.services.email_reader_service import email_reader, configure_email_reader
 from app.utils.email_config import email_config, EmailAccount
@@ -11,6 +12,8 @@ import pandas as pd
 import numpy as np
 from data_ingestion_system import ContactDataIngester
 from app.models.email_history import EmailHistory
+import subprocess
+import threading
 
 bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -1204,4 +1207,147 @@ def debug_email_configuration():
         return jsonify({
             'success': False,
             'message': f'Debug failed: {str(e)}'
+        }), 500
+
+@bp.route('/companies/extract', methods=['POST'])
+def extract_companies():
+    """Extract unique companies from contacts table and insert into companies table."""
+    try:
+        # Run the extraction script
+        script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'scripts', 'extract_companies.py')
+        current_app.logger.info(f"Running company extraction script: {script_path}")
+        
+        result = subprocess.run([
+            'python', script_path
+        ], capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        
+        if result.returncode == 0:
+            current_app.logger.info(f"Company extraction completed successfully: {result.stdout}")
+            return jsonify({
+                'success': True,
+                'message': 'Companies extracted successfully',
+                'output': result.stdout.strip()
+            })
+        else:
+            current_app.logger.error(f"Company extraction failed: {result.stderr}")
+            return jsonify({
+                'success': False,
+                'message': 'Company extraction failed',
+                'error': result.stderr.strip()
+            }), 500
+            
+    except Exception as e:
+        current_app.logger.error(f"Error in company extraction: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Company extraction failed: {str(e)}'
+        }), 500
+
+@bp.route('/companies/research', methods=['POST'])
+def research_companies():
+    """Trigger company research for companies without research data."""
+    try:
+        data = request.get_json()
+        max_companies = data.get('max_companies', 10) if data else 10
+        
+        # Run the research script in background
+        script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'scripts', 'research_companies.py')
+        current_app.logger.info(f"Starting company research script: {script_path}")
+        
+        def run_research():
+            try:
+                result = subprocess.run([
+                    'python', script_path, '--max-companies', str(max_companies)
+                ], capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+                
+                current_app.logger.info(f"Company research completed with return code: {result.returncode}")
+                current_app.logger.info(f"Research output: {result.stdout}")
+                if result.stderr:
+                    current_app.logger.error(f"Research errors: {result.stderr}")
+            except Exception as e:
+                current_app.logger.error(f"Error in background research process: {str(e)}")
+        
+        # Start the research in a background thread
+        research_thread = threading.Thread(target=run_research)
+        research_thread.daemon = True
+        research_thread.start()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Company research started for up to {max_companies} companies. This process will run in the background.',
+            'status': 'started'
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error starting company research: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Failed to start company research: {str(e)}'
+        }), 500
+
+@bp.route('/companies', methods=['GET'])
+def get_companies():
+    """Get all companies with pagination."""
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        
+        result = Company.get_paginated(page=page, per_page=per_page)
+        
+        # Convert companies to dict format
+        companies_data = []
+        for company in result['companies']:
+            company_dict = company.to_dict()
+            # Add a flag to indicate if research is needed
+            company_dict['needs_research'] = not company.company_research or 'Research pending' in company.company_research
+            companies_data.append(company_dict)
+        
+        return jsonify({
+            'success': True,
+            'companies': companies_data,
+            'pagination': {
+                'current_page': result['current_page'],
+                'total_pages': result['total_pages'],
+                'per_page': result['per_page'],
+                'total_companies': result['total_companies']
+            }
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting companies: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Failed to load companies'
+        }), 500
+
+@bp.route('/companies/search', methods=['GET'])
+def search_companies():
+    """Search companies by name, website, or research content."""
+    try:
+        query = request.args.get('q', '')
+        
+        if not query:
+            return jsonify({
+                'success': False,
+                'message': 'Search query is required'
+            }), 400
+        
+        companies = Company.search(query)
+        companies_data = []
+        for company in companies:
+            company_dict = company.to_dict()
+            company_dict['needs_research'] = not company.company_research or 'Research pending' in company.company_research
+            companies_data.append(company_dict)
+        
+        return jsonify({
+            'success': True,
+            'companies': companies_data,
+            'count': len(companies_data)
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error searching companies: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Failed to search companies'
         }), 500 

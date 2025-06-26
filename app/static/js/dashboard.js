@@ -2252,4 +2252,111 @@ function sendTestEmails(event) {
         console.error('Error sending test emails:', error);
         statusDiv.innerHTML = `<div class="alert alert-danger">An unexpected error occurred. Check console for details.</div>`;
     });
+}
+
+// Company Management Functions
+document.addEventListener('DOMContentLoaded', function() {
+    // Add event listeners for company buttons
+    const extractCompaniesBtn = document.getElementById('extractCompaniesBtn');
+    const researchCompaniesBtn = document.getElementById('researchCompaniesBtn');
+    
+    if (extractCompaniesBtn) {
+        extractCompaniesBtn.addEventListener('click', extractCompaniesFromContacts);
+    }
+    
+    if (researchCompaniesBtn) {
+        researchCompaniesBtn.addEventListener('click', researchCompanies);
+    }
+});
+
+function extractCompaniesFromContacts() {
+    const extractBtn = document.getElementById('extractCompaniesBtn');
+    const originalText = extractBtn.innerHTML;
+    
+    // Show loading state
+    extractBtn.disabled = true;
+    extractBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Extracting...';
+    
+    fetch('/api/companies/extract', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('successToast', data.message);
+            
+            // Refresh the companies table
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        } else {
+            showToast('errorToast', data.message || 'Failed to extract companies');
+        }
+    })
+    .catch(error => {
+        console.error('Error extracting companies:', error);
+        showToast('errorToast', 'An error occurred while extracting companies');
+    })
+    .finally(() => {
+        // Restore button state
+        extractBtn.disabled = false;
+        extractBtn.innerHTML = originalText;
+    });
+}
+
+function researchCompanies() {
+    const researchBtn = document.getElementById('researchCompaniesBtn');
+    const originalText = researchBtn.innerHTML;
+    
+    // Ask user for number of companies to research
+    const maxCompanies = prompt('How many companies would you like to research? (Default: 10)', '10');
+    
+    if (maxCompanies === null) {
+        return; // User cancelled
+    }
+    
+    const maxCompaniesNum = parseInt(maxCompanies) || 10;
+    
+    // Show loading state
+    researchBtn.disabled = true;
+    researchBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Starting Research...';
+    
+    fetch('/api/companies/research', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            max_companies: maxCompaniesNum
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('successToast', data.message);
+            
+            // Update button to show research is in progress
+            researchBtn.innerHTML = '<i class="fas fa-cog fa-spin me-1"></i>Research Running...';
+            
+            // Keep the button disabled for a few minutes to prevent multiple starts
+            setTimeout(() => {
+                researchBtn.disabled = false;
+                researchBtn.innerHTML = originalText;
+            }, 120000); // Re-enable after 2 minutes
+            
+        } else {
+            showToast('errorToast', data.message || 'Failed to start company research');
+            researchBtn.disabled = false;
+            researchBtn.innerHTML = originalText;
+        }
+    })
+    .catch(error => {
+        console.error('Error starting company research:', error);
+        showToast('errorToast', 'An error occurred while starting company research');
+        researchBtn.disabled = false;
+        researchBtn.innerHTML = originalText;
+    });
 } 
