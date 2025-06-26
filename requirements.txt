@@ -1,6 +1,7 @@
+Flask
+SQLAlchemy
 psycopg2-binary
 alembic
-SQLAlchemy
+pandas
 python-dotenv
-pandas>=1.5.0
-numpy>=1.21.0 
+openai 
