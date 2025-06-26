@@ -1350,4 +1350,52 @@ def search_companies():
         return jsonify({
             'success': False,
             'message': 'Failed to search companies'
+        }), 500
+
+@bp.route('/companies/<int:company_id>/research', methods=['POST'])
+def research_single_company(company_id):
+    """Research a specific company by ID."""
+    try:
+        # Get the company from database
+        company = Company.get_by_id(company_id)
+        if not company:
+            return jsonify({
+                'success': False,
+                'message': 'Company not found'
+            }), 404
+        
+        # Run the research script for this specific company
+        script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'scripts', 'research_companies.py')
+        current_app.logger.info(f"Starting research for company ID {company_id}: {company.company_name}")
+        
+        def run_single_research():
+            try:
+                result = subprocess.run([
+                    'python', script_path, '--company-id', str(company_id)
+                ], capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+                
+                current_app.logger.info(f"Company research completed for {company.company_name} with return code: {result.returncode}")
+                current_app.logger.info(f"Research output: {result.stdout}")
+                if result.stderr:
+                    current_app.logger.error(f"Research errors: {result.stderr}")
+            except Exception as e:
+                current_app.logger.error(f"Error in background research process for company {company_id}: {str(e)}")
+        
+        # Start the research in a background thread
+        research_thread = threading.Thread(target=run_single_research)
+        research_thread.daemon = True
+        research_thread.start()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Research started for {company.company_name}. This process will run in the background.',
+            'company_name': company.company_name,
+            'status': 'started'
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error starting research for company {company_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Failed to start research: {str(e)}'
         }), 500 

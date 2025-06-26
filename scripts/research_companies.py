@@ -189,6 +189,106 @@ Provide comprehensive research following the format in your system prompt. Be th
             logger.error(f"Unexpected error saving company {company_name}: {e}")
             return False
 
+    def update_company_research(self, company_id: int, research: str) -> bool:
+        """Update existing company research in the companies table."""
+        logger.info(f"Updating research for company ID: {company_id}")
+        
+        try:
+            with self.engine.connect() as conn:
+                with conn.begin():
+                    update_query = text("""
+                        UPDATE companies 
+                        SET company_research = :research, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :company_id
+                    """)
+                    result = conn.execute(update_query, {
+                        'research': research,
+                        'company_id': company_id
+                    })
+                    
+                    if result.rowcount > 0:
+                        logger.info(f"Successfully updated research for company ID: {company_id}")
+                        return True
+                    else:
+                        logger.warning(f"No company found with ID: {company_id}")
+                        return False
+            
+        except SQLAlchemyError as e:
+            logger.error(f"Database error updating company {company_id}: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error updating company {company_id}: {e}")
+            return False
+
+    def get_company_by_id(self, company_id: int) -> Optional[Dict]:
+        """Get company details by ID."""
+        logger.info(f"Fetching company by ID: {company_id}")
+        
+        try:
+            with self.engine.connect() as conn:
+                result = conn.execute(text("""
+                    SELECT id, company_name, website_url, company_research
+                    FROM companies 
+                    WHERE id = :company_id
+                """), {"company_id": company_id})
+                
+                row = result.fetchone()
+                if row:
+                    return {
+                        'id': row.id,
+                        'company_name': row.company_name,
+                        'website_url': row.website_url,
+                        'company_research': row.company_research
+                    }
+                else:
+                    logger.warning(f"No company found with ID: {company_id}")
+                    return None
+                    
+        except SQLAlchemyError as e:
+            logger.error(f"Database error fetching company {company_id}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error fetching company {company_id}: {e}")
+            return None
+
+    def research_single_company_by_id(self, company_id: int) -> bool:
+        """Research a single company by its ID."""
+        logger.info(f"Starting research for company ID: {company_id}")
+        
+        # Get company details
+        company = self.get_company_by_id(company_id)
+        if not company:
+            logger.error(f"Company with ID {company_id} not found")
+            return False
+        
+        company_name = company['company_name']
+        website_url = company['website_url'] or ''
+        
+        # Extract domain from website URL for research
+        company_domain = ''
+        if website_url:
+            if website_url.startswith(('http://', 'https://')):
+                company_domain = website_url.replace('https://', '').replace('http://', '').split('/')[0]
+            else:
+                company_domain = website_url
+        
+        logger.info(f"Researching company: {company_name}")
+        
+        # Research the company
+        research = self.research_company(company_name, company_domain)
+        
+        if research:
+            # Update the existing company record
+            if self.update_company_research(company_id, research):
+                logger.info(f"✅ Successfully researched and updated: {company_name}")
+                return True
+            else:
+                logger.error(f"❌ Failed to update research for: {company_name}")
+                return False
+        else:
+            logger.error(f"❌ Failed to research: {company_name}")
+            return False
+
     def process_companies(self, max_companies: Optional[int] = None, delay_seconds: int = 2):
         """Main processing function to research and save companies."""
         logger.info("Starting company research process...")
@@ -267,6 +367,7 @@ def main():
     
     parser = argparse.ArgumentParser(description='Research companies from contacts table')
     parser.add_argument('--max-companies', type=int, help='Maximum number of companies to process')
+    parser.add_argument('--company-id', type=int, help='Research a specific company by ID')
     parser.add_argument('--delay', type=int, default=2, help='Delay between API calls in seconds')
     parser.add_argument('--dry-run', action='store_true', help='Show what would be processed without actually doing it')
     
@@ -275,6 +376,18 @@ def main():
     try:
         researcher = CompanyResearcher()
         
+        # Handle single company research
+        if args.company_id:
+            logger.info(f"Researching single company with ID: {args.company_id}")
+            success = researcher.research_single_company_by_id(args.company_id)
+            if success:
+                logger.info("✅ Single company research completed successfully")
+            else:
+                logger.error("❌ Single company research failed")
+                exit(1)
+            return
+        
+        # Handle batch processing
         if args.dry_run:
             logger.info("DRY RUN MODE - No actual processing will occur")
             contact_companies = researcher.get_unique_companies_from_contacts()

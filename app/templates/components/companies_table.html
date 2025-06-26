@@ -17,9 +17,20 @@
                 <td>{{ (company.company_research or '')|truncate(100) }}</td>
                 <td>{{ company.created_at.strftime('%Y-%m-%d') if company.created_at else 'N/A' }}</td>
                 <td>
-                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#companyDetailModal" data-company-id="{{ company.id }}">
-                        <i class="fas fa-eye"></i> View
-                    </button>
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#companyDetailModal" data-company-id="{{ company.id }}">
+                            <i class="fas fa-eye"></i> View
+                        </button>
+                        {% if not company.company_research or 'Research pending' in company.company_research %}
+                        <button class="btn btn-sm btn-outline-warning research-company-btn" data-company-id="{{ company.id }}" data-company-name="{{ company.company_name }}" title="Research this company">
+                            <i class="fas fa-search"></i> Research
+                        </button>
+                        {% else %}
+                        <button class="btn btn-sm btn-outline-success research-company-btn" data-company-id="{{ company.id }}" data-company-name="{{ company.company_name }}" title="Re-research this company">
+                            <i class="fas fa-redo"></i> Re-research
+                        </button>
+                        {% endif %}
+                    </div>
                 </td>
             </tr>
             {% else %}

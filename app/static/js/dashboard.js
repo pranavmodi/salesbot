@@ -2291,6 +2291,16 @@ function setupCompaniesPagination() {
             }
         });
     });
+    
+    // Individual company research buttons
+    document.querySelectorAll('.research-company-btn').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            const companyId = this.getAttribute('data-company-id');
+            const companyName = this.getAttribute('data-company-name');
+            researchSingleCompany(companyId, companyName, this);
+        });
+    });
 }
 
 function changeCompaniesPage(page) {
@@ -2363,9 +2373,19 @@ function displayCompaniesTable(companies, pagination) {
                     <td>${researchSummary}</td>
                     <td>${createdAt}</td>
                     <td>
-                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#companyDetailModal" data-company-id="${company.id}">
-                            <i class="fas fa-eye"></i> View
-                        </button>
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#companyDetailModal" data-company-id="${company.id}">
+                                <i class="fas fa-eye"></i> View
+                            </button>
+                            ${company.needs_research ? 
+                                `<button class="btn btn-sm btn-outline-warning research-company-btn" data-company-id="${company.id}" data-company-name="${company.company_name}" title="Research this company">
+                                    <i class="fas fa-search"></i> Research
+                                </button>` :
+                                `<button class="btn btn-sm btn-outline-success research-company-btn" data-company-id="${company.id}" data-company-name="${company.company_name}" title="Re-research this company">
+                                    <i class="fas fa-redo"></i> Re-research
+                                </button>`
+                            }
+                        </div>
                     </td>
                 </tr>
             `;
@@ -2510,5 +2530,56 @@ function researchCompanies() {
         showToast('errorToast', 'An error occurred while starting company research');
         researchBtn.disabled = false;
         researchBtn.innerHTML = originalText;
+    });
+}
+
+function researchSingleCompany(companyId, companyName, buttonElement) {
+    const originalText = buttonElement.innerHTML;
+    
+    // Confirm with user
+    if (!confirm(`Start AI research for "${companyName}"? This will run in the background and may take a few minutes.`)) {
+        return;
+    }
+    
+    // Show loading state
+    buttonElement.disabled = true;
+    buttonElement.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Researching...';
+    
+    fetch(`/api/companies/${companyId}/research`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('successToast', data.message);
+            
+            // Update button to show research is in progress
+            buttonElement.innerHTML = '<i class="fas fa-cog fa-spin me-1"></i>Researching...';
+            buttonElement.classList.remove('btn-outline-warning', 'btn-outline-success');
+            buttonElement.classList.add('btn-outline-info');
+            
+            // Keep the button disabled for a few minutes to prevent multiple starts
+            setTimeout(() => {
+                buttonElement.disabled = false;
+                buttonElement.innerHTML = '<i class="fas fa-redo"></i> Re-research';
+                buttonElement.classList.remove('btn-outline-info');
+                buttonElement.classList.add('btn-outline-success');
+                buttonElement.title = 'Re-research this company';
+            }, 180000); // Re-enable after 3 minutes
+            
+        } else {
+            showToast('errorToast', data.message || 'Failed to start company research');
+            buttonElement.disabled = false;
+            buttonElement.innerHTML = originalText;
+        }
+    })
+    .catch(error => {
+        console.error('Error starting company research:', error);
+        showToast('errorToast', 'An error occurred while starting company research');
+        buttonElement.disabled = false;
+        buttonElement.innerHTML = originalText;
     });
 } 
