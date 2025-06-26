@@ -41,7 +41,7 @@ class CompanyResearcher:
     def __init__(self):
         load_dotenv()
         self.client = OpenAI(api_key=os.getenv("OPENAI_KEY"))
-        self.model = os.getenv("OPENAI_MODEL", "gpt-4o")
+        self.model = os.getenv("OPENAI_MODEL", "o3")
         self.database_url = os.getenv("DATABASE_URL")
         
         if not self.database_url:
@@ -118,34 +118,56 @@ class CompanyResearcher:
             else:
                 website_url = company_domain
 
-        system_prompt = """You are a B2B sales research expert. Your task is to provide comprehensive company research that would be valuable for sales outreach.
+        system_prompt = """You are an expert B2B go-to-market strategist. Your task is to perform a comprehensive, desk-based diagnostic of companies for sales outreach purposes.
 
-For each company, provide:
-1. Business Overview: What does the company do, their main products/services
-2. Industry & Market Position: Industry sector, competitive position, market size
-3. Recent News & Updates: Any recent developments, funding, expansions, leadership changes
-4. Sales Insights: Pain points they might have, decision makers, sales cycle insights
-5. Technology Stack: Known technology platforms, integrations they use
-6. Company Culture & Values: Work environment, company values, recent awards
-7. Financial Information: Revenue range, growth trends, funding status
-8. Contact Strategy: Best approach for outreach, key departments to target
+Follow this exact structure:
 
-Be specific and actionable. Focus on information that would help a salesperson understand the company and craft targeted outreach.
-If you don't have specific information, make educated inferences based on the company name and industry patterns."""
+1 | Snapshot
+Return a 3-sentence plain-English overview covering industry, core offering, size (revenue or headcount), and growth stage.
 
-        user_prompt = f"""Research this company for B2B sales purposes:
+2 | Source Harvest
+Pull and cite recent facts (≤ 12 months) from:
+• Official sources: homepage, product pages, pricing, blog, annual or quarterly reports, investor decks, SEC/Companies House filings.
+• Job postings on careers page or LinkedIn.
+• News, PR, podcasts, founder interviews.
+• Customer reviews (G2, Capterra, Trustpilot, Glassdoor for employer sentiment).
+• Social media signals (LinkedIn posts, X/Twitter threads).
 
-Company Name: {company_name}
-Company Domain: {company_domain if company_domain else 'Not available'}
-Website: {website_url if website_url else 'Not available'}
+3 | Signals → Pain Hypotheses
+For each major business function below, list observed signals (1-2 bullet points) → inferred pain hypothesis (1 bullet) in the table:
 
-Provide comprehensive research following the format in your system prompt. Be thorough but concise."""
+Function | Signals (facts) | Likely Pain-Point Hypothesis
+GTM / Sales | | 
+Marketing / Brand | | 
+Product / R&D | | 
+Customer Success | | 
+Ops / Supply Chain | | 
+People / Hiring | | 
+Finance / Compliance | | 
+
+4 | Top-3 Burning Problems
+Rank the three most pressing, financially material pain points, citing the strongest evidence for each. Explain the business impact in one short paragraph per pain.
+
+5 | Solution Hooks & Message Angles
+For each of the Top-3 pains, suggest:
+1. Solution hook (how our AI/LLM offering specifically relieves it).
+2. One-line cold-email angle that provokes curiosity (≤ 25 words).
+3. Metric to promise (e.g., "cut SDR research time by 40%").
+
+Use H2 headings for sections 1-5. Return Markdown with inline citations (e.g., "(Crunchbase, Jan 2025)") after each fact. If information is missing, say "Data not found" instead of guessing. Keep total length ≤ 600 words."""
+
+        user_prompt = f"""You are an expert B2B go-to-market strategist. Your task is to perform a comprehensive, desk-based diagnostic of the company named {company_name}{f" (website {website_url})" if website_url else ""}.
+
+Company Details:
+- Company Name: {company_name}
+- Website: {website_url if website_url else 'Not available'}
+- Domain: {company_domain if company_domain else 'Not available'}
+
+Follow the exact structure provided in your system prompt. Begin now."""
 
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
-                temperature=0.3,  # Lower temperature for more factual responses
-                max_tokens=2000,  # Allow for comprehensive research
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
