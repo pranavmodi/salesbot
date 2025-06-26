@@ -31,21 +31,36 @@
     </table>
 </div>
 
-<!-- Pagination -->
-<nav>
-    <ul class="pagination justify-content-center">
-        {% if companies_total_pages > 1 %}
-            <li class="page-item {% if companies_current_page == 1 %}disabled{% endif %}">
-                <a class="page-link" href="{{ url_for('main.index', companies_page=companies_current_page-1) }}">Previous</a>
-            </li>
-            {% for i in range(1, companies_total_pages + 1) %}
-                <li class="page-item {% if i == companies_current_page %}active{% endif %}">
-                    <a class="page-link" href="{{ url_for('main.index', companies_page=i) }}">{{ i }}</a>
+<!-- Pagination Controls -->
+<div class="row mb-3">
+    <div class="col-md-6">
+        <div class="d-flex align-items-center">
+            <label for="companiesPerPage" class="me-2">Show:</label>
+            <select id="companiesPerPage" class="form-select" style="width: auto;">
+                <option value="5" {% if companies_per_page == 5 %}selected{% endif %}>5 per page</option>
+                <option value="10" {% if companies_per_page == 10 %}selected{% endif %}>10 per page</option>
+                <option value="25" {% if companies_per_page == 25 %}selected{% endif %}>25 per page</option>
+                <option value="50" {% if companies_per_page == 50 %}selected{% endif %}>50 per page</option>
+            </select>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <nav aria-label="Page navigation">
+            <ul class="pagination justify-content-end mb-0">
+                <li class="page-item {% if companies_current_page == 1 %}disabled{% endif %}">
+                    <a class="page-link companies-page-link" href="#" data-companies-page="{{ companies_current_page - 1 }}">
+                        <i class="fas fa-chevron-left"></i>
+                    </a>
                 </li>
-            {% endfor %}
-            <li class="page-item {% if companies_current_page == companies_total_pages %}disabled{% endif %}">
-                <a class="page-link" href="{{ url_for('main.index', companies_page=companies_current_page+1) }}">Next</a>
-            </li>
-        {% endif %}
-    </ul>
-</nav> 
+                <li class="page-item active">
+                    <span class="page-link">{{ companies_current_page }} of {{ companies_total_pages }}</span>
+                </li>
+                <li class="page-item {% if companies_current_page == companies_total_pages %}disabled{% endif %}">
+                    <a class="page-link companies-page-link" href="#" data-companies-page="{{ companies_current_page + 1 }}">
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+</div> 

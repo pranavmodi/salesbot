@@ -55,6 +55,7 @@ def index():
         companies=company_data['companies'],
         companies_current_page=company_data['current_page'],
         companies_total_pages=company_data['total_pages'],
+        companies_per_page=companies_per_page,
         total_companies=company_data['total_companies'],
         per_page=contact_data['per_page'],
         total_contacts=total_contacts,

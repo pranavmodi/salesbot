@@ -2267,7 +2267,159 @@ document.addEventListener('DOMContentLoaded', function() {
     if (researchCompaniesBtn) {
         researchCompaniesBtn.addEventListener('click', researchCompanies);
     }
+    
+    // Add event listeners for companies pagination
+    setupCompaniesPagination();
 });
+
+function setupCompaniesPagination() {
+    // Companies per page selector
+    const companiesPerPageSelect = document.getElementById('companiesPerPage');
+    if (companiesPerPageSelect) {
+        companiesPerPageSelect.addEventListener('change', function() {
+            changeCompaniesPage(1); // Reset to first page when changing per page
+        });
+    }
+    
+    // Companies pagination links
+    document.querySelectorAll('.companies-page-link').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const page = parseInt(this.getAttribute('data-companies-page'));
+            if (page && !this.parentElement.classList.contains('disabled')) {
+                changeCompaniesPage(page);
+            }
+        });
+    });
+}
+
+function changeCompaniesPage(page) {
+    // Get current per page value
+    const perPageSelect = document.getElementById('companiesPerPage');
+    const perPage = perPageSelect ? perPageSelect.value : 10;
+    
+    // Show loading state
+    const companiesContainer = document.getElementById('companies-table-container');
+    const originalContent = companiesContainer.innerHTML;
+    
+    companiesContainer.innerHTML = `
+        <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading companies...</p>
+        </div>
+    `;
+    
+    // Fetch companies for the requested page
+    fetch(`/api/companies?page=${page}&per_page=${perPage}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayCompaniesTable(data.companies, data.pagination);
+                // Re-setup pagination after content is loaded
+                setTimeout(setupCompaniesPagination, 100);
+            } else {
+                throw new Error(data.message || 'Failed to load companies');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading companies:', error);
+            companiesContainer.innerHTML = originalContent;
+            showToast('errorToast', 'Failed to load companies: ' + error.message);
+        });
+}
+
+function displayCompaniesTable(companies, pagination) {
+    const companiesContainer = document.getElementById('companies-table-container');
+    
+    let html = `
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead class="table-light">
+                <tr>
+                    <th>Company Name</th>
+                    <th>Website</th>
+                    <th>Research Summary</th>
+                    <th>Created At</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+    
+    if (companies && companies.length > 0) {
+        companies.forEach(company => {
+            const createdAt = company.created_at ? new Date(company.created_at).toLocaleDateString() : 'N/A';
+            const researchSummary = company.company_research ? 
+                (company.company_research.length > 100 ? 
+                    company.company_research.substring(0, 100) + '...' : 
+                    company.company_research) : '';
+            
+            html += `
+                <tr>
+                    <td><strong>${company.company_name || ''}</strong></td>
+                    <td><a href="${company.website_url || '#'}" target="_blank">${company.website_url || ''}</a></td>
+                    <td>${researchSummary}</td>
+                    <td>${createdAt}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#companyDetailModal" data-company-id="${company.id}">
+                            <i class="fas fa-eye"></i> View
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+    } else {
+        html += `
+            <tr>
+                <td colspan="5" class="text-center">No companies found.</td>
+            </tr>
+        `;
+    }
+    
+    html += `
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Pagination Controls -->
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <div class="d-flex align-items-center">
+                <label for="companiesPerPage" class="me-2">Show:</label>
+                <select id="companiesPerPage" class="form-select" style="width: auto;">
+                    <option value="5" ${pagination.per_page == 5 ? 'selected' : ''}>5 per page</option>
+                    <option value="10" ${pagination.per_page == 10 ? 'selected' : ''}>10 per page</option>
+                    <option value="25" ${pagination.per_page == 25 ? 'selected' : ''}>25 per page</option>
+                    <option value="50" ${pagination.per_page == 50 ? 'selected' : ''}>50 per page</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-end mb-0">
+                    <li class="page-item ${pagination.current_page == 1 ? 'disabled' : ''}">
+                        <a class="page-link companies-page-link" href="#" data-companies-page="${pagination.current_page - 1}">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                    </li>
+                    <li class="page-item active">
+                        <span class="page-link">${pagination.current_page} of ${pagination.total_pages}</span>
+                    </li>
+                    <li class="page-item ${pagination.current_page == pagination.total_pages ? 'disabled' : ''}">
+                        <a class="page-link companies-page-link" href="#" data-companies-page="${pagination.current_page + 1}">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+    `;
+    
+    companiesContainer.innerHTML = html;
+}
 
 function extractCompaniesFromContacts() {
     const extractBtn = document.getElementById('extractCompaniesBtn');
