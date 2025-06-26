@@ -1325,6 +1325,32 @@ def get_companies():
             'message': 'Failed to load companies'
         }), 500
 
+@bp.route('/companies/<int:company_id>', methods=['GET'])
+def get_company_details(company_id):
+    """Get detailed information about a specific company."""
+    try:
+        company = Company.get_by_id(company_id)
+        if not company:
+            return jsonify({
+                'success': False,
+                'message': 'Company not found'
+            }), 404
+        
+        company_dict = company.to_dict()
+        company_dict['needs_research'] = not company.company_research or 'Research pending' in company.company_research
+        
+        return jsonify({
+            'success': True,
+            'company': company_dict
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting company details: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Failed to load company details'
+        }), 500
+
 @bp.route('/companies/search', methods=['GET'])
 def search_companies():
     """Search companies by name, website, or research content."""

@@ -2301,6 +2301,16 @@ function setupCompaniesPagination() {
             researchSingleCompany(companyId, companyName, this);
         });
     });
+    
+    // Company view buttons
+    document.querySelectorAll('.company-view-btn').forEach(button => {
+        button.addEventListener('click', function(e) {
+            const companyId = this.getAttribute('data-company-id');
+            if (companyId) {
+                loadCompanyDetails(companyId);
+            }
+        });
+    });
 }
 
 function changeCompaniesPage(page) {
@@ -2374,7 +2384,7 @@ function displayCompaniesTable(companies, pagination) {
                     <td>${createdAt}</td>
                     <td>
                         <div class="btn-group" role="group">
-                            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#companyDetailModal" data-company-id="${company.id}">
+                            <button class="btn btn-sm btn-outline-primary company-view-btn" data-bs-toggle="modal" data-bs-target="#companyDetailModal" data-company-id="${company.id}">
                                 <i class="fas fa-eye"></i> View
                             </button>
                             ${company.needs_research ? 
@@ -2582,4 +2592,116 @@ function researchSingleCompany(companyId, companyName, buttonElement) {
         buttonElement.disabled = false;
         buttonElement.innerHTML = originalText;
     });
+}
+
+function loadCompanyDetails(companyId) {
+    // Reset modal content to loading state
+    const modalContent = document.getElementById('company-details-content');
+    const modalTitle = document.getElementById('companyDetailModalLabel');
+    
+    modalContent.innerHTML = `
+        <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading company details...</p>
+        </div>
+    `;
+    modalTitle.textContent = 'Company Details';
+    
+    // Fetch company details
+    fetch(`/api/companies/${companyId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayCompanyDetails(data.company);
+            } else {
+                throw new Error(data.message || 'Failed to load company details');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading company details:', error);
+            modalContent.innerHTML = `
+                <div class="alert alert-danger" role="alert">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Failed to load company details: ${error.message}
+                </div>
+            `;
+        });
+}
+
+function displayCompanyDetails(company) {
+    const modalContent = document.getElementById('company-details-content');
+    const modalTitle = document.getElementById('companyDetailModalLabel');
+    
+    // Update modal title
+    modalTitle.textContent = company.company_name || 'Company Details';
+    
+    // Format the research content
+    const researchContent = company.company_research ? 
+        company.company_research.replace(/\n/g, '<br>') : 
+        '<em class="text-muted">No research available yet. Click the Research button to generate AI-powered insights.</em>';
+    
+    // Create the company details HTML
+    modalContent.innerHTML = `
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-building me-2"></i>Company Information
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row">
+                            <dt class="col-4">Name:</dt>
+                            <dd class="col-8">${company.company_name || 'N/A'}</dd>
+                            
+                            <dt class="col-4">Website:</dt>
+                            <dd class="col-8">
+                                ${company.website_url ? 
+                                    `<a href="${company.website_url}" target="_blank" class="text-decoration-none">
+                                        ${company.website_url} <i class="fas fa-external-link-alt ms-1"></i>
+                                    </a>` : 
+                                    'N/A'
+                                }
+                            </dd>
+                            
+                            <dt class="col-4">Created:</dt>
+                            <dd class="col-8">${company.created_at ? new Date(company.created_at).toLocaleDateString() : 'N/A'}</dd>
+                            
+                            <dt class="col-4">Updated:</dt>
+                            <dd class="col-8">${company.updated_at ? new Date(company.updated_at).toLocaleDateString() : 'N/A'}</dd>
+                        </dl>
+                        
+                        ${company.needs_research ? 
+                            `<div class="alert alert-warning mt-3">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <strong>Research Needed:</strong> This company hasn't been researched yet.
+                            </div>` : 
+                            `<div class="alert alert-success mt-3">
+                                <i class="fas fa-check-circle me-2"></i>
+                                <strong>Research Complete:</strong> AI insights available.
+                            </div>`
+                        }
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-chart-line me-2"></i>Company Research & Insights
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div style="max-height: 400px; overflow-y: auto;">
+                            ${researchContent}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
 } 
