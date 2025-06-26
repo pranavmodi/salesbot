@@ -1,0 +1,30 @@
+<div class="modal fade" id="addCompanyModal" tabindex="-1" aria-labelledby="addCompanyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addCompanyModalLabel">Add New Company</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addCompanyForm">
+                    <div class="mb-3">
+                        <label for="companyName" class="form-label">Company Name</label>
+                        <input type="text" class="form-control" id="companyName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="websiteUrl" class="form-label">Website URL</label>
+                        <input type="url" class="form-control" id="websiteUrl">
+                    </div>
+                    <div class="mb-3">
+                        <label for="companyResearch" class="form-label">Company Research</label>
+                        <textarea class="form-control" id="companyResearch" rows="10"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="saveCompanyBtn">Save Company</button>
+            </div>
+        </div>
+    </div>
+</div> 

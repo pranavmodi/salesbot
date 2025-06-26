@@ -125,6 +125,11 @@
         </button>
     </li>
     <li class="nav-item" role="presentation">
+        <button class="nav-link" id="companies-tab" data-bs-toggle="tab" data-bs-target="#companies-tab-pane" type="button" role="tab" aria-controls="companies-tab-pane" aria-selected="false">
+            <i class="fas fa-building me-1"></i> Companies
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
         <button class="nav-link" id="inbox-tab" data-bs-toggle="tab" data-bs-target="#inbox-tab-pane" type="button" role="tab" aria-controls="inbox-tab-pane" aria-selected="false">
             <i class="fas fa-inbox me-1"></i> Inbox
             {% if threads and threads|length > 0 %}
@@ -153,220 +158,49 @@
 <div class="tab-content" id="mainTabsContent">
     <!-- Contacts Tab -->
     <div class="tab-pane fade show active" id="contacts-tab-pane" role="tabpanel" aria-labelledby="contacts-tab">
+        {% include 'components/contacts_pane.html' %}
+    </div>
+
+    <!-- Companies Tab -->
+    <div class="tab-pane fade" id="companies-tab-pane" role="tabpanel" aria-labelledby="companies-tab">
         <div class="card">
             <div class="card-header">
                 <div class="row align-items-center">
                     <div class="col-md-6">
                         <h5 class="card-title mb-0">
-                            <i class="fas fa-users me-2"></i>Contact Database
+                            <i class="fas fa-building me-2"></i>Company Database
                         </h5>
-                        <small class="text-muted">Comprehensive contact information and details</small>
+                        <small class="text-muted">Researched company information</small>
                     </div>
                     <div class="col-md-6">
                         <div class="d-flex justify-content-end align-items-center">
-                            <input type="text" class="form-control search-box me-3" placeholder="Search contacts..." id="contactSearch" style="max-width: 250px;">
-                            <div class="dropdown me-2">
-                                <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                    <i class="fas fa-filter me-2"></i>Filter
-                                </button>
-                                <ul class="dropdown-menu">
-                                    <li><a class="dropdown-item" href="#" data-filter="all">All Contacts</a></li>
-                                    <li><a class="dropdown-item" href="#" data-filter="has-phone">Has Phone</a></li>
-                                    <li><a class="dropdown-item" href="#" data-filter="has-linkedin">Has LinkedIn</a></li>
-                                    <li><a class="dropdown-item" href="#" data-filter="recent">Recently Added</a></li>
-                                    <li><hr class="dropdown-divider"></li>
-                                    <li><a class="dropdown-item" href="#" data-filter="uncontacted">
-                                        <i class="fas fa-envelope-open me-2 text-warning"></i>Uncontacted
-                                        {% if uncontacted_count > 0 %}
-                                        <span class="badge bg-warning text-dark ms-2">{{ uncontacted_count }}</span>
-                                        {% endif %}
-                                    </a></li>
-                                </ul>
-                            </div>
-                            <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#addContactModal">
-                                <i class="fas fa-plus me-2"></i>Add Contact
+                            <input type="text" class="form-control search-box me-3" placeholder="Search companies..." id="companySearch" style="max-width: 250px;">
+                            <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#addCompanyModal">
+                                <i class="fas fa-plus me-2"></i>Add Company
                             </button>
-                            <a href="/import" class="btn btn-primary">
-                                <i class="fas fa-file-upload me-2"></i>Import
-                            </a>
                         </div>
                     </div>
                 </div>
             </div>
             <div class="card-body">
-                <!-- Statistics Row -->
-                <div class="row mb-4">
+                 <div class="row mb-4">
                     <div class="col-md-3">
                         <div class="stats-card">
-                            <div class="stats-number">{{ total_contacts or contacts|length }}</div>
-                            <div class="stats-label">Total Contacts</div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="stats-card">
-                            <div class="stats-number">{{ contacts|selectattr('company')|list|length }}</div>
-                            <div class="stats-label">With Company</div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="stats-card">
-                            <div class="stats-number">{{ contacts|selectattr('linkedin_profile')|list|length }}</div>
-                            <div class="stats-label">With LinkedIn</div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="stats-card">
-                            <div class="stats-number">{{ contacts|selectattr('location')|list|length }}</div>
-                            <div class="stats-label">With Location</div>
+                            <div class="stats-number">{{ total_companies }}</div>
+                            <div class="stats-label">Total Companies</div>
                         </div>
                     </div>
                 </div>
-
-                <!-- Pagination Controls -->
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <div class="d-flex align-items-center">
-                            <label for="perPage" class="me-2">Show:</label>
-                            <select id="perPage" class="form-select" style="width: auto;">
-                                <option value="5" {% if per_page == 5 %}selected{% endif %}>5 per page</option>
-                                <option value="10" {% if per_page == 10 %}selected{% endif %}>10 per page</option>
-                                <option value="25" {% if per_page == 25 %}selected{% endif %}>25 per page</option>
-                                <option value="50" {% if per_page == 50 %}selected{% endif %}>50 per page</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <nav aria-label="Page navigation">
-                            <ul class="pagination justify-content-end mb-0">
-                                <li class="page-item {% if current_page == 1 %}disabled{% endif %}">
-                                    <a class="page-link" href="#" data-page="{{ current_page - 1 }}">
-                                        <i class="fas fa-chevron-left"></i>
-                                    </a>
-                                </li>
-                                <li class="page-item active">
-                                    <span class="page-link">{{ current_page }} of {{ total_pages }}</span>
-                                </li>
-                                <li class="page-item {% if current_page == total_pages %}disabled{% endif %}">
-                                    <a class="page-link" href="#" data-page="{{ current_page + 1 }}">
-                                        <i class="fas fa-chevron-right"></i>
-                                    </a>
-                                </li>
-                            </ul>
-                        </nav>
-                    </div>
+                <div id="companies-table-container">
+                    {% include 'components/companies_table.html' %}
                 </div>
-
-                <!-- Contacts List -->
-                <div class="table-responsive" id="contactsContainer">
-                    {% if contacts %}
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th style="width: 50px;"></th>
-                                <th>Name</th>
-                                <th>Company</th>
-                                <th>Position</th>
-                                <th>Email</th>
-                                <th>Location</th>
-                                <th>Phone</th>
-                                <th style="width: 120px;">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for contact in contacts %}
-                            <tr class="contact-row" data-contact-email="{{ contact.email }}">
-                                <td>
-                                    <div class="contact-avatar" style="width: 36px; height: 36px; font-size: 0.875rem;">
-                                        {{ contact.initials }}
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="contact-name">
-                                        <strong>{{ contact.display_name }}</strong>
-                                        {% if contact.raw_data and contact.raw_data.get('created_at') %}
-                                        <br><small class="text-muted">Added: {{ contact.raw_data.created_at.strftime('%Y-%m-%d') if contact.raw_data.created_at else 'Unknown' }}</small>
-                                        {% endif %}
-                                    </div>
-                                </td>
-                                <td>
-                                    {% if contact.company %}
-                                        <span class="fw-semibold">{{ contact.company }}</span>
-                                        {% if contact.company_domain %}
-                                        <br><small><a href="http://{{ contact.company_domain }}" target="_blank" class="text-decoration-none text-muted">{{ contact.company_domain }}</a></small>
-                                        {% endif %}
-                                    {% else %}
-                                        <span class="text-muted">Not specified</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <span>{{ contact.job_title or 'Not specified' }}</span>
-                                </td>
-                                <td>
-                                    {% if contact.email %}
-                                        <a href="mailto:{{ contact.email }}" class="text-decoration-none">{{ contact.email }}</a>
-                                    {% else %}
-                                        <span class="text-muted">Not available</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <span>{{ contact.location or 'Not specified' }}</span>
-                                </td>
-                                <td>
-                                    {% if contact.raw_data and contact.raw_data.get('phone') %}
-                                        <a href="tel:{{ contact.raw_data.phone }}" class="text-decoration-none">{{ contact.raw_data.phone }}</a>
-                                    {% else %}
-                                        <span class="text-muted">Not available</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <div class="btn-group" role="group">
-                                        <button class="btn btn-outline-primary btn-sm" onclick="viewContactDetails('{{ contact.email }}')" title="View Details">
-                                            <i class="fas fa-eye"></i>
-                                        </button>
-                                        {% if contact.linkedin_profile %}
-                                        <a href="{{ contact.linkedin_profile }}" target="_blank" class="btn btn-outline-info btn-sm" title="LinkedIn Profile">
-                                            <i class="fab fa-linkedin"></i>
-                                        </a>
-                                        {% endif %}
-                                        <button class="btn btn-outline-secondary btn-sm" onclick="exportContact('{{ contact.email }}')" title="Export Contact">
-                                            <i class="fas fa-download"></i>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                    {% endif %}
-                </div>
-
-                <!-- Empty State -->
-                {% if not contacts %}
-                <div class="text-center py-5">
-                    <i class="fas fa-users fa-3x text-muted mb-3"></i>
-                    <h5 class="text-muted">No contacts found</h5>
-                    <p class="text-muted">Import contacts using the data ingestion system to get started.</p>
-                    <a href="/import" class="btn btn-primary">
-                        <i class="fas fa-upload me-2"></i>Import Contacts
-                    </a>
-                </div>
-                {% endif %}
             </div>
         </div>
     </div>
 
     <!-- Inbox Tab -->
     <div class="tab-pane fade" id="inbox-tab-pane" role="tabpanel" aria-labelledby="inbox-tab">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="fas fa-inbox me-2"></i>Email Threads
-                </h5>
-            </div>
-            <div class="card-body">
-                {% include 'components/inbox_threads.html' %}
-            </div>
-        </div>
+        {% include 'components/inbox_pane.html' %}
     </div>
     
     <!-- Compose Tab -->
@@ -376,145 +210,21 @@
 
     <!-- Bulk Email Tab -->
     <div class="tab-pane fade" id="bulk-email-tab-pane" role="tabpanel" aria-labelledby="bulk-email-tab">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-rocket me-2"></i>Bulk Email Campaign</h5>
-            </div>
-            <div class="card-body">
-                <p>Select contacts from the main list to start a bulk email campaign.</p>
-                <div id="bulk-email-composer-container">
-                    <!-- Bulk email composer will be loaded here via JS -->
-                </div>
-            </div>
-        </div>
+        {% include 'components/bulk_email_pane.html' %}
     </div>
 
     <!-- History Tab -->
     <div class="tab-pane fade" id="history-tab-pane" role="tabpanel" aria-labelledby="history-tab">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-history me-2"></i>Email History</h4>
-            </div>
-            <div class="card-body">
-                {% include 'components/email_history_table.html' %}
-            </div>
-        </div>
+        {% include 'components/email_history_table.html' with context %}
     </div>
 </div>
 
 <!-- Modals -->
-<!-- Add Contact Modal -->
-<div class="modal fade" id="addContactModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-user-plus me-2"></i>Add New Contact
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="addContactForm">
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label for="addFirstName" class="form-label">First Name</label>
-                            <input type="text" class="form-control" id="addFirstName" name="first_name">
-                        </div>
-                        <div class="col-md-6">
-                            <label for="addLastName" class="form-label">Last Name</label>
-                            <input type="text" class="form-control" id="addLastName" name="last_name">
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label for="addEmail" class="form-label">Email Address <span class="text-danger">*</span></label>
-                        <input type="email" class="form-control" id="addEmail" name="email" required>
-                        <div class="form-text">This will be used as the unique identifier for the contact.</div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label for="addCompanyName" class="form-label">Company Name</label>
-                            <input type="text" class="form-control" id="addCompanyName" name="company_name">
-                        </div>
-                        <div class="col-md-6">
-                            <label for="addJobTitle" class="form-label">Job Title</label>
-                            <input type="text" class="form-control" id="addJobTitle" name="job_title">
-                        </div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label for="addPhone" class="form-label">Phone Number</label>
-                            <input type="tel" class="form-control" id="addPhone" name="phone">
-                        </div>
-                        <div class="col-md-6">
-                            <label for="addLocation" class="form-label">Location</label>
-                            <input type="text" class="form-control" id="addLocation" name="location">
-                        </div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label for="addCompanyDomain" class="form-label">Company Website</label>
-                            <input type="url" class="form-control" id="addCompanyDomain" name="company_domain" placeholder="https://example.com">
-                        </div>
-                        <div class="col-md-6">
-                            <label for="addLinkedInProfile" class="form-label">LinkedIn Profile</label>
-                            <input type="url" class="form-control" id="addLinkedInProfile" name="linkedin_profile" placeholder="https://linkedin.com/in/username">
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label for="addLinkedInMessage" class="form-label">LinkedIn Message</label>
-                        <textarea class="form-control" id="addLinkedInMessage" name="linkedin_message" rows="3" placeholder="Optional personalized message for LinkedIn outreach"></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-success" id="saveContactBtn">
-                    <i class="fas fa-save me-2"></i>Save Contact
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Contact Details Modal -->
-<div class="modal fade" id="contactDetailsModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-user me-2"></i>Contact Details
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="contactDetailsContent">
-                <!-- Content will be populated by JavaScript -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary" id="exportFromModal">
-                    <i class="fas fa-download me-2"></i>Export Contact
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Email Details Modal -->
-<div class="modal fade" id="emailDetailsModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-envelope me-2"></i>Email Details
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div id="emailDetailsContent"></div>
-            </div>
-        </div>
-    </div>
-</div>
+{% include 'components/contact_detail_modal.html' %}
+{% include 'components/email_details_modal.html' %}
+{% include 'components/add_contact_modal.html' %}
+{% include 'components/add_company_modal.html' %}
+{% include 'components/company_detail_modal.html' %}
 
 <!-- Success/Error Toast -->
 <div class="toast-container position-fixed bottom-0 end-0 p-3">
