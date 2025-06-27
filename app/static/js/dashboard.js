@@ -4370,21 +4370,200 @@ function saveCampaignDraft() {
 }
 
 function loadCampaigns() {
-    // TODO: Load campaigns from backend
     console.log('Loading campaigns...');
     
-    // For now, show placeholder content
-    updateCampaignStats({
-        total_campaigns: 0,
-        emails_sent: 0,
-        response_rate: 0,
-        conversion_rate: 0
-    });
+    fetch('/api/campaigns')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayCampaigns(data.campaigns);
+                updateCampaignStats(data.campaigns);
+            } else {
+                console.error('Failed to load campaigns:', data.message);
+                showToast('errorToast', 'Failed to load campaigns');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading campaigns:', error);
+            showToast('errorToast', 'Error loading campaigns');
+        });
 }
 
-function updateCampaignStats(stats) {
-    document.getElementById('totalCampaigns').textContent = stats.total_campaigns || 0;
-    document.getElementById('campaignEmailsSent').textContent = stats.emails_sent || 0;
-    document.getElementById('campaignResponseRate').textContent = (stats.response_rate || 0) + '%';
-    document.getElementById('campaignConversionRate').textContent = (stats.conversion_rate || 0) + '%';
+function displayCampaigns(campaigns) {
+    // Separate campaigns by status
+    const activeCampaigns = campaigns.filter(c => c.status === 'active' || c.status === 'ready');
+    const draftCampaigns = campaigns.filter(c => c.status === 'draft');
+    const completedCampaigns = campaigns.filter(c => c.status === 'completed' || c.status === 'failed');
+    
+    // Display active campaigns
+    displayCampaignList(activeCampaigns, 'activeCampaignsContainer', 'active');
+    
+    // Display draft campaigns
+    displayCampaignList(draftCampaigns, 'draftCampaignsContainer', 'draft');
+    
+    // Display completed campaigns
+    displayCampaignList(completedCampaigns, 'completedCampaignsContainer', 'completed');
+}
+
+function displayCampaignList(campaigns, containerId, type) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    if (campaigns.length === 0) {
+        const emptyMessages = {
+            'active': 'No active campaigns yet. Create your first GTM campaign to get started!',
+            'draft': 'No draft campaigns found.',
+            'completed': 'No completed campaigns found.'
+        };
+        
+        container.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-${type === 'active' ? 'bullhorn' : type === 'draft' ? 'edit' : 'check'} fa-3x mb-3"></i>
+                <p>${emptyMessages[type]}</p>
+                ${type === 'active' ? '<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createCampaignModal"><i class="fas fa-plus me-1"></i>Create Campaign</button>' : ''}
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '<div class="row">';
+    
+    campaigns.forEach(campaign => {
+        const statusBadge = getStatusBadge(campaign.status);
+        const priorityBadge = getPriorityBadge(campaign.priority);
+        const createdDate = new Date(campaign.created_at).toLocaleDateString();
+        const emailsSent = campaign.emails_sent || 0;
+        const targetCount = campaign.target_contacts_count || 0;
+        const responseRate = targetCount > 0 ? Math.round((campaign.responses_received || 0) / targetCount * 100) : 0;
+        
+        html += `
+            <div class="col-md-6 col-lg-4 mb-3">
+                <div class="card campaign-card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-start">
+                        <div>
+                            <h6 class="card-title mb-1">${campaign.name}</h6>
+                            <small class="text-muted">${campaign.type.replace('_', ' ').toUpperCase()}</small>
+                        </div>
+                        <div>
+                            ${statusBadge}
+                            ${priorityBadge}
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text small text-muted">${campaign.description || 'No description provided'}</p>
+                        
+                        <div class="campaign-metrics">
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <div class="metric-value">${targetCount}</div>
+                                    <div class="metric-label">Targets</div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="metric-value">${emailsSent}</div>
+                                    <div class="metric-label">Sent</div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="metric-value">${responseRate}%</div>
+                                    <div class="metric-label">Response</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="campaign-details mt-3">
+                            <small class="text-muted">
+                                <i class="fas fa-calendar me-1"></i>Created: ${createdDate}<br>
+                                <i class="fas fa-envelope me-1"></i>Template: ${campaign.email_template}<br>
+                                <i class="fas fa-clock me-1"></i>Follow-up: ${campaign.followup_days} days
+                            </small>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <div class="btn-group w-100" role="group">
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="viewCampaignDetails('${campaign.id}')">
+                                <i class="fas fa-eye me-1"></i>View
+                            </button>
+                            ${campaign.status === 'draft' ? 
+                                `<button type="button" class="btn btn-outline-success btn-sm" onclick="launchCampaign('${campaign.id}')">
+                                    <i class="fas fa-rocket me-1"></i>Launch
+                                </button>` : ''
+                            }
+                            ${campaign.status === 'active' ? 
+                                `<button type="button" class="btn btn-outline-warning btn-sm" onclick="pauseCampaign('${campaign.id}')">
+                                    <i class="fas fa-pause me-1"></i>Pause
+                                </button>` : ''
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function getStatusBadge(status) {
+    const badges = {
+        'active': '<span class="badge bg-success">Active</span>',
+        'ready': '<span class="badge bg-primary">Ready</span>',
+        'draft': '<span class="badge bg-secondary">Draft</span>',
+        'completed': '<span class="badge bg-info">Completed</span>',
+        'failed': '<span class="badge bg-danger">Failed</span>',
+        'paused': '<span class="badge bg-warning">Paused</span>'
+    };
+    return badges[status] || '<span class="badge bg-light">Unknown</span>';
+}
+
+function getPriorityBadge(priority) {
+    const badges = {
+        'high': '<span class="badge bg-danger ms-1">High</span>',
+        'medium': '<span class="badge bg-warning ms-1">Medium</span>',
+        'low': '<span class="badge bg-info ms-1">Low</span>'
+    };
+    return badges[priority] || '';
+}
+
+function viewCampaignDetails(campaignId) {
+    // TODO: Implement campaign details modal
+    console.log('Viewing campaign details for:', campaignId);
+    showToast('successToast', 'Campaign details feature coming soon!');
+}
+
+function launchCampaign(campaignId) {
+    // TODO: Implement campaign launch functionality
+    console.log('Launching campaign:', campaignId);
+    showToast('successToast', 'Campaign launch feature coming soon!');
+}
+
+function pauseCampaign(campaignId) {
+    // TODO: Implement campaign pause functionality
+    console.log('Pausing campaign:', campaignId);
+    showToast('successToast', 'Campaign pause feature coming soon!');
+}
+
+function updateCampaignStats(campaigns) {
+    if (!campaigns || !Array.isArray(campaigns)) {
+        campaigns = [];
+    }
+    
+    // Calculate stats from campaigns array
+    const activeCampaigns = campaigns.filter(c => c.status === 'active' || c.status === 'ready').length;
+    const totalEmailsSent = campaigns.reduce((sum, c) => sum + (c.emails_sent || 0), 0);
+    const totalTargets = campaigns.reduce((sum, c) => sum + (c.target_contacts_count || 0), 0);
+    const totalResponses = campaigns.reduce((sum, c) => sum + (c.responses_received || 0), 0);
+    
+    const responseRate = totalTargets > 0 ? Math.round((totalResponses / totalTargets) * 100) : 0;
+    const conversionRate = totalEmailsSent > 0 ? Math.round((totalResponses / totalEmailsSent) * 100) : 0;
+    
+    // Update DOM elements
+    const totalCampaignsEl = document.getElementById('totalCampaigns');
+    const emailsSentEl = document.getElementById('campaignEmailsSent');
+    const responseRateEl = document.getElementById('campaignResponseRate');
+    const conversionRateEl = document.getElementById('campaignConversionRate');
+    
+    if (totalCampaignsEl) totalCampaignsEl.textContent = activeCampaigns;
+    if (emailsSentEl) emailsSentEl.textContent = totalEmailsSent;
+    if (responseRateEl) responseRateEl.textContent = responseRate + '%';
+    if (conversionRateEl) conversionRateEl.textContent = conversionRate + '%';
 }

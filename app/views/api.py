@@ -1686,8 +1686,7 @@ def create_campaign():
         
         current_app.logger.info(f"Final target contacts count: {len(target_contacts)}")
         
-        # For now, we'll just log the campaign creation
-        # In a real implementation, you'd save this to a database
+        # Create campaign data
         campaign_data = {
             'id': f"camp_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
             'name': campaign_name,
@@ -1698,17 +1697,127 @@ def create_campaign():
             'schedule_date': schedule_date,
             'followup_days': followup_days,
             'target_contacts_count': len(target_contacts),
+            'target_contacts': target_contacts,
             'selection_criteria': selection_criteria,
             'created_at': datetime.now().isoformat(),
-            'status': 'draft' if schedule_date else 'ready'
+            'status': 'draft' if schedule_date else 'ready',
+            'emails_sent': 0,
+            'emails_opened': 0,
+            'emails_clicked': 0,
+            'responses_received': 0
         }
         
-        current_app.logger.info(f"Campaign created successfully: {campaign_data}")
+        # Store campaign in session or simple file storage for demonstration
+        # In production, this would be stored in a proper database
+        import json
+        import os
+        
+        campaigns_file = 'campaigns.json'
+        campaigns_list = []
+        
+        # Load existing campaigns
+        if os.path.exists(campaigns_file):
+            try:
+                with open(campaigns_file, 'r') as f:
+                    campaigns_list = json.load(f)
+            except:
+                campaigns_list = []
+        
+        # Add new campaign
+        campaigns_list.append(campaign_data)
+        
+        # Save campaigns
+        with open(campaigns_file, 'w') as f:
+            json.dump(campaigns_list, f, indent=2)
+        
+        current_app.logger.info(f"Campaign created and saved successfully: {campaign_data}")
+        
+        # If no schedule date, trigger email sending immediately
+        emails_sent = 0
+        if not schedule_date and target_contacts:
+            try:
+                current_app.logger.info(f"Starting immediate email sending for campaign: {campaign_name}")
+                
+                # Send emails to target contacts
+                for contact in target_contacts:
+                    try:
+                        # Generate email content for this contact
+                        email_content = EmailService.compose_email(
+                            contact_id=None,  # We'll use contact data directly
+                            calendar_url=os.getenv("CALENDAR_URL", "https://calendly.com/pranav-modi/15-minute-meeting"),
+                            extra_context=f"This email is part of the '{campaign_name}' campaign.",
+                            composer_type=email_template
+                        )
+                        
+                        if not email_content:
+                            # Fallback to direct composer usage
+                            if email_template == "alt_subject":
+                                from email_composers.email_composer_alt_subject import AltSubjectEmailComposer
+                                composer = AltSubjectEmailComposer()
+                            else:
+                                from email_composers.email_composer_warm import WarmEmailComposer
+                                composer = WarmEmailComposer()
+                            
+                            lead_data = {
+                                "name": contact.get('display_name') or contact.get('full_name') or f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip(),
+                                "email": contact.get('email'),
+                                "company": contact.get('company'),
+                                "position": contact.get('job_title'),
+                                "website": contact.get('company_domain'),
+                                "notes": f"Campaign: {campaign_name}",
+                            }
+                            
+                            calendar_url = os.getenv("CALENDAR_URL", "https://calendly.com/pranav-modi/15-minute-meeting")
+                            email_content = composer.compose_email(
+                                lead=lead_data, 
+                                calendar_url=calendar_url, 
+                                extra_context=f"This email is part of the '{campaign_name}' campaign."
+                            )
+                        
+                        if email_content and 'subject' in email_content and 'body' in email_content:
+                            # Send the email
+                            recipient_name = contact.get('display_name') or contact.get('full_name') or f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip()
+                            success = EmailService.send_email_with_account(
+                                contact.get('email'),
+                                recipient_name,
+                                email_content['subject'],
+                                email_content['body'],
+                                None  # Use primary account
+                            )
+                            
+                            if success:
+                                emails_sent += 1
+                                current_app.logger.info(f"Email sent successfully to {contact.get('email')} for campaign {campaign_name}")
+                            else:
+                                current_app.logger.error(f"Failed to send email to {contact.get('email')} for campaign {campaign_name}")
+                        
+                    except Exception as email_error:
+                        current_app.logger.error(f"Error sending email to {contact.get('email', 'unknown')}: {str(email_error)}")
+                        continue
+                
+                # Update campaign with email stats
+                campaign_data['emails_sent'] = emails_sent
+                campaign_data['status'] = 'active' if emails_sent > 0 else 'failed'
+                
+                # Update stored campaign
+                for i, stored_campaign in enumerate(campaigns_list):
+                    if stored_campaign['id'] == campaign_data['id']:
+                        campaigns_list[i] = campaign_data
+                        break
+                
+                with open(campaigns_file, 'w') as f:
+                    json.dump(campaigns_list, f, indent=2)
+                
+                current_app.logger.info(f"Campaign {campaign_name} completed. Emails sent: {emails_sent}/{len(target_contacts)}")
+                
+            except Exception as send_error:
+                current_app.logger.error(f"Error in email sending process: {str(send_error)}")
         
         return jsonify({
             'success': True,
-            'message': f'Campaign "{campaign_name}" created successfully!',
-            'campaign': campaign_data
+            'message': f'Campaign "{campaign_name}" created successfully! {emails_sent} emails sent.' if emails_sent > 0 else f'Campaign "{campaign_name}" created successfully!',
+            'campaign': campaign_data,
+            'emails_sent': emails_sent
         })
         
     except Exception as e:
@@ -1760,4 +1869,38 @@ def save_campaign_draft():
         return jsonify({
             'success': False,
             'message': f'Failed to save campaign draft: {str(e)}'
+        }), 500
+
+@bp.route('/campaigns', methods=['GET'])
+def get_campaigns():
+    """Get all campaigns."""
+    try:
+        import json
+        import os
+        
+        campaigns_file = 'campaigns.json'
+        campaigns_list = []
+        
+        # Load existing campaigns
+        if os.path.exists(campaigns_file):
+            try:
+                with open(campaigns_file, 'r') as f:
+                    campaigns_list = json.load(f)
+            except:
+                campaigns_list = []
+        
+        # Sort by creation date (newest first)
+        campaigns_list.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+        
+        return jsonify({
+            'success': True,
+            'campaigns': campaigns_list,
+            'total': len(campaigns_list)
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting campaigns: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Failed to load campaigns: {str(e)}'
         }), 500
