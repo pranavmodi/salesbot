@@ -5,7 +5,7 @@ import os
 from email.message import EmailMessage
 from dotenv import load_dotenv
 from database import InteractionsDB
-from composer_instance import composer
+from email_composers.composer_instance import composer
 from app.utils.email_config import email_config, EmailAccount
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError

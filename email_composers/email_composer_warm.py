@@ -1,14 +1,16 @@
 # email_composer_warm.py  ── v3 (less sales-ey, more personal, Lily-style)
 
-import os, random, textwrap, json, pathlib, yaml
+import os, random, textwrap, json, pathlib
 from typing import Dict, Tuple, Any
 from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
 
-PRODUCT_DESC_PATH = "productdescription.txt"
-PROOF_POINTS_PATH = "proofpoints.txt"
+import pathlib
+_current_dir = pathlib.Path(__file__).parent
+PRODUCT_DESC_PATH = str(_current_dir / "productdescription.txt")
+PROOF_POINTS_PATH = str(_current_dir / "proofpoints.txt")
 KPI_HINTS_PATH    = os.getenv("KPI_HINTS_PATH", "")
 DEFAULT_CALENDAR  = os.getenv("CALENDAR_URL", "https://calendly.com/pranav-modi/15-minute-meeting")
 OPENAI_MODEL      = os.getenv("OPENAI_MODEL", "gpt-4o")

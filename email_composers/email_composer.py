@@ -7,8 +7,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-PRODUCT_DESC_PATH = "productdescription.txt"          # required
-PROOF_POINTS_PATH = "proofpoints.txt"                 # optional
+import pathlib
+_current_dir = pathlib.Path(__file__).parent
+PRODUCT_DESC_PATH = str(_current_dir / "productdescription.txt")          # required
+PROOF_POINTS_PATH = str(_current_dir / "proofpoints.txt")                 # optional
 KPI_HINTS_PATH    = os.getenv("KPI_HINTS_PATH", "")   # optional YAML / JSON
 DEFAULT_CALENDAR  = os.getenv(
     "CALENDAR_URL",

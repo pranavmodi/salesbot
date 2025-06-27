@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, make_response
 from send_emails import send_email
-from composer_instance import composer
+from email_composers.composer_instance import composer
 from datetime import datetime
 import os
 import csv

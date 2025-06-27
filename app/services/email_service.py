@@ -7,10 +7,10 @@ import time # Import the time module
 from app.models.contact import Contact
 from app.models.email_history import EmailHistory
 from app.utils.email_config import email_config, EmailAccount
-from composer_instance import composer
+from email_composers.composer_instance import composer
 from send_emails import send_email
-from email_composer_warm import WarmEmailComposer
-from email_composer_alt_subject import AltSubjectEmailComposer
+from email_composers.email_composer_warm import WarmEmailComposer
+from email_composers.email_composer_alt_subject import AltSubjectEmailComposer
 
 class EmailService:
     """Service class for email operations."""

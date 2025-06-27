@@ -85,10 +85,10 @@ def preview_email():
             # For the old format, we need to create a temporary contact or use the composer directly
             # Import the composers directly
             if composer_type == "alt_subject":
-                from email_composer_alt_subject import AltSubjectEmailComposer
+                from email_composers.email_composer_alt_subject import AltSubjectEmailComposer
                 composer = AltSubjectEmailComposer()
             else:
-                from email_composer_warm import WarmEmailComposer
+                from email_composers.email_composer_warm import WarmEmailComposer
                 composer = WarmEmailComposer()
             
             # Use the composer directly with the contact data
