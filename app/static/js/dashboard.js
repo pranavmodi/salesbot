@@ -27,22 +27,42 @@ function initializePage() {
     setupGlobalAccountSelector();
 }
 
+// Pagination utility functions
+function addPaginationLoadingState(containerId) {
+    const container = document.getElementById(containerId);
+    if (container) {
+        container.style.opacity = '0.6';
+        container.style.pointerEvents = 'none';
+    }
+}
+
+function removePaginationLoadingState(containerId) {
+    const container = document.getElementById(containerId);
+    if (container) {
+        container.style.opacity = '1';
+        container.style.pointerEvents = 'auto';
+    }
+}
+
 function setupEventListeners() {
     // Pagination
     const perPageSelect = document.getElementById('perPage');
     if (perPageSelect) {
         perPageSelect.addEventListener('change', function() {
+            addPaginationLoadingState('contactsContainer');
             changePage(1);
         });
     }
 
-    document.querySelectorAll('.pagination .page-link').forEach(link => {
-        if (link.hasAttribute('data-page')) {
-            link.addEventListener('click', function(e) {
-                e.preventDefault();
-                changePage(parseInt(this.getAttribute('data-page')));
-            });
-        }
+    document.querySelectorAll('.pagination .page-link[data-page]').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const page = parseInt(this.getAttribute('data-page'));
+            if (page && !this.parentElement.classList.contains('disabled')) {
+                addPaginationLoadingState('contactsContainer');
+                changePage(page);
+            }
+        });
     });
 
     // Compose form (for compose tab only)
@@ -84,6 +104,50 @@ function setupEventListeners() {
     if (sendTestEmailForm) {
         sendTestEmailForm.addEventListener('submit', sendTestEmails);
     }
+    
+    // Setup enhanced pagination
+    setupEmailHistoryPagination();
+    setupInboxPagination();
+}
+
+function setupInboxPagination() {
+    // Inbox per page selector
+    const inboxPerPageSelect = document.getElementById('inboxPerPage');
+    if (inboxPerPageSelect) {
+        inboxPerPageSelect.addEventListener('change', function() {
+            changeInboxPage(1); // Reset to first page when changing per page
+        });
+    }
+    
+    // Inbox pagination links
+    document.querySelectorAll('[data-inbox-page]').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const page = parseInt(this.getAttribute('data-inbox-page'));
+            if (page && !this.parentElement.classList.contains('disabled')) {
+                changeInboxPage(page);
+            }
+        });
+    });
+}
+
+function changeInboxPage(page) {
+    // Get current per page value
+    const perPageSelect = document.getElementById('inboxPerPage');
+    const perPage = perPageSelect ? perPageSelect.value : 10;
+    
+    // Show loading state
+    const inboxContainer = document.getElementById('threadsAccordion');
+    if (inboxContainer) {
+        addPaginationLoadingState('threadsAccordion');
+    }
+    
+    // For now, just reload the page with inbox pagination parameters
+    // In a real implementation, you'd fetch paginated inbox data via AJAX
+    const url = new URL(window.location.href);
+    url.searchParams.set('inbox_page', page);
+    url.searchParams.set('inbox_per_page', perPage);
+    window.location.href = url.toString();
 }
 
 function setupSearch() {
