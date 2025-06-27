@@ -108,20 +108,12 @@ function setupEmailHistoryPagination() {
     const emailHistoryPerPageSelect = document.getElementById('emailHistoryPerPage');
     if (emailHistoryPerPageSelect) {
         emailHistoryPerPageSelect.addEventListener('change', function() {
-            changeEmailHistoryPage(1); // Reset to first page when changing per page
+            paginateEmailHistory(1); // Reset to first page when changing per page
         });
     }
     
-    // Email history pagination links
-    document.querySelectorAll('[data-email-page]').forEach(link => {
-        link.addEventListener('click', function(e) {
-            e.preventDefault();
-            const page = parseInt(this.getAttribute('data-email-page'));
-            if (page && !this.parentElement.classList.contains('disabled')) {
-                changeEmailHistoryPage(page);
-            }
-        });
-    });
+    // Initialize client-side pagination
+    paginateEmailHistory(1);
     
     // Email history filter functionality
     const filterItems = document.querySelectorAll('#history-tab-pane [data-filter]');
@@ -134,28 +126,161 @@ function setupEmailHistoryPagination() {
     });
 }
 
-function changeEmailHistoryPage(page) {
-    // Get current per page value
+// Client-side pagination for email history
+let currentEmailHistoryPage = 1;
+let emailHistoryPerPage = 25;
+
+function paginateEmailHistory(page) {
     const perPageSelect = document.getElementById('emailHistoryPerPage');
-    const perPage = perPageSelect ? perPageSelect.value : 25;
+    emailHistoryPerPage = perPageSelect ? parseInt(perPageSelect.value) : 25;
+    currentEmailHistoryPage = page;
     
-    // Show loading state
-    const emailHistoryContainer = document.getElementById('emailHistoryTableBody');
-    if (emailHistoryContainer) {
-        addPaginationLoadingState('emailHistoryTableBody');
+    // Get all email history rows
+    const allRows = document.querySelectorAll('.email-history-row');
+    const totalRows = allRows.length;
+    
+    if (totalRows === 0) return;
+    
+    // Calculate pagination
+    const totalPages = Math.ceil(totalRows / emailHistoryPerPage);
+    const startIndex = (page - 1) * emailHistoryPerPage;
+    const endIndex = startIndex + emailHistoryPerPage;
+    
+    // Hide all rows first
+    allRows.forEach((row, index) => {
+        if (index >= startIndex && index < endIndex) {
+            row.style.display = '';
+            row.classList.remove('d-none');
+        } else {
+            row.style.display = 'none';
+            row.classList.add('d-none');
+        }
+    });
+    
+    // Update summary
+    const summaryElement = document.getElementById('emailHistorySummary');
+    if (summaryElement) {
+        const showingStart = startIndex + 1;
+        const showingEnd = Math.min(endIndex, totalRows);
+        summaryElement.innerHTML = `Showing ${showingStart} to ${showingEnd} of <strong>${totalRows}</strong> emails`;
     }
     
-    // For now, just reload the page with email history pagination parameters
-    // In a real implementation, you'd fetch paginated email history data via AJAX
-    const url = new URL(window.location.href);
-    url.searchParams.set('email_history_page', page);
-    url.searchParams.set('email_history_per_page', perPage);
-    window.location.href = url.toString();
+    // Generate pagination controls
+    generateEmailHistoryPagination(page, totalPages);
+}
+
+function generateEmailHistoryPagination(currentPage, totalPages) {
+    const paginationNav = document.getElementById('emailHistoryPaginationNav');
+    if (!paginationNav || totalPages <= 1) {
+        if (paginationNav) paginationNav.innerHTML = '';
+        return;
+    }
+    
+    let html = '';
+    
+    // First Page
+    html += `
+        <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="paginateEmailHistory(1)" title="First page" aria-label="First page">
+                <i class="fas fa-angle-double-left"></i>
+            </a>
+        </li>
+    `;
+    
+    // Previous Page
+    html += `
+        <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="paginateEmailHistory(${currentPage - 1})" title="Previous page" aria-label="Previous page">
+                <i class="fas fa-chevron-left"></i>
+            </a>
+        </li>
+    `;
+    
+    // Page Numbers
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(totalPages, currentPage + 2);
+    
+    // Show first page and ellipsis if needed
+    if (startPage > 1) {
+        html += `
+            <li class="page-item">
+                <a class="page-link" href="#" onclick="paginateEmailHistory(1)">1</a>
+            </li>
+        `;
+        if (startPage > 2) {
+            html += `
+                <li class="page-item disabled">
+                    <span class="page-link" aria-disabled="true">…</span>
+                </li>
+            `;
+        }
+    }
+    
+    // Show page numbers around current page
+    for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
+        if (pageNum === currentPage) {
+            html += `
+                <li class="page-item active">
+                    <span class="page-link" aria-current="page">${pageNum}</span>
+                </li>
+            `;
+        } else {
+            html += `
+                <li class="page-item">
+                    <a class="page-link" href="#" onclick="paginateEmailHistory(${pageNum})">${pageNum}</a>
+                </li>
+            `;
+        }
+    }
+    
+    // Show ellipsis and last page if needed
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            html += `
+                <li class="page-item disabled">
+                    <span class="page-link" aria-disabled="true">…</span>
+                </li>
+            `;
+        }
+        html += `
+            <li class="page-item">
+                <a class="page-link" href="#" onclick="paginateEmailHistory(${totalPages})">${totalPages}</a>
+            </li>
+        `;
+    }
+    
+    // Next Page
+    html += `
+        <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="paginateEmailHistory(${currentPage + 1})" title="Next page" aria-label="Next page">
+                <i class="fas fa-chevron-right"></i>
+            </a>
+        </li>
+    `;
+    
+    // Last Page
+    html += `
+        <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="paginateEmailHistory(${totalPages})" title="Last page" aria-label="Last page">
+                <i class="fas fa-angle-double-right"></i>
+            </a>
+        </li>
+    `;
+    
+    paginationNav.innerHTML = html;
+}
+
+function changeEmailHistoryPage(page) {
+    // Use client-side pagination instead of page reload
+    paginateEmailHistory(page);
 }
 
 function refreshEmailHistory() {
     const historyContainer = document.getElementById('emailHistoryTableBody');
     if (!historyContainer) return;
+    
+    // Remember current scroll position
+    const currentScrollY = window.scrollY;
     
     // Show loading state
     historyContainer.closest('.table-responsive').classList.add('table-loading');
@@ -164,6 +289,14 @@ function refreshEmailHistory() {
     setTimeout(() => {
         historyContainer.closest('.table-responsive').classList.remove('table-loading');
         showToast('successToast', 'Email history refreshed!');
+        
+        // Restore scroll position
+        setTimeout(() => {
+            window.scrollTo({
+                top: currentScrollY,
+                behavior: 'smooth'
+            });
+        }, 100);
     }, 1000);
 }
 
@@ -234,6 +367,9 @@ function changeInboxPage(page) {
     const perPageSelect = document.getElementById('inboxPerPage');
     const perPage = perPageSelect ? perPageSelect.value : 10;
     
+    // Remember current scroll position
+    const currentScrollY = window.scrollY;
+    
     // Show loading state
     const inboxContainer = document.getElementById('threadsAccordion');
     if (inboxContainer) {
@@ -245,6 +381,8 @@ function changeInboxPage(page) {
     const url = new URL(window.location.href);
     url.searchParams.set('inbox_page', page);
     url.searchParams.set('inbox_per_page', perPage);
+    
+    // Navigate and restore scroll position
     window.location.href = url.toString();
 }
 
@@ -2875,7 +3013,78 @@ function changeCompaniesPage(page) {
 function displayCompaniesTable(companies, pagination) {
     const companiesContainer = document.getElementById('companies-table-container');
     
-    let html = `
+    let html = '';
+    
+    // Add Enhanced Pagination Controls at the TOP
+    if (pagination.total_pages > 1) {
+        html += `
+        <div class="pagination-container">
+            <div class="row align-items-center">
+                <div class="col-lg-3 col-md-6 mb-2 mb-lg-0">
+                    <div class="pagination-controls d-flex align-items-center">
+                        <label for="companiesPerPage" class="form-label me-2 mb-0">Show:</label>
+                        <select id="companiesPerPage" class="form-select form-select-sm" style="width: auto;">
+                            <option value="5" ${pagination.per_page == 5 ? 'selected' : ''}>5</option>
+                            <option value="10" ${pagination.per_page == 10 ? 'selected' : ''}>10</option>
+                            <option value="25" ${pagination.per_page == 25 ? 'selected' : ''}>25</option>
+                            <option value="50" ${pagination.per_page == 50 ? 'selected' : ''}>50</option>
+                            <option value="100" ${pagination.per_page == 100 ? 'selected' : ''}>100</option>
+                        </select>
+                        <span class="text-muted ms-2 small">per page</span>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6 col-md-6 mb-2 mb-lg-0">
+                    <div class="pagination-summary">
+                        Showing ${((pagination.current_page - 1) * pagination.per_page + 1)} to 
+                        ${Math.min(pagination.current_page * pagination.per_page, pagination.total_items)} 
+                        of <strong>${pagination.total_items}</strong> companies
+                    </div>
+                </div>
+                
+                <div class="col-lg-3 col-md-12">
+                    <nav aria-label="Companies pagination" class="d-flex justify-content-lg-end justify-content-center">
+                        <ul class="pagination pagination-modern mb-0">
+                            <!-- First Page -->
+                            <li class="page-item ${pagination.current_page == 1 ? 'disabled' : ''}">
+                                <a class="page-link companies-page-link" href="#" data-companies-page="1" title="First page" aria-label="First page">
+                                    <i class="fas fa-angle-double-left"></i>
+                                </a>
+                            </li>
+                            
+                            <!-- Previous Page -->
+                            <li class="page-item ${pagination.current_page == 1 ? 'disabled' : ''}">
+                                <a class="page-link companies-page-link" href="#" data-companies-page="${pagination.current_page - 1}" title="Previous page" aria-label="Previous page">
+                                    <i class="fas fa-chevron-left"></i>
+                                </a>
+                            </li>
+                            
+                            <!-- Page Numbers -->
+                            ${generatePageNumbers(pagination.current_page, pagination.total_pages, 'companies-page-link', 'data-companies-page')}
+                            
+                            <!-- Next Page -->
+                            <li class="page-item ${pagination.current_page == pagination.total_pages ? 'disabled' : ''}">
+                                <a class="page-link companies-page-link" href="#" data-companies-page="${pagination.current_page + 1}" title="Next page" aria-label="Next page">
+                                    <i class="fas fa-chevron-right"></i>
+                                </a>
+                            </li>
+                            
+                            <!-- Last Page -->
+                            <li class="page-item ${pagination.current_page == pagination.total_pages ? 'disabled' : ''}">
+                                <a class="page-link companies-page-link" href="#" data-companies-page="${pagination.total_pages}" title="Last page" aria-label="Last page">
+                                    <i class="fas fa-angle-double-right"></i>
+                                </a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+        `;
+    }
+    
+    // Add the table content
+    html += `
     <div class="table-responsive">
         <table class="table table-hover">
             <thead class="table-light">
@@ -2934,72 +3143,6 @@ function displayCompaniesTable(companies, pagination) {
             </tbody>
         </table>
     </div>
-    
-    <!-- Enhanced Pagination Controls -->
-    ${pagination.total_pages > 1 ? `
-    <div class="pagination-container">
-        <div class="row align-items-center">
-            <div class="col-lg-3 col-md-6 mb-2 mb-lg-0">
-                <div class="pagination-controls d-flex align-items-center">
-                    <label for="companiesPerPage" class="form-label me-2 mb-0">Show:</label>
-                    <select id="companiesPerPage" class="form-select form-select-sm" style="width: auto;">
-                        <option value="5" ${pagination.per_page == 5 ? 'selected' : ''}>5</option>
-                        <option value="10" ${pagination.per_page == 10 ? 'selected' : ''}>10</option>
-                        <option value="25" ${pagination.per_page == 25 ? 'selected' : ''}>25</option>
-                        <option value="50" ${pagination.per_page == 50 ? 'selected' : ''}>50</option>
-                        <option value="100" ${pagination.per_page == 100 ? 'selected' : ''}>100</option>
-                    </select>
-                    <span class="text-muted ms-2 small">per page</span>
-                </div>
-            </div>
-            
-            <div class="col-lg-6 col-md-6 mb-2 mb-lg-0">
-                <div class="pagination-summary">
-                    Showing ${((pagination.current_page - 1) * pagination.per_page + 1)} to 
-                    ${Math.min(pagination.current_page * pagination.per_page, pagination.total_items)} 
-                    of <strong>${pagination.total_items}</strong> companies
-                </div>
-            </div>
-            
-            <div class="col-lg-3 col-md-12">
-                <nav aria-label="Companies pagination" class="d-flex justify-content-lg-end justify-content-center">
-                    <ul class="pagination pagination-modern mb-0">
-                        <!-- First Page -->
-                        <li class="page-item ${pagination.current_page == 1 ? 'disabled' : ''}">
-                            <a class="page-link companies-page-link" href="#" data-companies-page="1" title="First page" aria-label="First page">
-                                <i class="fas fa-angle-double-left"></i>
-                            </a>
-                        </li>
-                        
-                        <!-- Previous Page -->
-                        <li class="page-item ${pagination.current_page == 1 ? 'disabled' : ''}">
-                            <a class="page-link companies-page-link" href="#" data-companies-page="${pagination.current_page - 1}" title="Previous page" aria-label="Previous page">
-                                <i class="fas fa-chevron-left"></i>
-                            </a>
-                        </li>
-                        
-                        <!-- Page Numbers -->
-                        ${generatePageNumbers(pagination.current_page, pagination.total_pages, 'companies-page-link', 'data-companies-page')}
-                        
-                        <!-- Next Page -->
-                        <li class="page-item ${pagination.current_page == pagination.total_pages ? 'disabled' : ''}">
-                            <a class="page-link companies-page-link" href="#" data-companies-page="${pagination.current_page + 1}" title="Next page" aria-label="Next page">
-                                <i class="fas fa-chevron-right"></i>
-                            </a>
-                        </li>
-                        
-                        <!-- Last Page -->
-                        <li class="page-item ${pagination.current_page == pagination.total_pages ? 'disabled' : ''}">
-                            <a class="page-link companies-page-link" href="#" data-companies-page="${pagination.total_pages}" title="Last page" aria-label="Last page">
-                                <i class="fas fa-angle-double-right"></i>
-                            </a>
-                        </li>
-                    </ul>
-                </nav>
-            </div>
-        </div>
-    </div>
-    ` : ''}
     `;
     
     companiesContainer.innerHTML = html;

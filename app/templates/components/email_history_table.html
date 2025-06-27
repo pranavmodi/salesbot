@@ -3,56 +3,52 @@
         <h5 class="mb-0"><i class="fas fa-history me-2"></i>Email History</h5>
     </div>
     <div class="card-body">
-        <!-- Enhanced Pagination Controls (Top) -->
-        <div class="row mb-3 align-items-center">
-            <div class="col-lg-4 col-md-6 mb-2 mb-md-0">
-                <div class="d-flex align-items-center">
-                    <label for="emailHistoryPerPage" class="form-label me-2 mb-0 text-muted">Show:</label>
-                    <select id="emailHistoryPerPage" class="form-select form-select-sm" style="width: auto;">
-                        <option value="10" {% if email_history_per_page == 10 %}selected{% endif %}>10</option>
-                        <option value="25" {% if email_history_per_page == 25 %}selected{% endif %}>25</option>
-                        <option value="50" {% if email_history_per_page == 50 %}selected{% endif %}>50</option>
-                        <option value="100" {% if email_history_per_page == 100 %}selected{% endif %}>100</option>
-                    </select>
-                    <span class="text-muted ms-2 small">per page</span>
+        <!-- Enhanced Email History Controls -->
+        {% if email_history and email_history|length > 10 %}
+        <div class="pagination-container">
+            <div class="row align-items-center">
+                <div class="col-lg-3 col-md-6 mb-2 mb-lg-0">
+                    <div class="pagination-controls d-flex align-items-center">
+                        <label for="emailHistoryPerPage" class="form-label me-2 mb-0">Show:</label>
+                        <select id="emailHistoryPerPage" class="form-select form-select-sm" style="width: auto;">
+                            <option value="10">10</option>
+                            <option value="25" selected>25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                        <span class="text-muted ms-2 small">per page</span>
+                    </div>
                 </div>
-            </div>
-            
-            <div class="col-lg-4 col-md-6 mb-2 mb-md-0">
-                <div class="text-center">
-                    <small class="text-muted">
-                        {% if email_history %}
-                            Showing {{ ((email_history_current_page|default(1) - 1) * email_history_per_page|default(25) + 1) }} to 
-                            {{ (email_history_current_page|default(1) * email_history_per_page|default(25) if email_history_current_page|default(1) * email_history_per_page|default(25) < email_history|length else email_history|length) }} 
-                            of {{ email_history|length }} emails
-                        {% else %}
-                            No emails to display
-                        {% endif %}
-                    </small>
+                
+                <div class="col-lg-6 col-md-6 mb-2 mb-lg-0">
+                    <div class="pagination-summary" id="emailHistorySummary">
+                        Showing 1 to {{ [25, email_history|length]|min }} of <strong>{{ email_history|length }}</strong> emails
+                    </div>
                 </div>
-            </div>
-            
-            <div class="col-lg-4 col-md-12">
-                <div class="d-flex justify-content-lg-end justify-content-center">
-                    <button class="btn btn-outline-secondary btn-sm me-2" onclick="refreshEmailHistory()">
-                        <i class="fas fa-sync me-1"></i>Refresh
-                    </button>
-                    <div class="dropdown">
-                        <button class="btn btn-outline-primary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-filter me-1"></i>Filter
+                
+                <div class="col-lg-3 col-md-12">
+                    <div class="d-flex justify-content-lg-end justify-content-center">
+                        <button class="btn btn-outline-secondary btn-sm me-2" onclick="refreshEmailHistory()">
+                            <i class="fas fa-sync me-1"></i>Refresh
                         </button>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="#" data-filter="all">All Emails</a></li>
-                            <li><a class="dropdown-item" href="#" data-filter="success">Successful</a></li>
-                            <li><a class="dropdown-item" href="#" data-filter="failed">Failed</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="#" data-filter="today">Today</a></li>
-                            <li><a class="dropdown-item" href="#" data-filter="week">This Week</a></li>
-                        </ul>
+                        <div class="dropdown">
+                            <button class="btn btn-outline-primary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-filter me-1"></i>Filter
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="#" data-filter="all">All Emails</a></li>
+                                <li><a class="dropdown-item" href="#" data-filter="success">Successful</a></li>
+                                <li><a class="dropdown-item" href="#" data-filter="failed">Failed</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="#" data-filter="today">Today</a></li>
+                                <li><a class="dropdown-item" href="#" data-filter="week">This Week</a></li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
+        {% endif %}
 
         <div class="table-responsive">
             <table class="table table-hover">
@@ -67,7 +63,7 @@
                 </thead>
                 <tbody id="emailHistoryTableBody">
                     {% for email in email_history %}
-                    <tr data-email-status="{{ email.status|lower }}" data-email-date="{{ email.date.strftime('%Y-%m-%d') if email.date else '' }}">
+                    <tr data-email-status="{{ email.status|lower }}" data-email-date="{{ email.date.strftime('%Y-%m-%d') if email.date else '' }}" class="email-history-row">
                         <td>{{ email.date.strftime('%Y-%m-%d %H:%M') if email.date else 'N/A' }}</td>
                         <td>{{ email.to }}</td>
                         <td>{{ email.subject|truncate(50) }}</td>
@@ -97,65 +93,27 @@
             </table>
         </div>
 
-        <!-- Enhanced Pagination Controls (Bottom) -->
-        {% if email_history and email_history|length > 25 %}
-        <div class="row mt-3 align-items-center">
-            <div class="col-lg-4 col-md-6 mb-2 mb-md-0">
-                <small class="text-muted">
-                    Total: {{ email_history|length }} emails
-                </small>
-            </div>
-            
-            <div class="col-lg-8 col-md-6">
-                <nav aria-label="Email history pagination" class="d-flex justify-content-lg-end justify-content-center">
-                    <ul class="pagination pagination-modern pagination-sm mb-0">
-                        <!-- First Page -->
-                        <li class="page-item {% if email_history_current_page|default(1) == 1 %}disabled{% endif %}">
-                            <a class="page-link" href="#" data-email-page="1" title="First page">
-                                <i class="fas fa-angle-double-left"></i>
-                            </a>
-                        </li>
-                        
-                        <!-- Previous Page -->
-                        <li class="page-item {% if email_history_current_page|default(1) == 1 %}disabled{% endif %}">
-                            <a class="page-link" href="#" data-email-page="{{ (email_history_current_page|default(1)) - 1 }}" title="Previous page">
-                                <i class="fas fa-chevron-left"></i>
-                            </a>
-                        </li>
-                        
-                        <!-- Page Numbers (simplified for email history) -->
-                        {% set total_email_pages = ((email_history|length + 24) // 25) %}
-                        {% for page_num in range(1, total_email_pages + 1) %}
-                            {% if page_num <= 5 or page_num == total_email_pages or (page_num >= (email_history_current_page|default(1)) - 1 and page_num <= (email_history_current_page|default(1)) + 1) %}
-                                <li class="page-item {% if page_num == email_history_current_page|default(1) %}active{% endif %}">
-                                    {% if page_num == email_history_current_page|default(1) %}
-                                        <span class="page-link">{{ page_num }}</span>
-                                    {% else %}
-                                        <a class="page-link" href="#" data-email-page="{{ page_num }}">{{ page_num }}</a>
-                                    {% endif %}
-                                </li>
-                            {% elif page_num == 6 and email_history_current_page|default(1) > 4 %}
-                                <li class="page-item disabled">
-                                    <span class="page-link">...</span>
-                                </li>
-                            {% endif %}
-                        {% endfor %}
-                        
-                        <!-- Next Page -->
-                        <li class="page-item {% if email_history_current_page|default(1) == total_email_pages %}disabled{% endif %}">
-                            <a class="page-link" href="#" data-email-page="{{ (email_history_current_page|default(1)) + 1 }}" title="Next page">
-                                <i class="fas fa-chevron-right"></i>
-                            </a>
-                        </li>
-                        
-                        <!-- Last Page -->
-                        <li class="page-item {% if email_history_current_page|default(1) == total_email_pages %}disabled{% endif %}">
-                            <a class="page-link" href="#" data-email-page="{{ total_email_pages }}" title="Last page">
-                                <i class="fas fa-angle-double-right"></i>
-                            </a>
-                        </li>
-                    </ul>
-                </nav>
+        <!-- Client-side pagination for email history -->
+        {% if email_history and email_history|length > 10 %}
+        <div class="pagination-container" id="emailHistoryPagination">
+            <div class="row align-items-center">
+                <div class="col-lg-3 col-md-6 mb-2 mb-lg-0">
+                    <div class="pagination-info" id="emailHistoryInfo">
+                        Total: {{ email_history|length }} emails
+                    </div>
+                </div>
+                
+                <div class="col-lg-6 col-md-6 mb-2 mb-lg-0">
+                    <!-- Spacer -->
+                </div>
+                
+                <div class="col-lg-3 col-md-12">
+                    <nav aria-label="Email history pagination" class="d-flex justify-content-lg-end justify-content-center">
+                        <ul class="pagination pagination-modern mb-0" id="emailHistoryPaginationNav">
+                            <!-- Pagination will be generated by JavaScript -->
+                        </ul>
+                    </nav>
+                </div>
             </div>
         </div>
         {% endif %}
