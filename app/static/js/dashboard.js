@@ -3019,8 +3019,8 @@ function displayCompaniesTable(companies, pagination) {
     if (pagination.total_pages > 1) {
         html += `
         <div class="pagination-container">
-            <div class="row align-items-center">
-                <div class="col-lg-3 col-md-6 mb-2 mb-lg-0">
+            <div class="row align-items-center g-2">
+                <div class="col-xl-3 col-lg-4 col-md-12 mb-2 mb-lg-0">
                     <div class="pagination-controls d-flex align-items-center">
                         <label for="companiesPerPage" class="form-label me-2 mb-0">Show:</label>
                         <select id="companiesPerPage" class="form-select form-select-sm" style="width: auto;">
@@ -3034,7 +3034,7 @@ function displayCompaniesTable(companies, pagination) {
                     </div>
                 </div>
                 
-                <div class="col-lg-6 col-md-6 mb-2 mb-lg-0">
+                <div class="col-xl-5 col-lg-4 col-md-12 mb-2 mb-lg-0">
                     <div class="pagination-summary">
                         Showing ${((pagination.current_page - 1) * pagination.per_page + 1)} to 
                         ${Math.min(pagination.current_page * pagination.per_page, pagination.total_companies)} 
@@ -3042,7 +3042,7 @@ function displayCompaniesTable(companies, pagination) {
                     </div>
                 </div>
                 
-                <div class="col-lg-3 col-md-12">
+                <div class="col-xl-4 col-lg-4 col-md-12">
                     <nav aria-label="Companies pagination" class="d-flex justify-content-lg-end justify-content-center">
                         <ul class="pagination pagination-modern mb-0">
                             <!-- First Page -->

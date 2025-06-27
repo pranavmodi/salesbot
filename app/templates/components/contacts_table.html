@@ -1,8 +1,8 @@
 <!-- Enhanced Pagination Controls -->
 {% if contacts and total_contacts > per_page %}
 <div class="pagination-container">
-    <div class="row align-items-center">
-        <div class="col-lg-3 col-md-6 mb-2 mb-lg-0">
+    <div class="row align-items-center g-2">
+        <div class="col-xl-3 col-lg-4 col-md-12 mb-2 mb-lg-0">
             <div class="pagination-controls d-flex align-items-center">
                 <label for="perPage" class="form-label me-2 mb-0">Show:</label>
                 <select id="perPage" class="form-select form-select-sm" style="width: auto;">
@@ -16,7 +16,7 @@
             </div>
         </div>
         
-        <div class="col-lg-6 col-md-6 mb-2 mb-lg-0">
+        <div class="col-xl-5 col-lg-4 col-md-12 mb-2 mb-lg-0">
             <div class="pagination-summary">
                 Showing {{ ((contacts_current_page - 1) * per_page + 1) }} to 
                 {{ (contacts_current_page * per_page if contacts_current_page * per_page < total_contacts else total_contacts) }} 
@@ -24,7 +24,7 @@
             </div>
         </div>
         
-        <div class="col-lg-3 col-md-12">
+        <div class="col-xl-4 col-lg-4 col-md-12">
             <nav aria-label="Contacts pagination" class="d-flex justify-content-lg-end justify-content-center">
                 <ul class="pagination pagination-modern mb-0">
                     <!-- First Page -->
