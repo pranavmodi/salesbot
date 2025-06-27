@@ -45,7 +45,7 @@ function removePaginationLoadingState(containerId) {
 }
 
 function setupEventListeners() {
-    // Contacts Pagination
+    // Contacts per-page selector
     const perPageSelect = document.getElementById('perPage');
     if (perPageSelect) {
         perPageSelect.addEventListener('change', function() {
@@ -53,18 +53,6 @@ function setupEventListeners() {
             changePage(1);
         });
     }
-
-    // Contact pagination links
-    document.querySelectorAll('.page-link[data-page]').forEach(link => {
-        link.addEventListener('click', function(e) {
-            e.preventDefault();
-            const page = parseInt(this.getAttribute('data-page'));
-            if (page && !this.parentElement.classList.contains('disabled')) {
-                addPaginationLoadingState('contactsContainer');
-                changePage(page);
-            }
-        });
-    });
 
     // Compose form (for compose tab only)
     const generatePreviewBtn = document.getElementById('generatePreview');
@@ -111,10 +99,8 @@ function setupEventListeners() {
     setupInboxPagination();
     setupCompaniesPagination();
     
-    // Reinitialize pagination to ensure everything is working
-    setTimeout(() => {
-        reinitializePagination();
-    }, 500);
+    // Initialize pagination event delegation
+    reinitializePagination();
 }
 
 function setupEmailHistoryPagination() {
@@ -851,11 +837,21 @@ function updateContactStats() {
 }
 
 function changePage(page) {
+    console.log('changePage function called with page:', page);
     const perPageSelect = document.getElementById('perPage');
     const perPage = perPageSelect ? perPageSelect.value : 10;
+    console.log('Current per page value:', perPage);
+    
     const url = new URL(window.location.href);
-    url.searchParams.set('page', page);
+    console.log('Current URL:', url.toString());
+    
+    // Use the correct parameter names that the backend expects
+    url.searchParams.set('contacts_page', page);  // Changed from 'page' to 'contacts_page'
     url.searchParams.set('per_page', perPage);
+    
+    console.log('New URL to navigate to:', url.toString());
+    console.log('About to navigate...');
+    
     window.location.href = url.toString();
 }
 
@@ -3229,66 +3225,80 @@ function toggleSelectAllSearchResults() {
 function reinitializePagination() {
     console.log('Reinitializing pagination event listeners...');
     
-    // Contacts pagination
-    document.querySelectorAll('.page-link[data-page]').forEach(link => {
-        // Remove existing event listener by cloning the element
-        const newLink = link.cloneNode(true);
-        link.parentNode.replaceChild(newLink, link);
-        
-        // Add new event listener
-        newLink.addEventListener('click', function(e) {
-            e.preventDefault();
-            const page = parseInt(this.getAttribute('data-page'));
-            if (page && !this.parentElement.classList.contains('disabled')) {
-                console.log('Contacts pagination clicked: page', page);
-                addPaginationLoadingState('contactsContainer');
-                changePage(page);
-            }
-        });
-    });
+    // Use event delegation for better reliability
+    // Remove existing delegated listeners first
+    document.removeEventListener('click', handlePaginationClick);
     
-    // Companies pagination  
-    document.querySelectorAll('.companies-page-link').forEach(link => {
-        const newLink = link.cloneNode(true);
-        link.parentNode.replaceChild(newLink, link);
-        
-        newLink.addEventListener('click', function(e) {
-            e.preventDefault();
-            const page = parseInt(this.getAttribute('data-companies-page'));
-            if (page && !this.parentElement.classList.contains('disabled')) {
-                console.log('Companies pagination clicked: page', page);
-                changeCompaniesPage(page);
-            }
-        });
-    });
+    // Add new delegated event listener
+    document.addEventListener('click', handlePaginationClick);
+}
+
+// Centralized pagination click handler
+function handlePaginationClick(e) {
+    const target = e.target.closest('.page-link');
+    if (!target) return;
     
-    // Email history pagination
-    document.querySelectorAll('[data-email-page]').forEach(link => {
-        const newLink = link.cloneNode(true);
-        link.parentNode.replaceChild(newLink, link);
-        
-        newLink.addEventListener('click', function(e) {
-            e.preventDefault();
-            const page = parseInt(this.getAttribute('data-email-page'));
-            if (page && !this.parentElement.classList.contains('disabled')) {
-                console.log('Email history pagination clicked: page', page);
-                changeEmailHistoryPage(page);
-            }
-        });
-    });
+    // Check if it's a pagination link and not disabled
+    if (target.parentElement && target.parentElement.classList.contains('disabled')) {
+        e.preventDefault();
+        console.log('Pagination click blocked - disabled item');
+        return;
+    }
     
-    // Inbox pagination
-    document.querySelectorAll('[data-inbox-page]').forEach(link => {
-        const newLink = link.cloneNode(true);
-        link.parentNode.replaceChild(newLink, link);
+    // Handle contacts pagination
+    if (target.hasAttribute('data-page')) {
+        e.preventDefault();
+        e.stopPropagation();
+        const page = parseInt(target.getAttribute('data-page'));
+        console.log('Contacts pagination clicked - data-page:', target.getAttribute('data-page'), 'parsed page:', page);
+        console.log('Parent element classes:', target.parentElement.classList.toString());
         
-        newLink.addEventListener('click', function(e) {
-            e.preventDefault();
-            const page = parseInt(this.getAttribute('data-inbox-page'));
-            if (page && !this.parentElement.classList.contains('disabled')) {
-                console.log('Inbox pagination clicked: page', page);
-                changeInboxPage(page);
-            }
-        });
-    });
+        if (page && !target.parentElement.classList.contains('disabled')) {
+            console.log('Navigating to contacts page:', page);
+            addPaginationLoadingState('contactsContainer');
+            changePage(page);
+        } else {
+            console.log('Contacts page navigation blocked - invalid page or disabled');
+        }
+        return;
+    }
+    
+    // Handle companies pagination
+    if (target.hasAttribute('data-companies-page')) {
+        e.preventDefault();
+        e.stopPropagation();
+        const page = parseInt(target.getAttribute('data-companies-page'));
+        console.log('Companies pagination clicked:', page);
+        if (page && !target.parentElement.classList.contains('disabled')) {
+            console.log('Navigating to companies page:', page);
+            changeCompaniesPage(page);
+        }
+        return;
+    }
+    
+    // Handle email history pagination
+    if (target.hasAttribute('data-email-page')) {
+        e.preventDefault();
+        e.stopPropagation();
+        const page = parseInt(target.getAttribute('data-email-page'));
+        console.log('Email history pagination clicked:', page);
+        if (page && !target.parentElement.classList.contains('disabled')) {
+            console.log('Navigating to email history page:', page);
+            changeEmailHistoryPage(page);
+        }
+        return;
+    }
+    
+    // Handle inbox pagination
+    if (target.hasAttribute('data-inbox-page')) {
+        e.preventDefault();
+        e.stopPropagation();
+        const page = parseInt(target.getAttribute('data-inbox-page'));
+        console.log('Inbox pagination clicked:', page);
+        if (page && !target.parentElement.classList.contains('disabled')) {
+            console.log('Navigating to inbox page:', page);
+            changeInboxPage(page);
+        }
+        return;
+    }
 }
