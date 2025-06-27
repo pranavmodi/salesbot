@@ -256,98 +256,323 @@ function changeInboxPage(page) {
 }
 
 function setupSearch() {
-    // Contact search functionality
+    // Contact search functionality with server-side search
     const contactSearchInput = document.getElementById('contactSearch');
     if (contactSearchInput) {
+        let searchTimeout;
+        
         contactSearchInput.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
-            const contactRows = document.querySelectorAll('#contactsContainer .contact-row');
+            const searchTerm = this.value.trim();
             
-            console.log(`Contact search: "${searchTerm}", found ${contactRows.length} rows`);
+            // Clear previous timeout
+            if (searchTimeout) {
+                clearTimeout(searchTimeout);
+            }
             
-            contactRows.forEach(row => {
-                if (searchTerm === '') {
-                    // Show all rows when search is empty
-                    row.style.display = '';
-                    row.classList.remove('d-none');
-                } else {
-                    // Search in name, company, position, email, location
-                    const nameCell = row.querySelector('td:nth-child(2)');
-                    const companyCell = row.querySelector('td:nth-child(3)');
-                    const positionCell = row.querySelector('td:nth-child(4)');
-                    const emailCell = row.querySelector('td:nth-child(5)');
-                    const locationCell = row.querySelector('td:nth-child(6)');
-                    
-                    const searchableText = [
-                        nameCell ? nameCell.textContent : '',
-                        companyCell ? companyCell.textContent : '',
-                        positionCell ? positionCell.textContent : '',
-                        emailCell ? emailCell.textContent : '',
-                        locationCell ? locationCell.textContent : ''
-                    ].join(' ').toLowerCase();
-                    
-                    if (searchableText.includes(searchTerm)) {
-                        row.style.display = '';
-                        row.classList.remove('d-none');
-                    } else {
-                        row.style.display = 'none';
-                        row.classList.add('d-none');
-                    }
-                }
-            });
-            
-            updateContactStats();
+            // Debounce search to avoid too many API calls
+            searchTimeout = setTimeout(() => {
+                performContactSearch(searchTerm);
+            }, 300);
         });
     }
     
-    // Company search functionality
+    // Company search functionality with server-side search
     const companySearchInput = document.getElementById('companySearch');
     if (companySearchInput) {
+        let companySearchTimeout;
+        
         companySearchInput.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
-            const companyRows = document.querySelectorAll('#companies-table-container tbody tr');
+            const searchTerm = this.value.trim();
             
-            console.log(`Company search: "${searchTerm}", found ${companyRows.length} rows`);
+            // Clear previous timeout
+            if (companySearchTimeout) {
+                clearTimeout(companySearchTimeout);
+            }
             
-            let visibleCount = 0;
-            companyRows.forEach(row => {
-                // Skip the "No companies found" row
-                if (row.cells.length === 1 && row.textContent.includes('No companies found')) {
-                    return;
-                }
-                
-                if (searchTerm === '') {
-                    // Show all rows when search is empty
-                    row.style.display = '';
-                    row.classList.remove('d-none');
-                    visibleCount++;
-                } else {
-                    // Search in company name, website, research summary
-                    const nameCell = row.querySelector('td:nth-child(1)');
-                    const websiteCell = row.querySelector('td:nth-child(2)');
-                    const researchCell = row.querySelector('td:nth-child(3)');
-                    
-                    const searchableText = [
-                        nameCell ? nameCell.textContent : '',
-                        websiteCell ? websiteCell.textContent : '',
-                        researchCell ? researchCell.textContent : ''
-                    ].join(' ').toLowerCase();
-                    
-                    if (searchableText.includes(searchTerm)) {
-                        row.style.display = '';
-                        row.classList.remove('d-none');
-                        visibleCount++;
-                    } else {
-                        row.style.display = 'none';
-                        row.classList.add('d-none');
-                    }
-                }
-            });
-            
-            // Update company stats if there's a stats display
-            updateCompanyStats(visibleCount);
+            // Debounce search to avoid too many API calls
+            companySearchTimeout = setTimeout(() => {
+                performCompanySearch(searchTerm);
+            }, 300);
         });
     }
+}
+
+function performContactSearch(searchTerm) {
+    const contactsContainer = document.getElementById('contacts-table-container');
+    const originalContent = contactsContainer.innerHTML;
+    
+    if (searchTerm === '') {
+        // If search is empty, reload the original paginated view
+        window.location.href = window.location.pathname;
+        return;
+    }
+    
+    console.log(`Performing server-side contact search: "${searchTerm}"`);
+    
+    // Show loading state
+    contactsContainer.innerHTML = `
+        <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Searching contacts...</p>
+        </div>
+    `;
+    
+    // Perform server-side search
+    fetch(`/api/search_contacts?q=${encodeURIComponent(searchTerm)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            displayContactSearchResults(data.contacts, searchTerm);
+            updateContactStats(data.count);
+        })
+        .catch(error => {
+            console.error('Error searching contacts:', error);
+            contactsContainer.innerHTML = originalContent;
+            showToast('errorToast', 'Failed to search contacts: ' + error.message);
+        });
+}
+
+function performCompanySearch(searchTerm) {
+    const companiesContainer = document.getElementById('companies-table-container');
+    const originalContent = companiesContainer.innerHTML;
+    
+    if (searchTerm === '') {
+        // If search is empty, reload the original paginated view
+        changeCompaniesPage(1);
+        return;
+    }
+    
+    console.log(`Performing server-side company search: "${searchTerm}"`);
+    
+    // Show loading state
+    companiesContainer.innerHTML = `
+        <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Searching companies...</p>
+        </div>
+    `;
+    
+    // Perform server-side search
+    fetch(`/api/companies/search?q=${encodeURIComponent(searchTerm)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.message || 'Failed to search companies');
+            }
+            
+            displayCompanySearchResults(data.companies, searchTerm);
+            updateCompanyStats(data.count);
+        })
+        .catch(error => {
+            console.error('Error searching companies:', error);
+            companiesContainer.innerHTML = originalContent;
+            showToast('errorToast', 'Failed to search companies: ' + error.message);
+        });
+}
+
+function displayContactSearchResults(contacts, searchTerm) {
+    const contactsContainer = document.getElementById('contacts-table-container');
+    
+    if (contacts.length === 0) {
+        contactsContainer.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No contacts found</h5>
+                <p class="text-muted">No contacts found matching "${searchTerm}"</p>
+                <button class="btn btn-outline-primary mt-3" onclick="clearContactSearch()">
+                    <i class="fas fa-arrow-left me-2"></i>Back to All Contacts
+                </button>
+            </div>
+        `;
+        return;
+    }
+    
+    let tableHtml = `
+        <div class="mb-3">
+            <div class="alert alert-info">
+                <i class="fas fa-search me-2"></i>
+                Found <strong>${contacts.length}</strong> contacts matching "${searchTerm}"
+                <button class="btn btn-outline-primary btn-sm ms-3" onclick="clearContactSearch()">
+                    <i class="fas fa-times me-1"></i>Clear Search
+                </button>
+            </div>
+        </div>
+        
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 40px;">
+                            <input type="checkbox" class="form-check-input" id="selectAllSearchResults" onchange="toggleSelectAllSearchResults()" style="margin: 0;">
+                        </th>
+                        <th style="width: 50px;"></th>
+                        <th>Name</th>
+                        <th>Company</th>
+                        <th>Position</th>
+                        <th>Email</th>
+                        <th>Location</th>
+                        <th style="width: 120px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="contactsContainer">
+    `;
+    
+    contacts.forEach((contact, index) => {
+        const initials = contact.first_name ? contact.first_name[0].toUpperCase() : '?';
+        const displayName = contact.display_name || contact.full_name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || 'Unknown';
+        const company = contact.company || contact.company_name || 'Not specified';
+        const jobTitle = contact.job_title || 'Not specified';
+        const location = contact.location || 'Not specified';
+        
+        tableHtml += `
+            <tr class="contact-row" data-contact-email="${contact.email}">
+                <td>
+                    <input type="checkbox" class="form-check-input contact-checkbox" 
+                           value="${contact.email}" 
+                           data-contact='${JSON.stringify(contact).replace(/'/g, "&apos;")}'
+                           onchange="updateSelectionCount()">
+                </td>
+                <td>
+                    <div class="contact-avatar" style="width: 36px; height: 36px; font-size: 0.875rem;">
+                        ${initials}
+                    </div>
+                </td>
+                <td>
+                    <div class="contact-name">
+                        <strong>${displayName}</strong>
+                    </div>
+                </td>
+                <td>
+                    <span class="fw-semibold">${company}</span>
+                </td>
+                <td>
+                    <span>${jobTitle}</span>
+                </td>
+                <td>
+                    <a href="mailto:${contact.email}" class="text-decoration-none">${contact.email}</a>
+                </td>
+                <td>
+                    <span>${location}</span>
+                </td>
+                <td>
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-outline-primary btn-sm" onclick="viewContactDetails('${contact.email}')" title="View Details">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        ${contact.linkedin_profile ? `
+                        <a href="${contact.linkedin_profile}" target="_blank" class="btn btn-outline-info btn-sm" title="LinkedIn Profile">
+                            <i class="fab fa-linkedin"></i>
+                        </a>
+                        ` : ''}
+                        <button class="btn btn-outline-secondary btn-sm" onclick="exportContact('${contact.email}')" title="Export Contact">
+                            <i class="fas fa-download"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+    
+    tableHtml += `
+            </tbody>
+        </table>
+    </div>
+    `;
+    
+    contactsContainer.innerHTML = tableHtml;
+}
+
+function displayCompanySearchResults(companies, searchTerm) {
+    const companiesContainer = document.getElementById('companies-table-container');
+    
+    if (companies.length === 0) {
+        companiesContainer.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No companies found</h5>
+                <p class="text-muted">No companies found matching "${searchTerm}"</p>
+                <button class="btn btn-outline-primary mt-3" onclick="clearCompanySearch()">
+                    <i class="fas fa-arrow-left me-2"></i>Back to All Companies
+                </button>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = `
+        <div class="mb-3">
+            <div class="alert alert-info">
+                <i class="fas fa-search me-2"></i>
+                Found <strong>${companies.length}</strong> companies matching "${searchTerm}"
+                <button class="btn btn-outline-primary btn-sm ms-3" onclick="clearCompanySearch()">
+                    <i class="fas fa-times me-1"></i>Clear Search
+                </button>
+            </div>
+        </div>
+        
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Company Name</th>
+                        <th>Website</th>
+                        <th>Research Summary</th>
+                        <th>Created At</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    companies.forEach(company => {
+        const createdAt = company.created_at ? new Date(company.created_at).toLocaleDateString() : 'N/A';
+        const researchSummary = company.company_research ? 
+            (company.company_research.length > 100 ? 
+                company.company_research.substring(0, 100) + '...' : 
+                company.company_research) : '';
+        
+        html += `
+            <tr>
+                <td><strong>${company.company_name || ''}</strong></td>
+                <td><a href="${company.website_url || '#'}" target="_blank">${company.website_url || ''}</a></td>
+                <td>${researchSummary}</td>
+                <td>${createdAt}</td>
+                <td>
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-sm btn-outline-primary company-view-btn" data-bs-toggle="modal" data-bs-target="#companyDetailModal" data-company-id="${company.id}">
+                            <i class="fas fa-eye"></i> View
+                        </button>
+                        ${company.needs_research ? 
+                            `<button class="btn btn-sm btn-outline-warning research-company-btn" data-company-id="${company.id}" data-company-name="${company.company_name}" title="Research this company">
+                                <i class="fas fa-search"></i> Research
+                            </button>` :
+                            `<button class="btn btn-sm btn-outline-success research-company-btn" data-company-id="${company.id}" data-company-name="${company.company_name}" title="Re-research this company">
+                                <i class="fas fa-redo"></i> Re-research
+                            </button>`
+                        }
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += `
+            </tbody>
+        </table>
+    </div>
+    `;
+    
+    companiesContainer.innerHTML = html;
+    
+    // Re-setup event listeners for the new elements
+    setTimeout(setupCompaniesPagination, 100);
 }
 
 function updateCompanyStats(visibleCount) {
@@ -363,14 +588,8 @@ function clearContactSearch() {
     if (contactSearchInput) {
         contactSearchInput.value = '';
         
-        // Show all contact rows
-        const contactRows = document.querySelectorAll('#contactsContainer .contact-row');
-        contactRows.forEach(row => {
-            row.style.display = '';
-            row.classList.remove('d-none');
-        });
-        
-        updateContactStats();
+        // Reload the original paginated view instead of showing local rows
+        window.location.href = window.location.pathname;
     }
 }
 
@@ -379,21 +598,8 @@ function clearCompanySearch() {
     if (companySearchInput) {
         companySearchInput.value = '';
         
-        // Show all company rows
-        const companyRows = document.querySelectorAll('#companies-table-container tbody tr');
-        let totalCompanies = 0;
-        companyRows.forEach(row => {
-            // Skip the "No companies found" row
-            if (row.cells.length === 1 && row.textContent.includes('No companies found')) {
-                return;
-            }
-            
-            row.style.display = '';
-            row.classList.remove('d-none');
-            totalCompanies++;
-        });
-        
-        updateCompanyStats(totalCompanies);
+        // Reload the original paginated view instead of showing local rows
+        changeCompaniesPage(1);
     }
 }
 
@@ -2998,4 +3204,16 @@ function displayCompanyDetails(company) {
             </div>
         </div>
     `;
-} 
+}
+
+function toggleSelectAllSearchResults() {
+    const selectAllCheckbox = document.getElementById('selectAllSearchResults');
+    const contactCheckboxes = document.querySelectorAll('.contact-checkbox');
+    const isChecked = selectAllCheckbox.checked;
+    
+    contactCheckboxes.forEach(checkbox => {
+        checkbox.checked = isChecked;
+    });
+    
+    updateSelectionCount();
+}
