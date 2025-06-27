@@ -45,7 +45,7 @@ function removePaginationLoadingState(containerId) {
 }
 
 function setupEventListeners() {
-    // Pagination
+    // Contacts Pagination
     const perPageSelect = document.getElementById('perPage');
     if (perPageSelect) {
         perPageSelect.addEventListener('change', function() {
@@ -54,7 +54,8 @@ function setupEventListeners() {
         });
     }
 
-    document.querySelectorAll('.pagination .page-link[data-page]').forEach(link => {
+    // Contact pagination links
+    document.querySelectorAll('.page-link[data-page]').forEach(link => {
         link.addEventListener('click', function(e) {
             e.preventDefault();
             const page = parseInt(this.getAttribute('data-page'));
@@ -105,9 +106,15 @@ function setupEventListeners() {
         sendTestEmailForm.addEventListener('submit', sendTestEmails);
     }
     
-    // Setup enhanced pagination
+    // Setup enhanced pagination for all tabs
     setupEmailHistoryPagination();
     setupInboxPagination();
+    setupCompaniesPagination();
+    
+    // Reinitialize pagination to ensure everything is working
+    setTimeout(() => {
+        reinitializePagination();
+    }, 500);
 }
 
 function setupEmailHistoryPagination() {
@@ -3216,4 +3223,72 @@ function toggleSelectAllSearchResults() {
     });
     
     updateSelectionCount();
+}
+
+// Function to reinitialize pagination after dynamic content loads
+function reinitializePagination() {
+    console.log('Reinitializing pagination event listeners...');
+    
+    // Contacts pagination
+    document.querySelectorAll('.page-link[data-page]').forEach(link => {
+        // Remove existing event listener by cloning the element
+        const newLink = link.cloneNode(true);
+        link.parentNode.replaceChild(newLink, link);
+        
+        // Add new event listener
+        newLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            const page = parseInt(this.getAttribute('data-page'));
+            if (page && !this.parentElement.classList.contains('disabled')) {
+                console.log('Contacts pagination clicked: page', page);
+                addPaginationLoadingState('contactsContainer');
+                changePage(page);
+            }
+        });
+    });
+    
+    // Companies pagination  
+    document.querySelectorAll('.companies-page-link').forEach(link => {
+        const newLink = link.cloneNode(true);
+        link.parentNode.replaceChild(newLink, link);
+        
+        newLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            const page = parseInt(this.getAttribute('data-companies-page'));
+            if (page && !this.parentElement.classList.contains('disabled')) {
+                console.log('Companies pagination clicked: page', page);
+                changeCompaniesPage(page);
+            }
+        });
+    });
+    
+    // Email history pagination
+    document.querySelectorAll('[data-email-page]').forEach(link => {
+        const newLink = link.cloneNode(true);
+        link.parentNode.replaceChild(newLink, link);
+        
+        newLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            const page = parseInt(this.getAttribute('data-email-page'));
+            if (page && !this.parentElement.classList.contains('disabled')) {
+                console.log('Email history pagination clicked: page', page);
+                changeEmailHistoryPage(page);
+            }
+        });
+    });
+    
+    // Inbox pagination
+    document.querySelectorAll('[data-inbox-page]').forEach(link => {
+        const newLink = link.cloneNode(true);
+        link.parentNode.replaceChild(newLink, link);
+        
+        newLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            const page = parseInt(this.getAttribute('data-inbox-page'));
+            if (page && !this.parentElement.classList.contains('disabled')) {
+                console.log('Inbox pagination clicked: page', page);
+                changeInboxPage(page);
+            }
+        });
+    });
 }
