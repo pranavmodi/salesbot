@@ -3556,6 +3556,311 @@ function handlePaginationClick(e) {
 }
 
 // GTM Campaign Functions
+
+// Campaign contact selection variables
+let campaignContactsSelected = [];
+let availableContacts = [];
+let campaignCompanies = [];
+
+// Initialize campaign modal when opened
+document.addEventListener('DOMContentLoaded', function() {
+    const createCampaignModal = document.getElementById('createCampaignModal');
+    if (createCampaignModal) {
+        createCampaignModal.addEventListener('shown.bs.modal', function() {
+            initializeCampaignModal();
+        });
+        
+        // Setup selection method radio buttons
+        const selectionMethodRadios = document.querySelectorAll('input[name="selectionMethod"]');
+        selectionMethodRadios.forEach(radio => {
+            radio.addEventListener('change', handleSelectionMethodChange);
+        });
+    }
+});
+
+function initializeCampaignModal() {
+    // Reset selection
+    campaignContactsSelected = [];
+    updateSelectedContactsBadge();
+    
+    // Load companies for filter dropdown
+    loadCompaniesForCampaign();
+    
+    // Initialize with quick filter
+    setTimeout(() => {
+        handleSelectionMethodChange();
+        updateContactCount();
+    }, 100);
+}
+
+function handleSelectionMethodChange() {
+    const selectedMethod = document.querySelector('input[name="selectionMethod"]:checked')?.value;
+    if (!selectedMethod) return;
+    
+    // Hide all content divs
+    document.querySelectorAll('.selection-method-content').forEach(div => {
+        div.classList.add('d-none');
+    });
+    
+    // Show selected method
+    const targetDiv = document.getElementById(selectedMethod + (selectedMethod === 'quick' ? 'FilterOptions' : selectedMethod === 'manual' ? 'SelectionOptions' : 'FilterOptions'));
+    if (targetDiv) {
+        targetDiv.classList.remove('d-none');
+    }
+    
+    // Load contacts if manual selection
+    if (selectedMethod === 'manual') {
+        loadContactsForManualSelection();
+    }
+    
+    updateContactCount();
+}
+
+function loadCompaniesForCampaign() {
+    fetch('/api/companies?per_page=1000')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                campaignCompanies = data.companies;
+                populateCompanyFilter();
+            }
+        })
+        .catch(error => {
+            console.error('Error loading companies:', error);
+        });
+}
+
+function populateCompanyFilter() {
+    const companyFilter = document.getElementById('companyFilter');
+    if (!companyFilter) return;
+    
+    // Clear existing options (except "All Companies")
+    companyFilter.innerHTML = '<option value="">All Companies</option>';
+    
+    // Add company options
+    campaignCompanies.forEach(company => {
+        const option = document.createElement('option');
+        option.value = company.company_name;
+        option.textContent = `${company.company_name}`;
+        companyFilter.appendChild(option);
+    });
+}
+
+function updateContactCount() {
+    const selectedMethod = document.querySelector('input[name="selectionMethod"]:checked')?.value;
+    
+    if (selectedMethod === 'manual') {
+        // For manual selection, count is based on selected checkboxes
+        updateSelectedContactsBadge();
+        return;
+    }
+    
+    // For quick and advanced filters, get actual contact count from API
+    const filterCriteria = getFilterCriteria();
+    
+    fetch('/api/contacts/count-filtered', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(filterCriteria)
+    })
+    .then(response => response.json())
+    .then(data => {
+        const count = data.count || 0;
+        updateSelectedContactsBadge(count);
+    })
+    .catch(error => {
+        console.error('Error getting contact count:', error);
+        // Fallback to placeholder counts
+        let estimatedCount = 0;
+        if (filterCriteria.type === 'quick') {
+            switch(filterCriteria.filter_type) {
+                case 'all': estimatedCount = 100; break;
+                case 'uncontacted': estimatedCount = 50; break;
+                case 'has_phone': estimatedCount = 75; break;
+                case 'has_linkedin': estimatedCount = 60; break;
+                case 'recent': estimatedCount = 25; break;
+                default: estimatedCount = 0;
+            }
+        } else if (filterCriteria.type === 'advanced') {
+            estimatedCount = 30;
+        }
+        updateSelectedContactsBadge(estimatedCount);
+    });
+}
+
+function getFilterCriteria() {
+    const selectedMethod = document.querySelector('input[name="selectionMethod"]:checked')?.value;
+    
+    if (selectedMethod === 'quick') {
+        return {
+            type: 'quick',
+            filter_type: document.getElementById('quickFilterType')?.value || 'all',
+            company: document.getElementById('companyFilter')?.value || ''
+        };
+    } else if (selectedMethod === 'advanced') {
+        return {
+            type: 'advanced',
+            company: document.getElementById('advancedCompany')?.value || '',
+            job_title: document.getElementById('advancedTitle')?.value || '',
+            location: document.getElementById('advancedLocation')?.value || '',
+            exclude_contacted: document.getElementById('excludeContacted')?.checked || false,
+            require_phone: document.getElementById('requirePhone')?.checked || false,
+            require_linkedin: document.getElementById('requireLinkedIn')?.checked || false,
+            exclude_active_campaigns: document.getElementById('excludeInactiveCampaigns')?.checked || false
+        };
+    }
+    
+    return { type: 'manual', contacts: campaignContactsSelected };
+}
+
+function updateSelectedContactsBadge(count = null) {
+    const badge = document.getElementById('selectedContactsCount');
+    if (!badge) return;
+    
+    const selectedMethod = document.querySelector('input[name="selectionMethod"]:checked')?.value;
+    
+    if (selectedMethod === 'manual') {
+        count = campaignContactsSelected.length;
+    }
+    
+    if (count !== null) {
+        badge.textContent = `${count} contacts selected`;
+        badge.className = count > 0 ? 'badge bg-success' : 'badge bg-secondary';
+    }
+}
+
+function loadContactsForManualSelection() {
+    fetch('/api/contacts?per_page=100')
+        .then(response => response.json())
+        .then(data => {
+            if (data.contacts) {
+                availableContacts = data.contacts;
+                displayContactsForSelection(availableContacts);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading contacts:', error);
+        });
+}
+
+function searchContactsForCampaign() {
+    const searchTerm = document.getElementById('contactSearchCampaign')?.value.trim();
+    
+    if (!searchTerm) {
+        displayContactsForSelection(availableContacts);
+        return;
+    }
+    
+    fetch(`/api/contacts/search?q=${encodeURIComponent(searchTerm)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayContactsForSelection(data.contacts);
+            }
+        })
+        .catch(error => {
+            console.error('Error searching contacts:', error);
+        });
+}
+
+function displayContactsForSelection(contacts) {
+    const container = document.getElementById('campaignContactsList');
+    if (!container) return;
+    
+    if (!contacts || contacts.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-muted py-3">
+                <i class="fas fa-users fa-2x mb-2"></i>
+                <p>No contacts found</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '<div class="list-group">';
+    
+    contacts.forEach(contact => {
+        const isSelected = campaignContactsSelected.some(c => c.email === contact.email);
+        const displayName = contact.display_name || contact.full_name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || 'Unknown';
+        const company = contact.company || contact.company_name || 'Not specified';
+        
+        html += `
+            <div class="list-group-item">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" 
+                           id="contact_${contact.email}" 
+                           ${isSelected ? 'checked' : ''}
+                           onchange="toggleContactSelection('${contact.email}', this.checked)">
+                    <label class="form-check-label w-100" for="contact_${contact.email}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="fw-semibold">${displayName}</div>
+                                <div class="text-muted small">${contact.email}</div>
+                                <div class="text-muted small">${company} • ${contact.job_title || 'No title'}</div>
+                            </div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function toggleContactSelection(email, isSelected) {
+    if (isSelected) {
+        // Add to selection if not already there
+        const contact = availableContacts.find(c => c.email === email);
+        if (contact && !campaignContactsSelected.some(c => c.email === email)) {
+            campaignContactsSelected.push(contact);
+        }
+    } else {
+        // Remove from selection
+        campaignContactsSelected = campaignContactsSelected.filter(c => c.email !== email);
+    }
+    
+    updateSelectedContactsBadge();
+    updateSelectedContactsPreview();
+}
+
+function updateSelectedContactsPreview() {
+    const previewDiv = document.getElementById('selectedContactsPreview');
+    if (!previewDiv) return;
+    
+    if (campaignContactsSelected.length === 0) {
+        previewDiv.classList.add('d-none');
+        return;
+    }
+    
+    previewDiv.classList.remove('d-none');
+    const listContainer = previewDiv.querySelector('.selected-contacts-list');
+    
+    let html = '<div class="list-group list-group-flush">';
+    campaignContactsSelected.slice(0, 5).forEach(contact => {
+        const displayName = contact.display_name || 'Unknown';
+        html += `
+            <div class="list-group-item py-1 px-2 small">
+                <strong>${displayName}</strong> - ${contact.company || 'No company'}
+            </div>
+        `;
+    });
+    
+    if (campaignContactsSelected.length > 5) {
+        html += `
+            <div class="list-group-item py-1 px-2 small text-muted">
+                ... and ${campaignContactsSelected.length - 5} more
+            </div>
+        `;
+    }
+    
+    html += '</div>';
+    listContainer.innerHTML = html;
+}
+
 function clearCampaignSearch() {
     const searchInput = document.getElementById('campaignSearch');
     if (searchInput) {
@@ -3572,44 +3877,66 @@ function searchCampaigns(searchTerm) {
 
 function createCampaign() {
     const form = document.getElementById('createCampaignForm');
-    const formData = new FormData(form);
     
     const campaignData = {
         name: document.getElementById('campaignName').value,
         type: document.getElementById('campaignType').value,
         description: document.getElementById('campaignDescription').value,
-        target_audience: document.getElementById('targetAudience').value,
         email_template: document.getElementById('emailTemplate').value,
+        priority: document.getElementById('campaignPriority').value,
         schedule_date: document.getElementById('scheduleDate').value,
-        followup_days: document.getElementById('followupDays').value
+        followup_days: document.getElementById('followupDays').value || 3,
+        selection_criteria: getFilterCriteria()
     };
     
-    if (!campaignData.name || !campaignData.type) {
-        showToast('errorToast', 'Please fill in all required fields');
+    // Validate required fields
+    if (!campaignData.name || !campaignData.type || !campaignData.email_template) {
+        showToast('errorToast', 'Please fill in all required fields.');
         return;
     }
     
-    // TODO: Send to backend API
+    // Validate contact selection
+    const selectedMethod = document.querySelector('input[name="selectionMethod"]:checked')?.value;
+    if (selectedMethod === 'manual' && campaignContactsSelected.length === 0) {
+        showToast('errorToast', 'Please select at least one contact for the campaign.');
+        return;
+    }
+    
+    // Get contact count for validation
+    const contactCount = selectedMethod === 'manual' ? campaignContactsSelected.length : 
+                        parseInt(document.getElementById('selectedContactsCount')?.textContent.match(/\d+/)?.[0] || '0');
+    
+    if (contactCount === 0) {
+        showToast('errorToast', 'No contacts match your selection criteria.');
+        return;
+    }
+    
+    // TODO: Send campaign data to backend
     fetch('/api/campaigns', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/json'
         },
         body: JSON.stringify(campaignData)
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showToast('successToast', 'Campaign created successfully!');
+            showToast('successToast', `Campaign created successfully! Targeting ${contactCount} contacts.`);
             document.getElementById('createCampaignModal').querySelector('.btn-close').click();
-            loadCampaigns();
+            loadCampaigns(); // Refresh campaigns list
+            
+            // Reset form
+            form.reset();
+            campaignContactsSelected = [];
+            updateSelectedContactsBadge(0);
         } else {
-            showToast('errorToast', data.message || 'Failed to create campaign');
+            showToast('errorToast', data.message || 'Failed to create campaign.');
         }
     })
     .catch(error => {
         console.error('Error creating campaign:', error);
-        showToast('errorToast', 'Error creating campaign');
+        showToast('errorToast', 'An error occurred while creating the campaign.');
     });
 }
 

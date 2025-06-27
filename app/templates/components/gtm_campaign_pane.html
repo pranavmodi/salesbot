@@ -207,26 +207,162 @@
                         <label for="campaignDescription" class="form-label">Description</label>
                         <textarea class="form-control" id="campaignDescription" rows="3"></textarea>
                     </div>
+                    <!-- Target Audience Selection -->
+                    <div class="mb-4">
+                        <label class="form-label">Target Audience *</label>
+                        <div class="card">
+                            <div class="card-header">
+                                <div class="row align-items-center">
+                                    <div class="col-md-8">
+                                        <div class="btn-group" role="group" aria-label="Selection method">
+                                            <input type="radio" class="btn-check" name="selectionMethod" id="quickFilter" value="quick" checked>
+                                            <label class="btn btn-outline-primary" for="quickFilter">Quick Filter</label>
+                                            
+                                            <input type="radio" class="btn-check" name="selectionMethod" id="manualSelect" value="manual">
+                                            <label class="btn btn-outline-primary" for="manualSelect">Manual Selection</label>
+                                            
+                                            <input type="radio" class="btn-check" name="selectionMethod" id="advancedFilter" value="advanced">
+                                            <label class="btn btn-outline-primary" for="advancedFilter">Advanced Filter</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 text-end">
+                                        <span class="badge bg-primary" id="selectedContactsCount">0 contacts selected</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <!-- Quick Filter Options -->
+                                <div id="quickFilterOptions" class="selection-method-content">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="quickFilterType" class="form-label">Filter Type</label>
+                                                <select class="form-select" id="quickFilterType" onchange="updateContactCount()">
+                                                    <option value="all">All Contacts</option>
+                                                    <option value="uncontacted">Uncontacted Only</option>
+                                                    <option value="has_phone">Contacts with Phone</option>
+                                                    <option value="has_linkedin">Contacts with LinkedIn</option>
+                                                    <option value="recent">Recently Added</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="companyFilter" class="form-label">Company Filter</label>
+                                                <select class="form-select" id="companyFilter" onchange="updateContactCount()">
+                                                    <option value="">All Companies</option>
+                                                    <!-- Will be populated dynamically -->
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Manual Selection -->
+                                <div id="manualSelectionOptions" class="selection-method-content d-none">
+                                    <div class="mb-3">
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" id="contactSearchCampaign" placeholder="Search contacts by name, email, company...">
+                                            <button class="btn btn-outline-secondary" type="button" onclick="searchContactsForCampaign()">
+                                                <i class="fas fa-search"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="contact-selection-container" style="max-height: 300px; overflow-y: auto;">
+                                        <div id="campaignContactsList">
+                                            <!-- Contacts will be loaded here -->
+                                            <div class="text-center text-muted py-3">
+                                                <i class="fas fa-search fa-2x mb-2"></i>
+                                                <p>Search for contacts to select them for this campaign</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Advanced Filter -->
+                                <div id="advancedFilterOptions" class="selection-method-content d-none">
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label for="advancedCompany" class="form-label">Company Contains</label>
+                                                <input type="text" class="form-control" id="advancedCompany" placeholder="Company name" onchange="updateContactCount()">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label for="advancedTitle" class="form-label">Job Title Contains</label>
+                                                <input type="text" class="form-control" id="advancedTitle" placeholder="Job title" onchange="updateContactCount()">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label for="advancedLocation" class="form-label">Location Contains</label>
+                                                <input type="text" class="form-control" id="advancedLocation" placeholder="Location" onchange="updateContactCount()">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="checkbox" id="excludeContacted" onchange="updateContactCount()" checked>
+                                                <label class="form-check-label" for="excludeContacted">
+                                                    Exclude already contacted
+                                                </label>
+                                            </div>
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="checkbox" id="requirePhone" onchange="updateContactCount()">
+                                                <label class="form-check-label" for="requirePhone">
+                                                    Require phone number
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="checkbox" id="requireLinkedIn" onchange="updateContactCount()">
+                                                <label class="form-check-label" for="requireLinkedIn">
+                                                    Require LinkedIn profile
+                                                </label>
+                                            </div>
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="checkbox" id="excludeInactiveCampaigns" onchange="updateContactCount()">
+                                                <label class="form-check-label" for="excludeInactiveCampaigns">
+                                                    Exclude from other active campaigns
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Selected Contacts Preview -->
+                                <div id="selectedContactsPreview" class="mt-3 d-none">
+                                    <h6>Selected Contacts Preview</h6>
+                                    <div class="selected-contacts-list" style="max-height: 150px; overflow-y: auto;">
+                                        <!-- Preview will be shown here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="targetAudience" class="form-label">Target Audience</label>
-                                <select class="form-select" id="targetAudience">
-                                    <option value="">All Contacts</option>
-                                    <option value="uncontacted">Uncontacted</option>
-                                    <option value="by_company">By Company</option>
-                                    <option value="by_industry">By Industry</option>
-                                    <option value="custom_filter">Custom Filter</option>
+                                <label for="emailTemplate" class="form-label">Email Template *</label>
+                                <select class="form-select" id="emailTemplate" required>
+                                    <option value="">Select Template</option>
+                                    <option value="warm">Warm Outreach</option>
+                                    <option value="alt_subject">Alternative Subject</option>
+                                    <option value="custom">Custom Template</option>
                                 </select>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="emailTemplate" class="form-label">Email Template</label>
-                                <select class="form-select" id="emailTemplate">
-                                    <option value="warm">Warm Outreach</option>
-                                    <option value="alt_subject">Alternative Subject</option>
-                                    <option value="custom">Custom Template</option>
+                                <label for="campaignPriority" class="form-label">Priority</label>
+                                <select class="form-select" id="campaignPriority">
+                                    <option value="medium">Medium</option>
+                                    <option value="high">High</option>
+                                    <option value="low">Low</option>
                                 </select>
                             </div>
                         </div>

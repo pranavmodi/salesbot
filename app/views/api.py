@@ -1073,6 +1073,123 @@ def get_uncontacted_contacts():
         current_app.logger.error(f"Error getting uncontacted contacts: {str(e)}")
         return jsonify({'error': 'Failed to load uncontacted contacts'}), 500
 
+@bp.route('/contacts/count-filtered', methods=['POST'])
+def count_filtered_contacts():
+    """Count contacts based on filter criteria for campaign selection."""
+    try:
+        data = request.get_json()
+        filter_type = data.get('type', 'quick')
+        
+        # Get all contacts
+        all_contacts = Contact.load_all()
+        
+        if filter_type == 'quick':
+            filter_value = data.get('filter_type', 'all')
+            company_filter = data.get('company', '')
+            
+            if filter_value == 'all':
+                filtered_contacts = all_contacts
+            elif filter_value == 'uncontacted':
+                # Get contacted emails from history
+                email_history = EmailHistory.load_all()
+                contacted_emails = set()
+                for email in email_history:
+                    if email.to:
+                        contacted_emails.add(email.to.lower().strip())
+                
+                filtered_contacts = [
+                    contact for contact in all_contacts
+                    if contact.email and contact.email.lower().strip() not in contacted_emails
+                ]
+            elif filter_value == 'has_phone':
+                filtered_contacts = [
+                    contact for contact in all_contacts
+                    if contact.raw_data and contact.raw_data.get('phone')
+                ]
+            elif filter_value == 'has_linkedin':
+                filtered_contacts = [
+                    contact for contact in all_contacts
+                    if contact.raw_data and contact.raw_data.get('linkedin_profile')
+                ]
+            elif filter_value == 'recent':
+                # Get contacts from last 30 days (simplified)
+                filtered_contacts = all_contacts[:50]  # Placeholder
+            else:
+                filtered_contacts = all_contacts
+            
+            # Apply company filter if specified
+            if company_filter:
+                filtered_contacts = [
+                    contact for contact in filtered_contacts
+                    if contact.company and company_filter.lower() in contact.company.lower()
+                ]
+            
+        elif filter_type == 'advanced':
+            filtered_contacts = all_contacts
+            
+            # Apply advanced filters
+            company = data.get('company', '').lower()
+            job_title = data.get('job_title', '').lower()
+            location = data.get('location', '').lower()
+            exclude_contacted = data.get('exclude_contacted', False)
+            require_phone = data.get('require_phone', False)
+            require_linkedin = data.get('require_linkedin', False)
+            
+            if company:
+                filtered_contacts = [
+                    contact for contact in filtered_contacts
+                    if contact.company and company in contact.company.lower()
+                ]
+            
+            if job_title:
+                filtered_contacts = [
+                    contact for contact in filtered_contacts
+                    if contact.job_title and job_title in contact.job_title.lower()
+                ]
+            
+            if location:
+                filtered_contacts = [
+                    contact for contact in filtered_contacts
+                    if contact.location and location in contact.location.lower()
+                ]
+            
+            if require_phone:
+                filtered_contacts = [
+                    contact for contact in filtered_contacts
+                    if contact.raw_data and contact.raw_data.get('phone')
+                ]
+            
+            if require_linkedin:
+                filtered_contacts = [
+                    contact for contact in filtered_contacts
+                    if contact.raw_data and contact.raw_data.get('linkedin_profile')
+                ]
+            
+            if exclude_contacted:
+                email_history = EmailHistory.load_all()
+                contacted_emails = set()
+                for email in email_history:
+                    if email.to:
+                        contacted_emails.add(email.to.lower().strip())
+                
+                filtered_contacts = [
+                    contact for contact in filtered_contacts
+                    if contact.email and contact.email.lower().strip() not in contacted_emails
+                ]
+        
+        else:  # manual selection
+            # For manual selection, count is handled on frontend
+            return jsonify({'count': 0})
+        
+        return jsonify({
+            'count': len(filtered_contacts),
+            'total_contacts': len(all_contacts)
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error counting filtered contacts: {str(e)}")
+        return jsonify({'error': 'Failed to count contacts', 'count': 0}), 500
+
 @bp.route('/send_test_email', methods=['POST'])
 def send_test_email_route():
     """Send a test email to a list of specified email addresses."""

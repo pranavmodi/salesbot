@@ -962,4 +962,166 @@ body {
 .modal-title {
     font-weight: 600;
     color: var(--primary-color);
+}
+
+/* Campaign Contact Selection Styles */
+.selection-method-content {
+    transition: all 0.3s ease;
+}
+
+.contact-selection-container {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background-color: #f8fafc;
+}
+
+.contact-selection-container .list-group-item {
+    border: none;
+    background-color: transparent;
+    padding: 0.75rem;
+    transition: all 0.2s ease;
+}
+
+.contact-selection-container .list-group-item:hover {
+    background-color: white;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.contact-selection-container .form-check {
+    margin: 0;
+}
+
+.contact-selection-container .form-check-input {
+    margin-top: 0.125rem;
+}
+
+.contact-selection-container .form-check-label {
+    cursor: pointer;
+    margin-bottom: 0;
+}
+
+.btn-check:checked + .btn-outline-primary {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+}
+
+.selected-contacts-list .list-group-item {
+    border: none;
+    background-color: #f0f9ff;
+    border-left: 3px solid var(--primary-color);
+}
+
+/* Campaign filter section styling */
+.campaign-filter-section {
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+/* Badge styling for contact count */
+#selectedContactsCount {
+    font-size: 0.875rem;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+}
+
+/* Enhanced form styling for campaign modal */
+.modal-lg .modal-dialog {
+    max-width: 900px;
+}
+
+.campaign-section-header {
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+/* Quick filter radio buttons styling */
+.btn-group .btn-check:checked + .btn {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+}
+
+.btn-group .btn-check:focus + .btn,
+.btn-group .btn:focus {
+    box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.25);
+}
+
+/* Contact search styling */
+#contactSearchCampaign {
+    border-radius: 8px;
+    border: 1px solid #d1d5db;
+    padding: 0.75rem 1rem;
+}
+
+#contactSearchCampaign:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.25);
+}
+
+/* Advanced filter checkboxes */
+.form-check-input:checked {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.form-check-input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.25);
+}
+
+/* Contact preview styling */
+#selectedContactsPreview {
+    background-color: #f0f9ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+#selectedContactsPreview h6 {
+    color: var(--primary-color);
+    margin-bottom: 0.75rem;
+}
+
+/* Loading states for contact selection */
+.contact-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    color: var(--text-muted);
+}
+
+.contact-loading .spinner-border {
+    width: 2rem;
+    height: 2rem;
+    margin-right: 0.75rem;
+}
+
+/* Responsive adjustments for campaign modal */
+@media (max-width: 768px) {
+    .modal-lg .modal-dialog {
+        max-width: 95%;
+        margin: 1rem;
+    }
+    
+    .btn-group {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .btn-group .btn {
+        margin-bottom: 0.5rem;
+    }
+    
+    .contact-selection-container {
+        max-height: 250px;
+    }
 } 
