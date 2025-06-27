@@ -2821,8 +2821,12 @@ function changeCompaniesPage(page) {
     const perPageSelect = document.getElementById('companiesPerPage');
     const perPage = perPageSelect ? perPageSelect.value : 10;
     
-    // Show loading state
+    // Remember current scroll position
+    const currentScrollY = window.scrollY;
+    const companiesTabPane = document.getElementById('companies-tab-pane');
     const companiesContainer = document.getElementById('companies-table-container');
+    
+    // Show loading state
     const originalContent = companiesContainer.innerHTML;
     
     companiesContainer.innerHTML = `
@@ -2840,8 +2844,15 @@ function changeCompaniesPage(page) {
         .then(data => {
             if (data.success) {
                 displayCompaniesTable(data.companies, data.pagination);
-                // Re-setup pagination after content is loaded
-                setTimeout(setupCompaniesPagination, 100);
+                
+                // Restore scroll position after a short delay to allow rendering
+                setTimeout(() => {
+                    window.scrollTo({
+                        top: currentScrollY,
+                        behavior: 'smooth'
+                    });
+                    setupCompaniesPagination();
+                }, 100);
             } else {
                 throw new Error(data.message || 'Failed to load companies');
             }
@@ -2850,6 +2861,14 @@ function changeCompaniesPage(page) {
             console.error('Error loading companies:', error);
             companiesContainer.innerHTML = originalContent;
             showToast('errorToast', 'Failed to load companies: ' + error.message);
+            
+            // Restore scroll position even on error
+            setTimeout(() => {
+                window.scrollTo({
+                    top: currentScrollY,
+                    behavior: 'smooth'
+                });
+            }, 100);
         });
 }
 
@@ -2916,42 +2935,132 @@ function displayCompaniesTable(companies, pagination) {
         </table>
     </div>
     
-    <!-- Pagination Controls -->
-    <div class="row mb-3">
-        <div class="col-md-6">
-            <div class="d-flex align-items-center">
-                <label for="companiesPerPage" class="me-2">Show:</label>
-                <select id="companiesPerPage" class="form-select" style="width: auto;">
-                    <option value="5" ${pagination.per_page == 5 ? 'selected' : ''}>5 per page</option>
-                    <option value="10" ${pagination.per_page == 10 ? 'selected' : ''}>10 per page</option>
-                    <option value="25" ${pagination.per_page == 25 ? 'selected' : ''}>25 per page</option>
-                    <option value="50" ${pagination.per_page == 50 ? 'selected' : ''}>50 per page</option>
-                </select>
+    <!-- Enhanced Pagination Controls -->
+    ${pagination.total_pages > 1 ? `
+    <div class="pagination-container">
+        <div class="row align-items-center">
+            <div class="col-lg-3 col-md-6 mb-2 mb-lg-0">
+                <div class="pagination-controls d-flex align-items-center">
+                    <label for="companiesPerPage" class="form-label me-2 mb-0">Show:</label>
+                    <select id="companiesPerPage" class="form-select form-select-sm" style="width: auto;">
+                        <option value="5" ${pagination.per_page == 5 ? 'selected' : ''}>5</option>
+                        <option value="10" ${pagination.per_page == 10 ? 'selected' : ''}>10</option>
+                        <option value="25" ${pagination.per_page == 25 ? 'selected' : ''}>25</option>
+                        <option value="50" ${pagination.per_page == 50 ? 'selected' : ''}>50</option>
+                        <option value="100" ${pagination.per_page == 100 ? 'selected' : ''}>100</option>
+                    </select>
+                    <span class="text-muted ms-2 small">per page</span>
+                </div>
+            </div>
+            
+            <div class="col-lg-6 col-md-6 mb-2 mb-lg-0">
+                <div class="pagination-summary">
+                    Showing ${((pagination.current_page - 1) * pagination.per_page + 1)} to 
+                    ${Math.min(pagination.current_page * pagination.per_page, pagination.total_items)} 
+                    of <strong>${pagination.total_items}</strong> companies
+                </div>
+            </div>
+            
+            <div class="col-lg-3 col-md-12">
+                <nav aria-label="Companies pagination" class="d-flex justify-content-lg-end justify-content-center">
+                    <ul class="pagination pagination-modern mb-0">
+                        <!-- First Page -->
+                        <li class="page-item ${pagination.current_page == 1 ? 'disabled' : ''}">
+                            <a class="page-link companies-page-link" href="#" data-companies-page="1" title="First page" aria-label="First page">
+                                <i class="fas fa-angle-double-left"></i>
+                            </a>
+                        </li>
+                        
+                        <!-- Previous Page -->
+                        <li class="page-item ${pagination.current_page == 1 ? 'disabled' : ''}">
+                            <a class="page-link companies-page-link" href="#" data-companies-page="${pagination.current_page - 1}" title="Previous page" aria-label="Previous page">
+                                <i class="fas fa-chevron-left"></i>
+                            </a>
+                        </li>
+                        
+                        <!-- Page Numbers -->
+                        ${generatePageNumbers(pagination.current_page, pagination.total_pages, 'companies-page-link', 'data-companies-page')}
+                        
+                        <!-- Next Page -->
+                        <li class="page-item ${pagination.current_page == pagination.total_pages ? 'disabled' : ''}">
+                            <a class="page-link companies-page-link" href="#" data-companies-page="${pagination.current_page + 1}" title="Next page" aria-label="Next page">
+                                <i class="fas fa-chevron-right"></i>
+                            </a>
+                        </li>
+                        
+                        <!-- Last Page -->
+                        <li class="page-item ${pagination.current_page == pagination.total_pages ? 'disabled' : ''}">
+                            <a class="page-link companies-page-link" href="#" data-companies-page="${pagination.total_pages}" title="Last page" aria-label="Last page">
+                                <i class="fas fa-angle-double-right"></i>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
             </div>
         </div>
-        <div class="col-md-6">
-            <nav aria-label="Page navigation">
-                <ul class="pagination justify-content-end mb-0">
-                    <li class="page-item ${pagination.current_page == 1 ? 'disabled' : ''}">
-                        <a class="page-link companies-page-link" href="#" data-companies-page="${pagination.current_page - 1}">
-                            <i class="fas fa-chevron-left"></i>
-                        </a>
-                    </li>
-                    <li class="page-item active">
-                        <span class="page-link">${pagination.current_page} of ${pagination.total_pages}</span>
-                    </li>
-                    <li class="page-item ${pagination.current_page == pagination.total_pages ? 'disabled' : ''}">
-                        <a class="page-link companies-page-link" href="#" data-companies-page="${pagination.current_page + 1}">
-                            <i class="fas fa-chevron-right"></i>
-                        </a>
-                    </li>
-                </ul>
-            </nav>
-        </div>
     </div>
+    ` : ''}
     `;
     
     companiesContainer.innerHTML = html;
+}
+
+// Helper function to generate page numbers for pagination
+function generatePageNumbers(currentPage, totalPages, linkClass, dataAttribute) {
+    let html = '';
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(totalPages, currentPage + 2);
+    
+    // Show first page and ellipsis if needed
+    if (startPage > 1) {
+        html += `
+            <li class="page-item">
+                <a class="page-link ${linkClass}" href="#" ${dataAttribute}="1">1</a>
+            </li>
+        `;
+        if (startPage > 2) {
+            html += `
+                <li class="page-item disabled">
+                    <span class="page-link" aria-disabled="true">…</span>
+                </li>
+            `;
+        }
+    }
+    
+    // Show page numbers around current page
+    for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
+        if (pageNum === currentPage) {
+            html += `
+                <li class="page-item active">
+                    <span class="page-link" aria-current="page">${pageNum}</span>
+                </li>
+            `;
+        } else {
+            html += `
+                <li class="page-item">
+                    <a class="page-link ${linkClass}" href="#" ${dataAttribute}="${pageNum}">${pageNum}</a>
+                </li>
+            `;
+        }
+    }
+    
+    // Show ellipsis and last page if needed
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            html += `
+                <li class="page-item disabled">
+                    <span class="page-link" aria-disabled="true">…</span>
+                </li>
+            `;
+        }
+        html += `
+            <li class="page-item">
+                <a class="page-link ${linkClass}" href="#" ${dataAttribute}="${totalPages}">${totalPages}</a>
+            </li>
+        `;
+    }
+    
+    return html;
 }
 
 function extractCompaniesFromContacts() {

@@ -1,98 +1,98 @@
 <!-- Enhanced Pagination Controls -->
 {% if companies and total_companies > companies_per_page %}
-<div class="row mb-3 align-items-center">
-    <div class="col-lg-4 col-md-6 mb-2 mb-md-0">
-        <div class="d-flex align-items-center">
-            <label for="companiesPerPage" class="form-label me-2 mb-0 text-muted">Show:</label>
-            <select id="companiesPerPage" class="form-select form-select-sm" style="width: auto;">
-                <option value="5" {% if companies_per_page == 5 %}selected{% endif %}>5</option>
-                <option value="10" {% if companies_per_page == 10 %}selected{% endif %}>10</option>
-                <option value="25" {% if companies_per_page == 25 %}selected{% endif %}>25</option>
-                <option value="50" {% if companies_per_page == 50 %}selected{% endif %}>50</option>
-                <option value="100" {% if companies_per_page == 100 %}selected{% endif %}>100</option>
-            </select>
-            <span class="text-muted ms-2 small">per page</span>
+<div class="pagination-container">
+    <div class="row align-items-center">
+        <div class="col-lg-3 col-md-6 mb-2 mb-lg-0">
+            <div class="pagination-controls d-flex align-items-center">
+                <label for="companiesPerPage" class="form-label me-2 mb-0">Show:</label>
+                <select id="companiesPerPage" class="form-select form-select-sm" style="width: auto;">
+                    <option value="5" {% if companies_per_page == 5 %}selected{% endif %}>5</option>
+                    <option value="10" {% if companies_per_page == 10 %}selected{% endif %}>10</option>
+                    <option value="25" {% if companies_per_page == 25 %}selected{% endif %}>25</option>
+                    <option value="50" {% if companies_per_page == 50 %}selected{% endif %}>50</option>
+                    <option value="100" {% if companies_per_page == 100 %}selected{% endif %}>100</option>
+                </select>
+                <span class="text-muted ms-2 small">per page</span>
+            </div>
         </div>
-    </div>
-    
-    <div class="col-lg-4 col-md-6 mb-2 mb-md-0">
-        <div class="text-center">
-            <small class="text-muted">
+        
+        <div class="col-lg-6 col-md-6 mb-2 mb-lg-0">
+            <div class="pagination-summary">
                 Showing {{ ((companies_current_page - 1) * companies_per_page + 1) }} to 
                 {{ (companies_current_page * companies_per_page if companies_current_page * companies_per_page < total_companies else total_companies) }} 
-                of {{ total_companies }} companies
-            </small>
+                of <strong>{{ total_companies }}</strong> companies
+            </div>
         </div>
-    </div>
-    
-    <div class="col-lg-4 col-md-12">
-        <nav aria-label="Companies pagination" class="d-flex justify-content-lg-end justify-content-center">
-            <ul class="pagination pagination-modern mb-0">
-                <!-- First Page -->
-                <li class="page-item {% if companies_current_page == 1 %}disabled{% endif %}">
-                    <a class="page-link companies-page-link" href="#" data-companies-page="1" title="First page">
-                        <i class="fas fa-angle-double-left"></i>
-                    </a>
-                </li>
-                
-                <!-- Previous Page -->
-                <li class="page-item {% if companies_current_page == 1 %}disabled{% endif %}">
-                    <a class="page-link companies-page-link" href="#" data-companies-page="{{ companies_current_page - 1 }}" title="Previous page">
-                        <i class="fas fa-chevron-left"></i>
-                    </a>
-                </li>
-                
-                <!-- Page Numbers -->
-                {% set start_page = [1, companies_current_page - 2]|max %}
-                {% set end_page = [companies_total_pages, companies_current_page + 2]|min %}
-                
-                {% if start_page > 1 %}
-                    <li class="page-item">
-                        <a class="page-link companies-page-link" href="#" data-companies-page="1">1</a>
+        
+        <div class="col-lg-3 col-md-12">
+            <nav aria-label="Companies pagination" class="d-flex justify-content-lg-end justify-content-center">
+                <ul class="pagination pagination-modern mb-0">
+                    <!-- First Page -->
+                    <li class="page-item {% if companies_current_page == 1 %}disabled{% endif %}">
+                        <a class="page-link companies-page-link" href="#" data-companies-page="1" title="First page" aria-label="First page">
+                            <i class="fas fa-angle-double-left"></i>
+                        </a>
                     </li>
-                    {% if start_page > 2 %}
-                        <li class="page-item disabled">
-                            <span class="page-link">...</span>
+                    
+                    <!-- Previous Page -->
+                    <li class="page-item {% if companies_current_page == 1 %}disabled{% endif %}">
+                        <a class="page-link companies-page-link" href="#" data-companies-page="{{ companies_current_page - 1 }}" title="Previous page" aria-label="Previous page">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                    </li>
+                    
+                    <!-- Page Numbers -->
+                    {% set start_page = [1, companies_current_page - 2]|max %}
+                    {% set end_page = [companies_total_pages, companies_current_page + 2]|min %}
+                    
+                    {% if start_page > 1 %}
+                        <li class="page-item">
+                            <a class="page-link companies-page-link" href="#" data-companies-page="1">1</a>
                         </li>
-                    {% endif %}
-                {% endif %}
-                
-                {% for page_num in range(start_page, end_page + 1) %}
-                    <li class="page-item {% if page_num == companies_current_page %}active{% endif %}">
-                        {% if page_num == companies_current_page %}
-                            <span class="page-link">{{ page_num }}</span>
-                        {% else %}
-                            <a class="page-link companies-page-link" href="#" data-companies-page="{{ page_num }}">{{ page_num }}</a>
+                        {% if start_page > 2 %}
+                            <li class="page-item disabled">
+                                <span class="page-link" aria-disabled="true">…</span>
+                            </li>
                         {% endif %}
-                    </li>
-                {% endfor %}
-                
-                {% if end_page < companies_total_pages %}
-                    {% if end_page < companies_total_pages - 1 %}
-                        <li class="page-item disabled">
-                            <span class="page-link">...</span>
+                    {% endif %}
+                    
+                    {% for page_num in range(start_page, end_page + 1) %}
+                        <li class="page-item {% if page_num == companies_current_page %}active{% endif %}">
+                            {% if page_num == companies_current_page %}
+                                <span class="page-link" aria-current="page">{{ page_num }}</span>
+                            {% else %}
+                                <a class="page-link companies-page-link" href="#" data-companies-page="{{ page_num }}">{{ page_num }}</a>
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                    
+                    {% if end_page < companies_total_pages %}
+                        {% if end_page < companies_total_pages - 1 %}
+                            <li class="page-item disabled">
+                                <span class="page-link" aria-disabled="true">…</span>
+                            </li>
+                        {% endif %}
+                        <li class="page-item">
+                            <a class="page-link companies-page-link" href="#" data-companies-page="{{ companies_total_pages }}">{{ companies_total_pages }}</a>
                         </li>
                     {% endif %}
-                    <li class="page-item">
-                        <a class="page-link companies-page-link" href="#" data-companies-page="{{ companies_total_pages }}">{{ companies_total_pages }}</a>
+                    
+                    <!-- Next Page -->
+                    <li class="page-item {% if companies_current_page == companies_total_pages %}disabled{% endif %}">
+                        <a class="page-link companies-page-link" href="#" data-companies-page="{{ companies_current_page + 1 }}" title="Next page" aria-label="Next page">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
                     </li>
-                {% endif %}
-                
-                <!-- Next Page -->
-                <li class="page-item {% if companies_current_page == companies_total_pages %}disabled{% endif %}">
-                    <a class="page-link companies-page-link" href="#" data-companies-page="{{ companies_current_page + 1 }}" title="Next page">
-                        <i class="fas fa-chevron-right"></i>
-                    </a>
-                </li>
-                
-                <!-- Last Page -->
-                <li class="page-item {% if companies_current_page == companies_total_pages %}disabled{% endif %}">
-                    <a class="page-link companies-page-link" href="#" data-companies-page="{{ companies_total_pages }}" title="Last page">
-                        <i class="fas fa-angle-double-right"></i>
-                    </a>
-                </li>
-            </ul>
-        </nav>
+                    
+                    <!-- Last Page -->
+                    <li class="page-item {% if companies_current_page == companies_total_pages %}disabled{% endif %}">
+                        <a class="page-link companies-page-link" href="#" data-companies-page="{{ companies_total_pages }}" title="Last page" aria-label="Last page">
+                            <i class="fas fa-angle-double-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
     </div>
 </div>
 {% endif %}
