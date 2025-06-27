@@ -1,166 +1,123 @@
-<div class="card">
-    <div class="card-header">
-        <div class="row align-items-center">
-            <div class="col-md-6">
-                <h5 class="card-title mb-0">
-                    <i class="fas fa-users me-2"></i>Contact Database
-                </h5>
-                <small class="text-muted">Comprehensive contact information and details</small>
-            </div>
-            <div class="col-md-6">
-                <div class="d-flex justify-content-end align-items-center">
-                    <input type="text" class="form-control search-box me-3" placeholder="Search contacts..." id="contactSearch" style="max-width: 250px;">
-                    <div class="dropdown me-2">
-                        <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-filter me-2"></i>Filter
-                        </button>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="#" data-filter="all">All Contacts</a></li>
-                            <li><a class="dropdown-item" href="#" data-filter="has-phone">Has Phone</a></li>
-                            <li><a class="dropdown-item" href="#" data-filter="has-linkedin">Has LinkedIn</a></li>
-                            <li><a class="dropdown-item" href="#" data-filter="recent">Recently Added</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="#" data-filter="uncontacted">
-                                <i class="fas fa-envelope-open me-2 text-warning"></i>Uncontacted
-                                {% if uncontacted_count > 0 %}
-                                <span class="badge bg-warning text-dark ms-2">{{ uncontacted_count }}</span>
-                                {% endif %}
-                            </a></li>
-                        </ul>
-                    </div>
-                    <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#addContactModal">
-                        <i class="fas fa-plus me-2"></i>Add Contact
-                    </button>
-                    <a href="/import" class="btn btn-primary">
-                        <i class="fas fa-file-upload me-2"></i>Import
-                    </a>
-                </div>
-            </div>
+<!-- Pagination Controls -->
+<div class="row mb-3">
+    <div class="col-md-6">
+        <div class="d-flex align-items-center">
+            <label for="perPage" class="me-2">Show:</label>
+            <select id="perPage" class="form-select" style="width: auto;">
+                <option value="5" {% if per_page == 5 %}selected{% endif %}>5 per page</option>
+                <option value="10" {% if per_page == 10 %}selected{% endif %}>10 per page</option>
+                <option value="25" {% if per_page == 25 %}selected{% endif %}>25 per page</option>
+                <option value="50" {% if per_page == 50 %}selected{% endif %}>50 per page</option>
+            </select>
         </div>
     </div>
-    <div class="card-body">
-        <!-- Pagination Controls -->
-        <div class="row mb-3">
-            <div class="col-md-6">
-                <div class="d-flex align-items-center">
-                    <label for="perPage" class="me-2">Show:</label>
-                    <select id="perPage" class="form-select" style="width: auto;">
-                        <option value="5" {% if per_page == 5 %}selected{% endif %}>5 per page</option>
-                        <option value="10" {% if per_page == 10 %}selected{% endif %}>10 per page</option>
-                        <option value="25" {% if per_page == 25 %}selected{% endif %}>25 per page</option>
-                        <option value="50" {% if per_page == 50 %}selected{% endif %}>50 per page</option>
-                    </select>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <nav aria-label="Page navigation">
-                                                <ul class="pagination justify-content-end mb-0">
-                                <li class="page-item {% if contacts_current_page == 1 %}disabled{% endif %}">
-                                    <a class="page-link" href="#" data-page="{{ contacts_current_page - 1 }}">
-                                        <i class="fas fa-chevron-left"></i>
-                                    </a>
-                                </li>
-                                <li class="page-item active">
-                                    <span class="page-link">{{ contacts_current_page }} of {{ contacts_total_pages }}</span>
-                                </li>
-                                <li class="page-item {% if contacts_current_page == contacts_total_pages %}disabled{% endif %}">
-                                    <a class="page-link" href="#" data-page="{{ contacts_current_page + 1 }}">
-                                        <i class="fas fa-chevron-right"></i>
-                                    </a>
-                                </li>
-                            </ul>
-                </nav>
-            </div>
-        </div>
+    <div class="col-md-6">
+        <nav aria-label="Page navigation">
+                                        <ul class="pagination justify-content-end mb-0">
+                        <li class="page-item {% if contacts_current_page == 1 %}disabled{% endif %}">
+                            <a class="page-link" href="#" data-page="{{ contacts_current_page - 1 }}">
+                                <i class="fas fa-chevron-left"></i>
+                            </a>
+                        </li>
+                        <li class="page-item active">
+                            <span class="page-link">{{ contacts_current_page }} of {{ contacts_total_pages }}</span>
+                        </li>
+                        <li class="page-item {% if contacts_current_page == contacts_total_pages %}disabled{% endif %}">
+                            <a class="page-link" href="#" data-page="{{ contacts_current_page + 1 }}">
+                                <i class="fas fa-chevron-right"></i>
+                            </a>
+                        </li>
+                    </ul>
+        </nav>
+    </div>
+</div>
 
-        <!-- Contacts List -->
-        <div class="table-responsive" id="contactsContainer">
-            {% if contacts %}
-            <table class="table table-hover">
-                <thead>
-                    <tr>
-                        <th style="width: 50px;"></th>
-                        <th>Name</th>
-                        <th>Company</th>
-                        <th>Position</th>
-                        <th>Email</th>
-                        <th>Location</th>
-                        <th>Phone</th>
-                        <th style="width: 120px;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for contact in contacts %}
-                    <tr class="contact-row" data-contact-email="{{ contact.email }}">
-                        <td>
-                            <div class="contact-avatar" style="width: 36px; height: 36px; font-size: 0.875rem;">
-                                {{ contact.initials }}
-                            </div>
-                        </td>
-                        <td>
-                            <div class="contact-name">
-                                <strong>{{ contact.display_name }}</strong>
-                                {% if contact.raw_data and contact.raw_data.get('created_at') %}
-                                <br><small class="text-muted">Added: {{ contact.raw_data.created_at.strftime('%Y-%m-%d') if contact.raw_data.created_at else 'Unknown' }}</small>
-                                {% endif %}
-                            </div>
-                        </td>
-                        <td>
-                            {% if contact.company %}
-                                <span class="fw-semibold">{{ contact.company }}</span>
-                                {% if contact.company_domain %}
-                                <br><small><a href="http://{{ contact.company_domain }}" target="_blank" class="text-decoration-none text-muted">{{ contact.company_domain }}</a></small>
-                                {% endif %}
-                            {% else %}
-                                <span class="text-muted">Not specified</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <span>{{ contact.job_title or 'Not specified' }}</span>
-                        </td>
-                        <td>
-                            {% if contact.email %}
-                                <a href="mailto:{{ contact.email }}" class="text-decoration-none">{{ contact.email }}</a>
-                            {% else %}
-                                <span class="text-muted">Not available</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <span>{{ contact.location or 'Not specified' }}</span>
-                        </td>
-                        <td>
-                            {% if contact.raw_data and contact.raw_data.get('phone') %}
-                                <a href="tel:{{ contact.raw_data.phone }}" class="text-decoration-none">{{ contact.raw_data.phone }}</a>
-                            {% else %}
-                                <span class="text-muted">Not available</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <div class="btn-group" role="group">
-                                <button class="btn btn-outline-primary btn-sm" onclick="viewContactDetails('{{ contact.email }}')" title="View Details">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                {% if contact.linkedin_profile %}
-                                <a href="{{ contact.linkedin_profile }}" target="_blank" class="btn btn-outline-info btn-sm" title="LinkedIn Profile">
-                                    <i class="fab fa-linkedin"></i>
-                                </a>
-                                {% endif %}
-                                <button class="btn btn-outline-secondary btn-sm" onclick="exportContact('{{ contact.email }}')" title="Export Contact">
-                                    <i class="fas fa-download"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            {% else %}
-            <div class="text-center p-5">
-                <i class="fas fa-users-slash fa-3x text-muted mb-3"></i>
-                <h5 class="text-muted">No contacts found.</h5>
-                <p>Get started by adding a contact or importing a list.</p>
-            </div>
-            {% endif %}
-        </div>
+<!-- Contacts List -->
+<div class="table-responsive" id="contactsContainer">
+    {% if contacts %}
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th style="width: 50px;"></th>
+                <th>Name</th>
+                <th>Company</th>
+                <th>Position</th>
+                <th>Email</th>
+                <th>Location</th>
+                <th>Phone</th>
+                <th style="width: 120px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for contact in contacts %}
+            <tr class="contact-row" data-contact-email="{{ contact.email }}">
+                <td>
+                    <div class="contact-avatar" style="width: 36px; height: 36px; font-size: 0.875rem;">
+                        {{ contact.initials }}
+                    </div>
+                </td>
+                <td>
+                    <div class="contact-name">
+                        <strong>{{ contact.display_name }}</strong>
+                        {% if contact.raw_data and contact.raw_data.get('created_at') %}
+                        <br><small class="text-muted">Added: {{ contact.raw_data.created_at.strftime('%Y-%m-%d') if contact.raw_data.created_at else 'Unknown' }}</small>
+                        {% endif %}
+                    </div>
+                </td>
+                <td>
+                    {% if contact.company %}
+                        <span class="fw-semibold">{{ contact.company }}</span>
+                        {% if contact.company_domain %}
+                        <br><small><a href="http://{{ contact.company_domain }}" target="_blank" class="text-decoration-none text-muted">{{ contact.company_domain }}</a></small>
+                        {% endif %}
+                    {% else %}
+                        <span class="text-muted">Not specified</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <span>{{ contact.job_title or 'Not specified' }}</span>
+                </td>
+                <td>
+                    {% if contact.email %}
+                        <a href="mailto:{{ contact.email }}" class="text-decoration-none">{{ contact.email }}</a>
+                    {% else %}
+                        <span class="text-muted">Not available</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <span>{{ contact.location or 'Not specified' }}</span>
+                </td>
+                <td>
+                    {% if contact.raw_data and contact.raw_data.get('phone') %}
+                        <a href="tel:{{ contact.raw_data.phone }}" class="text-decoration-none">{{ contact.raw_data.phone }}</a>
+                    {% else %}
+                        <span class="text-muted">Not available</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-outline-primary btn-sm" onclick="viewContactDetails('{{ contact.email }}')" title="View Details">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        {% if contact.linkedin_profile %}
+                        <a href="{{ contact.linkedin_profile }}" target="_blank" class="btn btn-outline-info btn-sm" title="LinkedIn Profile">
+                            <i class="fab fa-linkedin"></i>
+                        </a>
+                        {% endif %}
+                        <button class="btn btn-outline-secondary btn-sm" onclick="exportContact('{{ contact.email }}')" title="Export Contact">
+                            <i class="fas fa-download"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="text-center p-5">
+        <i class="fas fa-users-slash fa-3x text-muted mb-3"></i>
+        <h5 class="text-muted">No contacts found.</h5>
+        <p>Get started by adding a contact or importing a list.</p>
     </div>
+    {% endif %}
 </div> 

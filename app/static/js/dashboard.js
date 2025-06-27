@@ -163,8 +163,8 @@ function applyFilter(filter) {
 }
 
 function handleUncontactedFilter() {
-    // Show loading state
-    const contactsContainer = document.getElementById('contactsContainer');
+    // Show loading state - use the table container now
+    const contactsContainer = document.getElementById('contacts-table-container');
     const originalContent = contactsContainer.innerHTML;
     
     contactsContainer.innerHTML = `
@@ -194,7 +194,7 @@ function handleUncontactedFilter() {
 }
 
 function displayUncontactedContacts(data) {
-    const contactsContainer = document.getElementById('contactsContainer');
+    const contactsContainer = document.getElementById('contacts-table-container');
     
     if (data.contacts.length === 0) {
         contactsContainer.innerHTML = `
