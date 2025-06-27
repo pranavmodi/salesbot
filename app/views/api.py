@@ -841,18 +841,30 @@ def search_contacts():
         query = request.args.get('q', '').strip()
         
         if not query:
-            return jsonify({'contacts': [], 'count': 0})
+            return jsonify({
+                'success': True,
+                'contacts': [], 
+                'count': 0,
+                'query': ''
+            })
         
         contacts = Contact.search(query)
         
         return jsonify({
+            'success': True,
             'contacts': [contact.to_dict() for contact in contacts],
-            'count': len(contacts)
+            'count': len(contacts),
+            'query': query
         })
         
     except Exception as e:
         current_app.logger.error(f"Error in search_contacts: {str(e)}")
-        return jsonify({'error': 'Failed to search contacts'}), 500
+        return jsonify({
+            'success': False,
+            'error': 'Failed to search contacts',
+            'contacts': [],
+            'count': 0
+        }), 500
 
 @bp.route('/contacts/import', methods=['POST'])
 def import_contacts():
@@ -1040,6 +1052,8 @@ def preview_csv():
     except Exception as e:
         current_app.logger.error(f"Error in CSV preview: {str(e)}")
         return jsonify({'error': 'Failed to preview CSV file'}), 500
+
+
 
 @bp.route('/contacts/uncontacted', methods=['GET'])
 def get_uncontacted_contacts():

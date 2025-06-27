@@ -3562,12 +3562,20 @@ let campaignContactsSelected = [];
 let availableContacts = [];
 let campaignCompanies = [];
 
+// Multi-step workflow variables
+let currentCampaignStep = 1;
+let campaignData = {};
+
 // Initialize campaign modal when opened
 document.addEventListener('DOMContentLoaded', function() {
     const createCampaignModal = document.getElementById('createCampaignModal');
     if (createCampaignModal) {
         createCampaignModal.addEventListener('shown.bs.modal', function() {
             initializeCampaignModal();
+        });
+        
+        createCampaignModal.addEventListener('hidden.bs.modal', function() {
+            resetCampaignModal();
         });
         
         // Setup selection method radio buttons
@@ -3579,7 +3587,13 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeCampaignModal() {
-    // Reset selection
+    // Reset to step 1
+    currentCampaignStep = 1;
+    showStep(1);
+    updateStepIndicators();
+    
+    // Reset campaign data
+    campaignData = {};
     campaignContactsSelected = [];
     updateSelectedContactsBadge();
     
@@ -3591,6 +3605,272 @@ function initializeCampaignModal() {
         handleSelectionMethodChange();
         updateContactCount();
     }, 100);
+    
+    // Setup form field listeners for real-time validation
+    setupStepValidation();
+}
+
+function resetCampaignModal() {
+    currentCampaignStep = 1;
+    campaignData = {};
+    campaignContactsSelected = [];
+    
+    // Reset form
+    const form = document.getElementById('createCampaignForm');
+    if (form) {
+        form.reset();
+    }
+    
+    // Reset step indicators
+    updateStepIndicators();
+    showStep(1);
+}
+
+function showStep(stepNumber) {
+    // Hide all steps
+    document.querySelectorAll('.step-content').forEach(step => {
+        step.classList.add('d-none');
+    });
+    
+    // Show current step
+    const currentStepEl = document.getElementById(`step${stepNumber}`);
+    if (currentStepEl) {
+        currentStepEl.classList.remove('d-none');
+    }
+    
+    // Update navigation buttons
+    updateNavigationButtons(stepNumber);
+}
+
+function updateStepIndicators() {
+    const stepItems = document.querySelectorAll('.step-item');
+    const stepConnectors = document.querySelectorAll('.step-connector');
+    
+    stepItems.forEach((item, index) => {
+        const stepNum = index + 1;
+        item.classList.remove('active', 'completed');
+        
+        if (stepNum < currentCampaignStep) {
+            item.classList.add('completed');
+        } else if (stepNum === currentCampaignStep) {
+            item.classList.add('active');
+        }
+    });
+    
+    stepConnectors.forEach((connector, index) => {
+        connector.classList.remove('completed');
+        if (index + 1 < currentCampaignStep) {
+            connector.classList.add('completed');
+        }
+    });
+}
+
+function updateNavigationButtons(stepNumber) {
+    const prevBtn = document.getElementById('prevStepBtn');
+    const nextBtn = document.getElementById('nextStepBtn');
+    const launchBtn = document.getElementById('launchCampaignBtn');
+    
+    // Previous button
+    if (prevBtn) {
+        prevBtn.disabled = stepNumber <= 1;
+    }
+    
+    // Next/Launch buttons
+    if (stepNumber < 4) {
+        if (nextBtn) {
+            nextBtn.style.display = '';
+            nextBtn.disabled = !validateCurrentStep();
+        }
+        if (launchBtn) {
+            launchBtn.style.display = 'none';
+        }
+    } else {
+        if (nextBtn) {
+            nextBtn.style.display = 'none';
+        }
+        if (launchBtn) {
+            launchBtn.style.display = '';
+            launchBtn.disabled = !validateCurrentStep();
+        }
+    }
+}
+
+function nextStep() {
+    if (!validateCurrentStep()) {
+        return;
+    }
+    
+    // Save current step data
+    saveCurrentStepData();
+    
+    if (currentCampaignStep < 4) {
+        currentCampaignStep++;
+        showStep(currentCampaignStep);
+        updateStepIndicators();
+        
+        // Load step-specific data
+        if (currentCampaignStep === 4) {
+            populateReviewStep();
+        }
+    }
+}
+
+function previousStep() {
+    if (currentCampaignStep > 1) {
+        currentCampaignStep--;
+        showStep(currentCampaignStep);
+        updateStepIndicators();
+    }
+}
+
+function validateCurrentStep() {
+    switch (currentCampaignStep) {
+        case 1:
+            return validateStep1();
+        case 2:
+            return validateStep2();
+        case 3:
+            return validateStep3();
+        case 4:
+            return validateStep4();
+        default:
+            return false;
+    }
+}
+
+function validateStep1() {
+    const name = document.getElementById('campaignName')?.value.trim();
+    const type = document.getElementById('campaignType')?.value;
+    
+    return name && type;
+}
+
+function validateStep2() {
+    const selectedMethod = document.querySelector('input[name="selectionMethod"]:checked')?.value;
+    
+    if (selectedMethod === 'manual') {
+        return campaignContactsSelected.length > 0;
+    }
+    
+    // For quick and advanced filters, check if contact count > 0
+    const countText = document.getElementById('selectedContactsCount')?.textContent || '0';
+    const count = parseInt(countText.match(/\d+/)?.[0] || '0');
+    return count > 0;
+}
+
+function validateStep3() {
+    const template = document.getElementById('emailTemplate')?.value;
+    return template;
+}
+
+function validateStep4() {
+    return true; // Review step is always valid if we got here
+}
+
+function saveCurrentStepData() {
+    switch (currentCampaignStep) {
+        case 1:
+            campaignData.name = document.getElementById('campaignName')?.value;
+            campaignData.type = document.getElementById('campaignType')?.value;
+            campaignData.description = document.getElementById('campaignDescription')?.value;
+            campaignData.goal = document.getElementById('campaignGoal')?.value;
+            campaignData.priority = document.getElementById('campaignPriority')?.value;
+            break;
+        case 2:
+            campaignData.selection_criteria = getFilterCriteria();
+            campaignData.selectedContacts = [...campaignContactsSelected];
+            break;
+        case 3:
+            campaignData.email_template = document.getElementById('emailTemplate')?.value;
+            campaignData.subject_line = document.getElementById('emailSubjectLine')?.value;
+            campaignData.schedule_date = document.getElementById('scheduleDate')?.value;
+            campaignData.followup_days = document.getElementById('followupDays')?.value || 3;
+            campaignData.enable_tracking = document.getElementById('enableTracking')?.checked;
+            campaignData.enable_personalization = document.getElementById('enablePersonalization')?.checked;
+            break;
+    }
+}
+
+function populateReviewStep() {
+    // Campaign name and type
+    document.getElementById('reviewCampaignName').textContent = campaignData.name || 'Untitled Campaign';
+    document.getElementById('reviewCampaignType').textContent = campaignData.type || 'Unknown Type';
+    
+    // Contact count
+    const selectedMethod = document.querySelector('input[name="selectionMethod"]:checked')?.value;
+    let contactCount = 0;
+    if (selectedMethod === 'manual') {
+        contactCount = campaignContactsSelected.length;
+    } else {
+        const countText = document.getElementById('selectedContactsCount')?.textContent || '0';
+        contactCount = parseInt(countText.match(/\d+/)?.[0] || '0');
+    }
+    document.getElementById('reviewContactCount').textContent = contactCount;
+    document.getElementById('estimatedReach').textContent = `${contactCount} contacts`;
+    
+    // Email template
+    const templateSelect = document.getElementById('emailTemplate');
+    const templateText = templateSelect?.selectedOptions[0]?.textContent || 'Not selected';
+    document.getElementById('reviewEmailTemplate').textContent = templateText;
+    
+    // Priority
+    const prioritySelect = document.getElementById('campaignPriority');
+    const priorityText = prioritySelect?.selectedOptions[0]?.textContent || 'Medium';
+    document.getElementById('reviewPriority').textContent = priorityText;
+    
+    // Follow-up
+    const followupDays = document.getElementById('followupDays')?.value || '3';
+    document.getElementById('reviewFollowup').textContent = `${followupDays} days`;
+    
+    // Description
+    const description = campaignData.description || 'No description provided';
+    document.getElementById('reviewDescriptionText').textContent = description;
+    
+    // Expected responses (15% response rate)
+    const expectedResponses = Math.round(contactCount * 0.15);
+    document.getElementById('expectedResponses').textContent = `~${expectedResponses} replies`;
+    
+    // Launch time
+    const scheduleDate = campaignData.schedule_date;
+    if (scheduleDate) {
+        const date = new Date(scheduleDate);
+        document.getElementById('launchTime').textContent = date.toLocaleString();
+    } else {
+        document.getElementById('launchTime').textContent = 'Immediately';
+    }
+}
+
+function setupStepValidation() {
+    // Add real-time validation listeners
+    const step1Fields = ['campaignName', 'campaignType'];
+    const step3Fields = ['emailTemplate'];
+    
+    step1Fields.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (field) {
+            field.addEventListener('input', () => {
+                if (currentCampaignStep === 1) {
+                    updateNavigationButtons(1);
+                }
+            });
+            field.addEventListener('change', () => {
+                if (currentCampaignStep === 1) {
+                    updateNavigationButtons(1);
+                }
+            });
+        }
+    });
+    
+    step3Fields.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (field) {
+            field.addEventListener('change', () => {
+                if (currentCampaignStep === 3) {
+                    updateNavigationButtons(3);
+                }
+            });
+        }
+    });
 }
 
 function handleSelectionMethodChange() {
@@ -3652,6 +3932,9 @@ function updateContactCount() {
     if (selectedMethod === 'manual') {
         // For manual selection, count is based on selected checkboxes
         updateSelectedContactsBadge();
+        if (currentCampaignStep === 2) {
+            updateNavigationButtons(2);
+        }
         return;
     }
     
@@ -3669,6 +3952,9 @@ function updateContactCount() {
     .then(data => {
         const count = data.count || 0;
         updateSelectedContactsBadge(count);
+        if (currentCampaignStep === 2) {
+            updateNavigationButtons(2);
+        }
     })
     .catch(error => {
         console.error('Error getting contact count:', error);
@@ -3687,6 +3973,9 @@ function updateContactCount() {
             estimatedCount = 30;
         }
         updateSelectedContactsBadge(estimatedCount);
+        if (currentCampaignStep === 2) {
+            updateNavigationButtons(2);
+        }
     });
 }
 
@@ -3753,11 +4042,13 @@ function searchContactsForCampaign() {
         return;
     }
     
-    fetch(`/api/contacts/search?q=${encodeURIComponent(searchTerm)}`)
+    fetch(`/api/search_contacts?q=${encodeURIComponent(searchTerm)}`)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                displayContactsForSelection(data.contacts);
+                // Store the search results for contact selection
+                currentSearchResults = data.contacts || [];
+                displayContactsForSelection(currentSearchResults);
             }
         })
         .catch(error => {
@@ -3876,101 +4167,133 @@ function searchCampaigns(searchTerm) {
 }
 
 function createCampaign() {
-    const form = document.getElementById('createCampaignForm');
+    // Save current step data before final validation
+    saveCurrentStepData();
     
-    const campaignData = {
-        name: document.getElementById('campaignName').value,
-        type: document.getElementById('campaignType').value,
-        description: document.getElementById('campaignDescription').value,
-        email_template: document.getElementById('emailTemplate').value,
-        priority: document.getElementById('campaignPriority').value,
-        schedule_date: document.getElementById('scheduleDate').value,
-        followup_days: document.getElementById('followupDays').value || 3,
-        selection_criteria: getFilterCriteria()
+    // Final validation
+    if (!validateAllSteps()) {
+        showToast('errorToast', 'Please complete all required fields');
+        return;
+    }
+    
+    // Merge all campaign data
+    const finalCampaignData = {
+        ...campaignData,
+        selection_criteria: getFilterCriteria(),
+        selected_contacts: [...campaignContactsSelected]
     };
     
-    // Validate required fields
-    if (!campaignData.name || !campaignData.type || !campaignData.email_template) {
-        showToast('errorToast', 'Please fill in all required fields.');
-        return;
+    // Show loading state
+    const launchBtn = document.getElementById('launchCampaignBtn');
+    const originalText = launchBtn?.innerHTML;
+    if (launchBtn) {
+        launchBtn.disabled = true;
+        launchBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Creating Campaign...';
     }
     
-    // Validate contact selection
+    // Get contact count for success message
     const selectedMethod = document.querySelector('input[name="selectionMethod"]:checked')?.value;
-    if (selectedMethod === 'manual' && campaignContactsSelected.length === 0) {
-        showToast('errorToast', 'Please select at least one contact for the campaign.');
-        return;
-    }
-    
-    // Get contact count for validation
     const contactCount = selectedMethod === 'manual' ? campaignContactsSelected.length : 
                         parseInt(document.getElementById('selectedContactsCount')?.textContent.match(/\d+/)?.[0] || '0');
     
-    if (contactCount === 0) {
-        showToast('errorToast', 'No contacts match your selection criteria.');
-        return;
-    }
-    
-    // TODO: Send campaign data to backend
+    // Create campaign
     fetch('/api/campaigns', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify(campaignData)
+        body: JSON.stringify(finalCampaignData)
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showToast('successToast', `Campaign created successfully! Targeting ${contactCount} contacts.`);
-            document.getElementById('createCampaignModal').querySelector('.btn-close').click();
+            showToast('successToast', `Campaign "${finalCampaignData.name}" created successfully! Targeting ${contactCount} contacts.`);
+            bootstrap.Modal.getInstance(document.getElementById('createCampaignModal')).hide();
             loadCampaigns(); // Refresh campaigns list
-            
-            // Reset form
-            form.reset();
-            campaignContactsSelected = [];
-            updateSelectedContactsBadge(0);
         } else {
-            showToast('errorToast', data.message || 'Failed to create campaign.');
+            showToast('errorToast', data.message || 'Failed to create campaign');
         }
     })
     .catch(error => {
         console.error('Error creating campaign:', error);
-        showToast('errorToast', 'An error occurred while creating the campaign.');
+        showToast('errorToast', 'An error occurred while creating the campaign');
+    })
+    .finally(() => {
+        // Restore button state
+        if (launchBtn && originalText) {
+            launchBtn.disabled = false;
+            launchBtn.innerHTML = originalText;
+        }
     });
 }
 
+function validateAllSteps() {
+    // Check Step 1
+    if (!campaignData.name || !campaignData.type) {
+        return false;
+    }
+    
+    // Check Step 2
+    const selectedMethod = document.querySelector('input[name="selectionMethod"]:checked')?.value;
+    let hasContacts = false;
+    
+    if (selectedMethod === 'manual') {
+        hasContacts = campaignContactsSelected.length > 0;
+    } else {
+        const countText = document.getElementById('selectedContactsCount')?.textContent || '0';
+        const count = parseInt(countText.match(/\d+/)?.[0] || '0');
+        hasContacts = count > 0;
+    }
+    
+    if (!hasContacts) {
+        return false;
+    }
+    
+    // Check Step 3
+    if (!campaignData.email_template) {
+        return false;
+    }
+    
+    return true;
+}
+
 function saveCampaignDraft() {
-    const form = document.getElementById('createCampaignForm');
-    const campaignData = {
-        name: document.getElementById('campaignName').value,
-        type: document.getElementById('campaignType').value,
-        description: document.getElementById('campaignDescription').value,
-        target_audience: document.getElementById('targetAudience').value,
-        email_template: document.getElementById('emailTemplate').value,
-        schedule_date: document.getElementById('scheduleDate').value,
-        followup_days: document.getElementById('followupDays').value,
+    // Save current step data first
+    saveCurrentStepData();
+    
+    // Merge all available campaign data for draft
+    const draftData = {
+        ...campaignData,
+        selection_criteria: getFilterCriteria(),
+        selected_contacts: [...campaignContactsSelected],
         status: 'draft'
     };
     
-    if (!campaignData.name) {
-        showToast('errorToast', 'Campaign name is required');
+    if (!draftData.name) {
+        showToast('errorToast', 'Campaign name is required to save draft');
         return;
     }
     
-    // TODO: Send to backend API
+    // Show loading state
+    const saveBtn = document.getElementById('saveDraftBtn');
+    const originalText = saveBtn?.innerHTML;
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Saving...';
+    }
+    
     fetch('/api/campaigns/draft', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify(campaignData)
+        body: JSON.stringify(draftData)
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showToast('successToast', 'Campaign saved as draft!');
-            document.getElementById('createCampaignModal').querySelector('.btn-close').click();
+            showToast('successToast', `Campaign "${draftData.name}" saved as draft!`);
+            bootstrap.Modal.getInstance(document.getElementById('createCampaignModal')).hide();
             loadCampaigns();
         } else {
             showToast('errorToast', data.message || 'Failed to save campaign draft');
@@ -3979,6 +4302,13 @@ function saveCampaignDraft() {
     .catch(error => {
         console.error('Error saving campaign draft:', error);
         showToast('errorToast', 'Error saving campaign draft');
+    })
+    .finally(() => {
+        // Restore button state
+        if (saveBtn && originalText) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalText;
+        }
     });
 }
 
