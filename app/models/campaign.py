@@ -218,7 +218,8 @@ class Campaign:
             
         try:
             with engine.connect() as conn:
-                result = conn.execute(text("""
+                # Get email stats
+                email_result = conn.execute(text("""
                     SELECT 
                         COUNT(*) as total_emails,
                         COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent_emails,
@@ -230,17 +231,40 @@ class Campaign:
                     WHERE campaign_id = :campaign_id
                 """), {"campaign_id": campaign_id})
                 
-                row = result.fetchone()
-                if row:
-                    return {
-                        'total_emails': row.total_emails or 0,
-                        'sent_emails': row.sent_emails or 0,
-                        'failed_emails': row.failed_emails or 0,
-                        'unique_recipients': row.unique_recipients or 0,
-                        'first_email_date': row.first_email_date,
-                        'last_email_date': row.last_email_date,
-                        'success_rate': round((row.sent_emails / row.total_emails * 100) if row.total_emails > 0 else 0, 2)
-                    }
+                # Get contact stats
+                contact_result = conn.execute(text("""
+                    SELECT 
+                        COUNT(*) as total_contacts,
+                        COUNT(CASE WHEN status = 'active' THEN 1 END) as active_contacts,
+                        COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_contacts,
+                        COUNT(CASE WHEN status = 'paused' THEN 1 END) as paused_contacts
+                    FROM campaign_contacts 
+                    WHERE campaign_id = :campaign_id
+                """), {"campaign_id": campaign_id})
+                
+                email_row = email_result.fetchone()
+                contact_row = contact_result.fetchone()
+                
+                stats = {
+                    'total_emails': email_row.total_emails or 0 if email_row else 0,
+                    'sent_emails': email_row.sent_emails or 0 if email_row else 0,
+                    'failed_emails': email_row.failed_emails or 0 if email_row else 0,
+                    'unique_recipients': email_row.unique_recipients or 0 if email_row else 0,
+                    'first_email_date': email_row.first_email_date if email_row else None,
+                    'last_email_date': email_row.last_email_date if email_row else None,
+                    'total_contacts': contact_row.total_contacts or 0 if contact_row else 0,
+                    'active_contacts': contact_row.active_contacts or 0 if contact_row else 0,
+                    'completed_contacts': contact_row.completed_contacts or 0 if contact_row else 0,
+                    'paused_contacts': contact_row.paused_contacts or 0 if contact_row else 0
+                }
+                
+                # Calculate success rate
+                if stats['total_emails'] > 0:
+                    stats['success_rate'] = round((stats['sent_emails'] / stats['total_emails'] * 100), 2)
+                else:
+                    stats['success_rate'] = 0
+                    
+                return stats
                     
         except SQLAlchemyError as e:
             current_app.logger.error(f"Error getting campaign stats: {e}")
@@ -248,6 +272,197 @@ class Campaign:
             current_app.logger.error(f"Unexpected error getting campaign stats: {e}")
             
         return {}
+
+    @classmethod
+    def add_contact_to_campaign(cls, campaign_id: int, contact_email: str, status: str = 'active') -> bool:
+        """Add a contact to a campaign."""
+        engine = cls._get_db_engine()
+        if not engine:
+            current_app.logger.error("Failed to add contact to campaign: Database engine not available.")
+            return False
+
+        try:
+            with engine.connect() as conn:
+                with conn.begin():
+                    insert_query = text("""
+                        INSERT INTO campaign_contacts (campaign_id, contact_email, status) 
+                        VALUES (:campaign_id, :contact_email, :status)
+                        ON CONFLICT (campaign_id, contact_email) 
+                        DO UPDATE SET 
+                            status = :status,
+                            updated_at = CURRENT_TIMESTAMP
+                    """)
+                    conn.execute(insert_query, {
+                        'campaign_id': campaign_id,
+                        'contact_email': contact_email,
+                        'status': status
+                    })
+            current_app.logger.info(f"Successfully added contact {contact_email} to campaign {campaign_id}")
+            return True
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Database error adding contact to campaign: {e}")
+            return False
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error adding contact to campaign: {e}")
+            return False
+
+    @classmethod
+    def remove_contact_from_campaign(cls, campaign_id: int, contact_email: str) -> bool:
+        """Remove a contact from a campaign."""
+        engine = cls._get_db_engine()
+        if not engine:
+            current_app.logger.error("Failed to remove contact from campaign: Database engine not available.")
+            return False
+
+        try:
+            with engine.connect() as conn:
+                with conn.begin():
+                    delete_query = text("""
+                        DELETE FROM campaign_contacts 
+                        WHERE campaign_id = :campaign_id AND contact_email = :contact_email
+                    """)
+                    result = conn.execute(delete_query, {
+                        'campaign_id': campaign_id,
+                        'contact_email': contact_email
+                    })
+                    
+                    if result.rowcount > 0:
+                        current_app.logger.info(f"Successfully removed contact {contact_email} from campaign {campaign_id}")
+                        return True
+                    else:
+                        current_app.logger.warning(f"Contact {contact_email} not found in campaign {campaign_id}")
+                        return False
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Database error removing contact from campaign: {e}")
+            return False
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error removing contact from campaign: {e}")
+            return False
+
+    @classmethod
+    def get_campaign_contacts(cls, campaign_id: int, status: str = None) -> List[Dict]:
+        """Get all contacts in a campaign, optionally filtered by status."""
+        engine = cls._get_db_engine()
+        if not engine:
+            return []
+            
+        try:
+            with engine.connect() as conn:
+                if status:
+                    query = text("""
+                        SELECT c.*, cc.status as campaign_status, cc.added_at, cc.updated_at as status_updated_at
+                        FROM contacts c
+                        JOIN campaign_contacts cc ON c.email = cc.contact_email
+                        WHERE cc.campaign_id = :campaign_id AND cc.status = :status
+                        ORDER BY cc.added_at DESC
+                    """)
+                    result = conn.execute(query, {"campaign_id": campaign_id, "status": status})
+                else:
+                    query = text("""
+                        SELECT c.*, cc.status as campaign_status, cc.added_at, cc.updated_at as status_updated_at
+                        FROM contacts c
+                        JOIN campaign_contacts cc ON c.email = cc.contact_email
+                        WHERE cc.campaign_id = :campaign_id
+                        ORDER BY cc.added_at DESC
+                    """)
+                    result = conn.execute(query, {"campaign_id": campaign_id})
+                
+                contacts = []
+                for row in result:
+                    contact_data = dict(row._mapping)
+                    contacts.append(contact_data)
+                
+                return contacts
+                    
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Error getting campaign contacts: {e}")
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error getting campaign contacts: {e}")
+            
+        return []
+
+    @classmethod
+    def update_contact_status_in_campaign(cls, campaign_id: int, contact_email: str, status: str) -> bool:
+        """Update a contact's status in a campaign."""
+        engine = cls._get_db_engine()
+        if not engine:
+            current_app.logger.error("Failed to update contact status: Database engine not available.")
+            return False
+
+        try:
+            with engine.connect() as conn:
+                with conn.begin():
+                    update_query = text("""
+                        UPDATE campaign_contacts 
+                        SET status = :status, updated_at = CURRENT_TIMESTAMP
+                        WHERE campaign_id = :campaign_id AND contact_email = :contact_email
+                    """)
+                    result = conn.execute(update_query, {
+                        'campaign_id': campaign_id,
+                        'contact_email': contact_email,
+                        'status': status
+                    })
+                    
+                    if result.rowcount > 0:
+                        current_app.logger.info(f"Successfully updated contact {contact_email} status to {status} in campaign {campaign_id}")
+                        return True
+                    else:
+                        current_app.logger.warning(f"Contact {contact_email} not found in campaign {campaign_id}")
+                        return False
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Database error updating contact status: {e}")
+            return False
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error updating contact status: {e}")
+            return False
+
+    @classmethod
+    def bulk_add_contacts_to_campaign(cls, campaign_id: int, contact_emails: List[str], status: str = 'active') -> Dict:
+        """Add multiple contacts to a campaign in bulk."""
+        engine = cls._get_db_engine()
+        if not engine:
+            current_app.logger.error("Failed to bulk add contacts: Database engine not available.")
+            return {'success': 0, 'failed': 0, 'errors': []}
+
+        success_count = 0
+        failed_count = 0
+        errors = []
+
+        try:
+            with engine.connect() as conn:
+                with conn.begin():
+                    for contact_email in contact_emails:
+                        try:
+                            insert_query = text("""
+                                INSERT INTO campaign_contacts (campaign_id, contact_email, status) 
+                                VALUES (:campaign_id, :contact_email, :status)
+                                ON CONFLICT (campaign_id, contact_email) 
+                                DO UPDATE SET 
+                                    status = :status,
+                                    updated_at = CURRENT_TIMESTAMP
+                            """)
+                            conn.execute(insert_query, {
+                                'campaign_id': campaign_id,
+                                'contact_email': contact_email,
+                                'status': status
+                            })
+                            success_count += 1
+                        except Exception as e:
+                            failed_count += 1
+                            errors.append(f"Contact {contact_email}: {str(e)}")
+            
+            current_app.logger.info(f"Bulk add completed: {success_count} successful, {failed_count} failed")
+            return {
+                'success': success_count,
+                'failed': failed_count,
+                'errors': errors
+            }
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Database error in bulk add: {e}")
+            return {'success': 0, 'failed': len(contact_emails), 'errors': [str(e)]}
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error in bulk add: {e}")
+            return {'success': 0, 'failed': len(contact_emails), 'errors': [str(e)]}
 
     def to_dict(self) -> Dict:
         """Convert campaign to dictionary for JSON serialization."""

@@ -170,6 +170,107 @@ class Contact:
             
         return contacts
 
+    @classmethod
+    def get_contact_campaigns(cls, contact_email: str) -> List[Dict]:
+        """Get all campaigns that a contact belongs to."""
+        engine = cls._get_db_engine()
+        if not engine:
+            return []
+            
+        try:
+            with engine.connect() as conn:
+                result = conn.execute(text("""
+                    SELECT c.*, cc.status as contact_status, cc.added_at, cc.updated_at as status_updated_at
+                    FROM campaigns c
+                    JOIN campaign_contacts cc ON c.id = cc.campaign_id
+                    WHERE cc.contact_email = :contact_email
+                    ORDER BY cc.added_at DESC
+                """), {"contact_email": contact_email})
+                
+                campaigns = []
+                for row in result:
+                    campaign_data = dict(row._mapping)
+                    campaigns.append(campaign_data)
+                
+                return campaigns
+                    
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Error getting contact campaigns: {e}")
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error getting contact campaigns: {e}")
+            
+        return []
+
+    @classmethod
+    def get_by_email(cls, email: str) -> Optional['Contact']:
+        """Get a contact by email address."""
+        engine = cls._get_db_engine()
+        if not engine:
+            return None
+            
+        try:
+            with engine.connect() as conn:
+                result = conn.execute(text("""
+                    SELECT id, email, first_name, last_name, full_name, job_title, 
+                           company_name, company_domain, linkedin_profile, location, 
+                           phone, linkedin_message, created_at, updated_at
+                    FROM contacts 
+                    WHERE LOWER(email) = LOWER(:email)
+                    LIMIT 1
+                """), {"email": email})
+                
+                row = result.fetchone()
+                if row:
+                    contact_data = dict(row._mapping)
+                    return cls(contact_data)
+                    
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Error getting contact by email: {e}")
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error getting contact by email: {e}")
+            
+        return None
+
+    @classmethod
+    def get_by_id(cls, contact_id: int) -> Optional['Contact']:
+        """Get a contact by ID - Note: contacts table uses email as primary key."""
+        current_app.logger.warning("get_by_id called but contacts table uses email as primary key")
+        return None
+
+    @classmethod
+    def get_contacts_not_in_campaign(cls, campaign_id: int, limit: int = 100) -> List['Contact']:
+        """Get contacts that are not yet part of a specific campaign."""
+        engine = cls._get_db_engine()
+        if not engine:
+            return []
+            
+        try:
+            with engine.connect() as conn:
+                result = conn.execute(text("""
+                    SELECT c.email, c.first_name, c.last_name, c.full_name, c.job_title, 
+                           c.company_name, c.company_domain, c.linkedin_profile, c.location, 
+                           c.phone, c.linkedin_message, c.created_at, c.updated_at
+                    FROM contacts c
+                    LEFT JOIN campaign_contacts cc ON c.email = cc.contact_email AND cc.campaign_id = :campaign_id
+                    WHERE cc.contact_email IS NULL
+                    ORDER BY c.created_at DESC
+                    LIMIT :limit
+                """), {"campaign_id": campaign_id, "limit": limit})
+                
+                contacts = []
+                for row in result:
+                    contact_data = dict(row._mapping)
+                    contacts.append(cls(contact_data))
+                
+                return contacts
+                    
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Error getting contacts not in campaign: {e}")
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error getting contacts not in campaign: {e}")
+            
+        return []
+
     def to_dict(self) -> Dict:
         """Convert contact to dictionary for JSON serialization."""
         return {
