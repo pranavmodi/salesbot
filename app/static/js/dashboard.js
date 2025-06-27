@@ -3037,8 +3037,8 @@ function displayCompaniesTable(companies, pagination) {
                 <div class="col-lg-6 col-md-6 mb-2 mb-lg-0">
                     <div class="pagination-summary">
                         Showing ${((pagination.current_page - 1) * pagination.per_page + 1)} to 
-                        ${Math.min(pagination.current_page * pagination.per_page, pagination.total_items)} 
-                        of <strong>${pagination.total_items}</strong> companies
+                        ${Math.min(pagination.current_page * pagination.per_page, pagination.total_companies)} 
+                        of <strong>${pagination.total_companies}</strong> companies
                     </div>
                 </div>
                 
