@@ -110,6 +110,111 @@ function setupEventListeners() {
     setupInboxPagination();
 }
 
+function setupEmailHistoryPagination() {
+    // Email history per page selector
+    const emailHistoryPerPageSelect = document.getElementById('emailHistoryPerPage');
+    if (emailHistoryPerPageSelect) {
+        emailHistoryPerPageSelect.addEventListener('change', function() {
+            changeEmailHistoryPage(1); // Reset to first page when changing per page
+        });
+    }
+    
+    // Email history pagination links
+    document.querySelectorAll('[data-email-page]').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const page = parseInt(this.getAttribute('data-email-page'));
+            if (page && !this.parentElement.classList.contains('disabled')) {
+                changeEmailHistoryPage(page);
+            }
+        });
+    });
+    
+    // Email history filter functionality
+    const filterItems = document.querySelectorAll('#history-tab-pane [data-filter]');
+    filterItems.forEach(item => {
+        item.addEventListener('click', function(e) {
+            e.preventDefault();
+            const filter = this.getAttribute('data-filter');
+            applyEmailHistoryFilter(filter);
+        });
+    });
+}
+
+function changeEmailHistoryPage(page) {
+    // Get current per page value
+    const perPageSelect = document.getElementById('emailHistoryPerPage');
+    const perPage = perPageSelect ? perPageSelect.value : 25;
+    
+    // Show loading state
+    const emailHistoryContainer = document.getElementById('emailHistoryTableBody');
+    if (emailHistoryContainer) {
+        addPaginationLoadingState('emailHistoryTableBody');
+    }
+    
+    // For now, just reload the page with email history pagination parameters
+    // In a real implementation, you'd fetch paginated email history data via AJAX
+    const url = new URL(window.location.href);
+    url.searchParams.set('email_history_page', page);
+    url.searchParams.set('email_history_per_page', perPage);
+    window.location.href = url.toString();
+}
+
+function refreshEmailHistory() {
+    const historyContainer = document.getElementById('emailHistoryTableBody');
+    if (!historyContainer) return;
+    
+    // Show loading state
+    historyContainer.closest('.table-responsive').classList.add('table-loading');
+    
+    // Simulate refresh (you can replace this with actual API call)
+    setTimeout(() => {
+        historyContainer.closest('.table-responsive').classList.remove('table-loading');
+        showToast('successToast', 'Email history refreshed!');
+    }, 1000);
+}
+
+function applyEmailHistoryFilter(filter) {
+    const emailRows = document.querySelectorAll('#emailHistoryTableBody tr');
+    
+    emailRows.forEach(row => {
+        let showRow = true;
+        const status = row.getAttribute('data-email-status');
+        const date = row.getAttribute('data-email-date');
+        
+        switch(filter) {
+            case 'success':
+                showRow = status === 'success';
+                break;
+            case 'failed':
+                showRow = status !== 'success';
+                break;
+            case 'today':
+                const today = new Date().toISOString().split('T')[0];
+                showRow = date === today;
+                break;
+            case 'week':
+                const weekAgo = new Date();
+                weekAgo.setDate(weekAgo.getDate() - 7);
+                const emailDate = new Date(date);
+                showRow = emailDate >= weekAgo;
+                break;
+            case 'all':
+            default:
+                showRow = true;
+                break;
+        }
+        
+        if (showRow) {
+            row.style.display = '';
+            row.classList.remove('d-none');
+        } else {
+            row.style.display = 'none';
+            row.classList.add('d-none');
+        }
+    });
+}
+
 function setupInboxPagination() {
     // Inbox per page selector
     const inboxPerPageSelect = document.getElementById('inboxPerPage');
@@ -151,25 +256,144 @@ function changeInboxPage(page) {
 }
 
 function setupSearch() {
-    const searchInput = document.getElementById('contactSearch');
-    if (searchInput) {
-        searchInput.addEventListener('input', function() {
+    // Contact search functionality
+    const contactSearchInput = document.getElementById('contactSearch');
+    if (contactSearchInput) {
+        contactSearchInput.addEventListener('input', function() {
             const searchTerm = this.value.toLowerCase();
-            const contactRows = document.querySelectorAll('.contact-row');
+            const contactRows = document.querySelectorAll('#contactsContainer .contact-row');
+            
+            console.log(`Contact search: "${searchTerm}", found ${contactRows.length} rows`);
             
             contactRows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                if (text.includes(searchTerm)) {
+                if (searchTerm === '') {
+                    // Show all rows when search is empty
                     row.style.display = '';
                     row.classList.remove('d-none');
                 } else {
-                    row.style.display = 'none';
-                    row.classList.add('d-none');
+                    // Search in name, company, position, email, location
+                    const nameCell = row.querySelector('td:nth-child(2)');
+                    const companyCell = row.querySelector('td:nth-child(3)');
+                    const positionCell = row.querySelector('td:nth-child(4)');
+                    const emailCell = row.querySelector('td:nth-child(5)');
+                    const locationCell = row.querySelector('td:nth-child(6)');
+                    
+                    const searchableText = [
+                        nameCell ? nameCell.textContent : '',
+                        companyCell ? companyCell.textContent : '',
+                        positionCell ? positionCell.textContent : '',
+                        emailCell ? emailCell.textContent : '',
+                        locationCell ? locationCell.textContent : ''
+                    ].join(' ').toLowerCase();
+                    
+                    if (searchableText.includes(searchTerm)) {
+                        row.style.display = '';
+                        row.classList.remove('d-none');
+                    } else {
+                        row.style.display = 'none';
+                        row.classList.add('d-none');
+                    }
                 }
             });
             
             updateContactStats();
         });
+    }
+    
+    // Company search functionality
+    const companySearchInput = document.getElementById('companySearch');
+    if (companySearchInput) {
+        companySearchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const companyRows = document.querySelectorAll('#companies-table-container tbody tr');
+            
+            console.log(`Company search: "${searchTerm}", found ${companyRows.length} rows`);
+            
+            let visibleCount = 0;
+            companyRows.forEach(row => {
+                // Skip the "No companies found" row
+                if (row.cells.length === 1 && row.textContent.includes('No companies found')) {
+                    return;
+                }
+                
+                if (searchTerm === '') {
+                    // Show all rows when search is empty
+                    row.style.display = '';
+                    row.classList.remove('d-none');
+                    visibleCount++;
+                } else {
+                    // Search in company name, website, research summary
+                    const nameCell = row.querySelector('td:nth-child(1)');
+                    const websiteCell = row.querySelector('td:nth-child(2)');
+                    const researchCell = row.querySelector('td:nth-child(3)');
+                    
+                    const searchableText = [
+                        nameCell ? nameCell.textContent : '',
+                        websiteCell ? websiteCell.textContent : '',
+                        researchCell ? researchCell.textContent : ''
+                    ].join(' ').toLowerCase();
+                    
+                    if (searchableText.includes(searchTerm)) {
+                        row.style.display = '';
+                        row.classList.remove('d-none');
+                        visibleCount++;
+                    } else {
+                        row.style.display = 'none';
+                        row.classList.add('d-none');
+                    }
+                }
+            });
+            
+            // Update company stats if there's a stats display
+            updateCompanyStats(visibleCount);
+        });
+    }
+}
+
+function updateCompanyStats(visibleCount) {
+    // Update any company statistics display
+    const statsNumbers = document.querySelectorAll('#companies-tab-pane .stats-number');
+    if (statsNumbers.length > 0 && typeof visibleCount !== 'undefined') {
+        statsNumbers[0].textContent = visibleCount;
+    }
+}
+
+function clearContactSearch() {
+    const contactSearchInput = document.getElementById('contactSearch');
+    if (contactSearchInput) {
+        contactSearchInput.value = '';
+        
+        // Show all contact rows
+        const contactRows = document.querySelectorAll('#contactsContainer .contact-row');
+        contactRows.forEach(row => {
+            row.style.display = '';
+            row.classList.remove('d-none');
+        });
+        
+        updateContactStats();
+    }
+}
+
+function clearCompanySearch() {
+    const companySearchInput = document.getElementById('companySearch');
+    if (companySearchInput) {
+        companySearchInput.value = '';
+        
+        // Show all company rows
+        const companyRows = document.querySelectorAll('#companies-table-container tbody tr');
+        let totalCompanies = 0;
+        companyRows.forEach(row => {
+            // Skip the "No companies found" row
+            if (row.cells.length === 1 && row.textContent.includes('No companies found')) {
+                return;
+            }
+            
+            row.style.display = '';
+            row.classList.remove('d-none');
+            totalCompanies++;
+        });
+        
+        updateCompanyStats(totalCompanies);
     }
 }
 
@@ -185,7 +409,13 @@ function setupFilters() {
 }
 
 function applyFilter(filter) {
-    const contactRows = document.querySelectorAll('.contact-row');
+    // Clear search when applying filters
+    const contactSearchInput = document.getElementById('contactSearch');
+    if (contactSearchInput) {
+        contactSearchInput.value = '';
+    }
+    
+    const contactRows = document.querySelectorAll('#contactsContainer .contact-row');
     
     if (filter === 'uncontacted') {
         // Handle uncontacted filter with API call
@@ -399,10 +629,10 @@ function displayUncontactedContacts(data) {
 }
 
 function updateContactStats() {
-    const visibleRows = document.querySelectorAll('.contact-row:not(.d-none)');
-    const statsNumbers = document.querySelectorAll('.stats-number');
+    const visibleRows = document.querySelectorAll('#contactsContainer .contact-row:not(.d-none):not([style*="display: none"])');
+    const statsNumbers = document.querySelectorAll('#contacts-tab-pane .stats-number');
     
-    if (statsNumbers[0]) {
+    if (statsNumbers.length > 0) {
         statsNumbers[0].textContent = visibleRows.length;
     }
 }

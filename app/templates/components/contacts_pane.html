@@ -9,7 +9,12 @@
             </div>
             <div class="col-md-6">
                 <div class="d-flex justify-content-end align-items-center">
-                    <input type="text" class="form-control search-box me-3" placeholder="Search contacts..." id="contactSearch" style="max-width: 250px;">
+                    <div class="input-group me-3" style="max-width: 300px;">
+                        <input type="text" class="form-control search-box" placeholder="Search contacts..." id="contactSearch">
+                        <button class="btn btn-outline-secondary" type="button" onclick="clearContactSearch()" title="Clear search">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
                     <div class="dropdown me-2">
                         <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
                             <i class="fas fa-filter me-2"></i>Filter

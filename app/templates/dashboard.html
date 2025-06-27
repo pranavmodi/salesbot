@@ -96,7 +96,12 @@
                     </div>
                     <div class="col-md-6">
                         <div class="d-flex justify-content-end align-items-center">
-                            <input type="text" class="form-control search-box me-3" placeholder="Search companies..." id="companySearch" style="max-width: 250px;">
+                            <div class="input-group me-3" style="max-width: 300px;">
+                                <input type="text" class="form-control search-box" placeholder="Search companies..." id="companySearch">
+                                <button class="btn btn-outline-secondary" type="button" onclick="clearCompanySearch()" title="Clear search">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
                             <button class="btn btn-success me-2" id="extractCompaniesBtn" title="Extract companies from contacts">
                                 <i class="fas fa-download me-1"></i>Extract Companies
                             </button>
