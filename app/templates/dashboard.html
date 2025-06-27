@@ -70,6 +70,11 @@
         </button>
     </li>
     <li class="nav-item" role="presentation">
+        <button class="nav-link" id="gtm-campaign-tab" data-bs-toggle="tab" data-bs-target="#gtm-campaign-tab-pane" type="button" role="tab" aria-controls="gtm-campaign-tab-pane" aria-selected="false">
+            <i class="fas fa-bullhorn me-1"></i> GTM Campaign
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
         <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history-tab-pane" type="button" role="tab" aria-controls="history-tab-pane" aria-selected="false">
             <i class="fas fa-history me-1"></i> History
         </button>
@@ -144,6 +149,11 @@
     <!-- Bulk Email Tab -->
     <div class="tab-pane fade" id="bulk-email-tab-pane" role="tabpanel" aria-labelledby="bulk-email-tab">
         {% include 'components/bulk_email_pane.html' %}
+    </div>
+
+    <!-- GTM Campaign Tab -->
+    <div class="tab-pane fade" id="gtm-campaign-tab-pane" role="tabpanel" aria-labelledby="gtm-campaign-tab">
+        {% include 'components/gtm_campaign_pane.html' %}
     </div>
 
     <!-- History Tab -->

@@ -3554,3 +3554,123 @@ function handlePaginationClick(e) {
         return;
     }
 }
+
+// GTM Campaign Functions
+function clearCampaignSearch() {
+    const searchInput = document.getElementById('campaignSearch');
+    if (searchInput) {
+        searchInput.value = '';
+        // Trigger search to show all campaigns
+        searchCampaigns('');
+    }
+}
+
+function searchCampaigns(searchTerm) {
+    // TODO: Implement campaign search functionality
+    console.log('Searching campaigns for:', searchTerm);
+}
+
+function createCampaign() {
+    const form = document.getElementById('createCampaignForm');
+    const formData = new FormData(form);
+    
+    const campaignData = {
+        name: document.getElementById('campaignName').value,
+        type: document.getElementById('campaignType').value,
+        description: document.getElementById('campaignDescription').value,
+        target_audience: document.getElementById('targetAudience').value,
+        email_template: document.getElementById('emailTemplate').value,
+        schedule_date: document.getElementById('scheduleDate').value,
+        followup_days: document.getElementById('followupDays').value
+    };
+    
+    if (!campaignData.name || !campaignData.type) {
+        showToast('errorToast', 'Please fill in all required fields');
+        return;
+    }
+    
+    // TODO: Send to backend API
+    fetch('/api/campaigns', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(campaignData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('successToast', 'Campaign created successfully!');
+            document.getElementById('createCampaignModal').querySelector('.btn-close').click();
+            loadCampaigns();
+        } else {
+            showToast('errorToast', data.message || 'Failed to create campaign');
+        }
+    })
+    .catch(error => {
+        console.error('Error creating campaign:', error);
+        showToast('errorToast', 'Error creating campaign');
+    });
+}
+
+function saveCampaignDraft() {
+    const form = document.getElementById('createCampaignForm');
+    const campaignData = {
+        name: document.getElementById('campaignName').value,
+        type: document.getElementById('campaignType').value,
+        description: document.getElementById('campaignDescription').value,
+        target_audience: document.getElementById('targetAudience').value,
+        email_template: document.getElementById('emailTemplate').value,
+        schedule_date: document.getElementById('scheduleDate').value,
+        followup_days: document.getElementById('followupDays').value,
+        status: 'draft'
+    };
+    
+    if (!campaignData.name) {
+        showToast('errorToast', 'Campaign name is required');
+        return;
+    }
+    
+    // TODO: Send to backend API
+    fetch('/api/campaigns/draft', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(campaignData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('successToast', 'Campaign saved as draft!');
+            document.getElementById('createCampaignModal').querySelector('.btn-close').click();
+            loadCampaigns();
+        } else {
+            showToast('errorToast', data.message || 'Failed to save campaign draft');
+        }
+    })
+    .catch(error => {
+        console.error('Error saving campaign draft:', error);
+        showToast('errorToast', 'Error saving campaign draft');
+    });
+}
+
+function loadCampaigns() {
+    // TODO: Load campaigns from backend
+    console.log('Loading campaigns...');
+    
+    // For now, show placeholder content
+    updateCampaignStats({
+        total_campaigns: 0,
+        emails_sent: 0,
+        response_rate: 0,
+        conversion_rate: 0
+    });
+}
+
+function updateCampaignStats(stats) {
+    document.getElementById('totalCampaigns').textContent = stats.total_campaigns || 0;
+    document.getElementById('campaignEmailsSent').textContent = stats.emails_sent || 0;
+    document.getElementById('campaignResponseRate').textContent = (stats.response_rate || 0) + '%';
+    document.getElementById('campaignConversionRate').textContent = (stats.conversion_rate || 0) + '%';
+}
