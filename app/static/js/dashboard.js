@@ -3561,6 +3561,7 @@ function handlePaginationClick(e) {
 let campaignContactsSelected = [];
 let availableContacts = [];
 let campaignCompanies = [];
+let currentSearchResults = [];
 
 // Multi-step workflow variables
 let currentCampaignStep = 1;
@@ -3614,11 +3615,18 @@ function resetCampaignModal() {
     currentCampaignStep = 1;
     campaignData = {};
     campaignContactsSelected = [];
+    currentSearchResults = [];
     
     // Reset form
     const form = document.getElementById('createCampaignForm');
     if (form) {
         form.reset();
+    }
+    
+    // Clear search input
+    const searchInput = document.getElementById('contactSearchCampaign');
+    if (searchInput) {
+        searchInput.value = '';
     }
     
     // Reset step indicators
@@ -3882,15 +3890,19 @@ function handleSelectionMethodChange() {
         div.classList.add('d-none');
     });
     
-    // Show selected method
-    const targetDiv = document.getElementById(selectedMethod + (selectedMethod === 'quick' ? 'FilterOptions' : selectedMethod === 'manual' ? 'SelectionOptions' : 'FilterOptions'));
-    if (targetDiv) {
-        targetDiv.classList.remove('d-none');
-    }
-    
-    // Load contacts if manual selection
-    if (selectedMethod === 'manual') {
-        loadContactsForManualSelection();
+    // Show selected method content
+    if (selectedMethod === 'quick') {
+        document.getElementById('quickFilterOptions')?.classList.remove('d-none');
+    } else if (selectedMethod === 'manual') {
+        document.getElementById('manualSelectionOptions')?.classList.remove('d-none');
+        // Load contacts if manual selection
+        if (currentSearchResults.length === 0 && availableContacts.length === 0) {
+            loadContactsForManualSelection();
+        } else if (availableContacts.length > 0) {
+            displayContactsForSelection(availableContacts.slice(0, 20)); // Show first 20 contacts
+        }
+    } else if (selectedMethod === 'advanced') {
+        document.getElementById('advancedFilterOptions')?.classList.remove('d-none');
     }
     
     updateContactCount();
@@ -4077,20 +4089,22 @@ function displayContactsForSelection(contacts) {
         const displayName = contact.display_name || contact.full_name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || 'Unknown';
         const company = contact.company || contact.company_name || 'Not specified';
         
+        const sanitizedEmail = contact.email.replace(/[^a-zA-Z0-9@._-]/g, '_');
         html += `
-            <div class="list-group-item">
+            <div class="list-group-item ${isSelected ? 'list-group-item-success' : ''}" id="contact-item-${sanitizedEmail}">
                 <div class="form-check">
                     <input class="form-check-input" type="checkbox" 
-                           id="contact_${contact.email}" 
+                           id="contact_${sanitizedEmail}" 
                            ${isSelected ? 'checked' : ''}
-                           onchange="toggleContactSelection('${contact.email}', this.checked)">
-                    <label class="form-check-label w-100" for="contact_${contact.email}">
+                           onchange="toggleContactSelection('${contact.email.replace(/'/g, "\\'")}', this.checked)">
+                    <label class="form-check-label w-100" for="contact_${sanitizedEmail}">
                         <div class="d-flex justify-content-between align-items-start">
                             <div>
                                 <div class="fw-semibold">${displayName}</div>
                                 <div class="text-muted small">${contact.email}</div>
                                 <div class="text-muted small">${company} • ${contact.job_title || 'No title'}</div>
                             </div>
+                            ${isSelected ? '<div class="text-success"><i class="fas fa-check-circle"></i></div>' : ''}
                         </div>
                     </label>
                 </div>
@@ -4105,17 +4119,60 @@ function displayContactsForSelection(contacts) {
 function toggleContactSelection(email, isSelected) {
     if (isSelected) {
         // Add to selection if not already there
-        const contact = availableContacts.find(c => c.email === email);
+        // Look for contact in available contacts or current search results
+        let contact = availableContacts.find(c => c.email === email);
+        if (!contact) {
+            contact = currentSearchResults.find(c => c.email === email);
+        }
+        
         if (contact && !campaignContactsSelected.some(c => c.email === email)) {
             campaignContactsSelected.push(contact);
+            console.log(`Added contact: ${contact.display_name || contact.email} to campaign selection`);
+        } else {
+            console.log(`Contact not found or already selected: ${email}`);
         }
     } else {
         // Remove from selection
+        const removedContact = campaignContactsSelected.find(c => c.email === email);
         campaignContactsSelected = campaignContactsSelected.filter(c => c.email !== email);
+        if (removedContact) {
+            console.log(`Removed contact: ${removedContact.display_name || removedContact.email} from campaign selection`);
+        }
+    }
+    
+    // Update visual state of the contact item
+    const contactItemId = `contact-item-${email.replace(/[^a-zA-Z0-9@._-]/g, '_')}`;
+    const contactItem = document.getElementById(contactItemId);
+    if (contactItem) {
+        if (isSelected) {
+            contactItem.classList.add('list-group-item-success');
+            // Add checkmark icon if not already there
+            const checkmark = contactItem.querySelector('.text-success');
+            if (!checkmark) {
+                const labelDiv = contactItem.querySelector('.d-flex');
+                if (labelDiv) {
+                    labelDiv.innerHTML += '<div class="text-success"><i class="fas fa-check-circle"></i></div>';
+                }
+            }
+        } else {
+            contactItem.classList.remove('list-group-item-success');
+            // Remove checkmark icon
+            const checkmark = contactItem.querySelector('.text-success');
+            if (checkmark) {
+                checkmark.remove();
+            }
+        }
     }
     
     updateSelectedContactsBadge();
     updateSelectedContactsPreview();
+    
+    console.log(`Campaign contacts selected count: ${campaignContactsSelected.length}`);
+    
+    // Update navigation buttons if on step 2
+    if (currentCampaignStep === 2) {
+        updateNavigationButtons(2);
+    }
 }
 
 function updateSelectedContactsPreview() {

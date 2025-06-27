@@ -1377,3 +1377,37 @@ body {
         font-size: 0.75rem;
     }
 }
+
+/* Enhanced contact selection styling for campaign modal */
+.list-group-item-success {
+    background-color: #d1e7dd !important;
+    border-color: #badbcc !important;
+    transition: all 0.3s ease;
+}
+
+.list-group-item-success:hover {
+    background-color: #c3e6cb !important;
+}
+
+.contact-selection-container .list-group-item {
+    transition: all 0.3s ease;
+    border: 1px solid #dee2e6;
+    margin-bottom: 2px;
+}
+
+.contact-selection-container .list-group-item:hover {
+    background-color: #f8f9fa;
+    border-color: #adb5bd;
+}
+
+.contact-selection-container .form-check-input {
+    cursor: pointer;
+}
+
+.contact-selection-container .form-check-label {
+    cursor: pointer;
+}
+
+.contact-selection-container .text-success i {
+    font-size: 1.1rem;
+}
