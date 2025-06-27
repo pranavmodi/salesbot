@@ -1565,4 +1565,199 @@ def research_single_company(company_id):
         return jsonify({
             'success': False,
             'message': f'Failed to start research: {str(e)}'
-        }), 500 
+        }), 500
+
+@bp.route('/campaigns', methods=['POST'])
+def create_campaign():
+    """Create a new GTM campaign."""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        if not data.get('name'):
+            return jsonify({
+                'success': False,
+                'message': 'Campaign name is required'
+            }), 400
+        
+        if not data.get('type'):
+            return jsonify({
+                'success': False,
+                'message': 'Campaign type is required'
+            }), 400
+        
+        if not data.get('email_template'):
+            return jsonify({
+                'success': False,
+                'message': 'Email template is required'
+            }), 400
+        
+        # Get campaign data
+        campaign_name = data.get('name')
+        campaign_type = data.get('type')
+        description = data.get('description', '')
+        email_template = data.get('email_template')
+        priority = data.get('priority', 'medium')
+        schedule_date = data.get('schedule_date')
+        followup_days = data.get('followup_days', 3)
+        selection_criteria = data.get('selection_criteria', {})
+        selected_contacts = data.get('selected_contacts', [])
+        
+        # Log campaign creation
+        current_app.logger.info(f"Creating campaign: {campaign_name}")
+        current_app.logger.info(f"Campaign type: {campaign_type}")
+        current_app.logger.info(f"Selection criteria: {selection_criteria}")
+        current_app.logger.info(f"Selected contacts count: {len(selected_contacts)}")
+        
+        # Get target contacts based on selection criteria
+        target_contacts = []
+        if selection_criteria.get('type') == 'manual':
+            target_contacts = selected_contacts
+        else:
+            # For quick and advanced filters, we need to query contacts
+            try:
+                if selection_criteria.get('type') == 'quick':
+                    filter_type = selection_criteria.get('filter_type', 'all')
+                    company_filter = selection_criteria.get('company', '')
+                    
+                    contacts = Contact.load_all()
+                    
+                    if filter_type == 'uncontacted':
+                        # Filter uncontacted contacts
+                        uncontacted_emails = EmailHistory.get_uncontacted_emails()
+                        target_contacts = [c.to_dict() for c in contacts if c.email in uncontacted_emails]
+                    elif filter_type == 'has_phone':
+                        target_contacts = [c.to_dict() for c in contacts if c.phone_number]
+                    elif filter_type == 'has_linkedin':
+                        target_contacts = [c.to_dict() for c in contacts if c.linkedin_url]
+                    elif filter_type == 'recent':
+                        # Get recently added contacts (last 30 days)
+                        from datetime import timedelta
+                        thirty_days_ago = datetime.now() - timedelta(days=30)
+                        target_contacts = [c.to_dict() for c in contacts if c.created_at and c.created_at >= thirty_days_ago]
+                    else:  # 'all'
+                        target_contacts = [c.to_dict() for c in contacts]
+                    
+                    # Apply company filter if specified
+                    if company_filter:
+                        target_contacts = [c for c in target_contacts if c.get('company', '').lower().find(company_filter.lower()) != -1]
+                        
+                elif selection_criteria.get('type') == 'advanced':
+                    contacts = Contact.load_all()
+                    target_contacts = [c.to_dict() for c in contacts]
+                    
+                    # Apply advanced filters
+                    company_contains = selection_criteria.get('company', '').lower()
+                    title_contains = selection_criteria.get('job_title', '').lower()
+                    location_contains = selection_criteria.get('location', '').lower()
+                    
+                    if company_contains:
+                        target_contacts = [c for c in target_contacts if company_contains in c.get('company', '').lower()]
+                    
+                    if title_contains:
+                        target_contacts = [c for c in target_contacts if title_contains in c.get('job_title', '').lower()]
+                    
+                    if location_contains:
+                        target_contacts = [c for c in target_contacts if location_contains in c.get('location', '').lower()]
+                    
+                    # Apply boolean filters
+                    if selection_criteria.get('exclude_contacted'):
+                        uncontacted_emails = EmailHistory.get_uncontacted_emails()
+                        target_contacts = [c for c in target_contacts if c.get('email') in uncontacted_emails]
+                    
+                    if selection_criteria.get('require_phone'):
+                        target_contacts = [c for c in target_contacts if c.get('phone_number')]
+                    
+                    if selection_criteria.get('require_linkedin'):
+                        target_contacts = [c for c in target_contacts if c.get('linkedin_url')]
+                
+            except Exception as filter_error:
+                current_app.logger.error(f"Error filtering contacts: {str(filter_error)}")
+                return jsonify({
+                    'success': False,
+                    'message': f'Error filtering contacts: {str(filter_error)}'
+                }), 500
+        
+        if not target_contacts:
+            return jsonify({
+                'success': False,
+                'message': 'No contacts match the selection criteria'
+            }), 400
+        
+        current_app.logger.info(f"Final target contacts count: {len(target_contacts)}")
+        
+        # For now, we'll just log the campaign creation
+        # In a real implementation, you'd save this to a database
+        campaign_data = {
+            'id': f"camp_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            'name': campaign_name,
+            'type': campaign_type,
+            'description': description,
+            'email_template': email_template,
+            'priority': priority,
+            'schedule_date': schedule_date,
+            'followup_days': followup_days,
+            'target_contacts_count': len(target_contacts),
+            'selection_criteria': selection_criteria,
+            'created_at': datetime.now().isoformat(),
+            'status': 'draft' if schedule_date else 'ready'
+        }
+        
+        current_app.logger.info(f"Campaign created successfully: {campaign_data}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Campaign "{campaign_name}" created successfully!',
+            'campaign': campaign_data
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error creating campaign: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Failed to create campaign: {str(e)}'
+        }), 500
+
+@bp.route('/campaigns/draft', methods=['POST'])
+def save_campaign_draft():
+    """Save a campaign as draft."""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields for draft
+        if not data.get('name'):
+            return jsonify({
+                'success': False,
+                'message': 'Campaign name is required'
+            }), 400
+        
+        # Create draft campaign data
+        draft_data = {
+            'id': f"draft_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            'name': data.get('name'),
+            'type': data.get('type'),
+            'description': data.get('description', ''),
+            'email_template': data.get('email_template'),
+            'priority': data.get('priority', 'medium'),
+            'schedule_date': data.get('schedule_date'),
+            'followup_days': data.get('followup_days', 3),
+            'selection_criteria': data.get('selection_criteria', {}),
+            'selected_contacts': data.get('selected_contacts', []),
+            'created_at': datetime.now().isoformat(),
+            'status': 'draft'
+        }
+        
+        current_app.logger.info(f"Campaign draft saved: {draft_data['name']}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Campaign "{draft_data["name"]}" saved as draft!',
+            'campaign': draft_data
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error saving campaign draft: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Failed to save campaign draft: {str(e)}'
+        }), 500
