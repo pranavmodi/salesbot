@@ -491,8 +491,129 @@
                             </div>
                         </div>
 
+                        <!-- Email Sending Settings -->
                         <div class="mb-4">
-                            <label class="form-label fw-semibold">Sending Preferences</label>
+                            <label class="form-label fw-semibold">
+                                <i class="fas fa-cog me-2"></i>Email Sending Settings
+                            </label>
+                            <div class="card border-light bg-light">
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label for="emailFrequency" class="form-label fw-semibold">Minimum Time Between Emails</label>
+                                                <div class="input-group">
+                                                    <input type="number" class="form-control" id="emailFrequencyValue" 
+                                                           value="30" min="1" max="1440">
+                                                    <select class="form-select" id="emailFrequencyUnit" style="max-width: 100px;">
+                                                        <option value="minutes" selected>Minutes</option>
+                                                        <option value="hours">Hours</option>
+                                                    </select>
+                                                </div>
+                                                <div class="form-text">Prevent sending emails too frequently</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label for="campaignTimezone" class="form-label fw-semibold">Campaign Timezone</label>
+                                                <select class="form-select" id="campaignTimezone">
+                                                    <option value="America/New_York">Eastern Time (ET)</option>
+                                                    <option value="America/Chicago">Central Time (CT)</option>
+                                                    <option value="America/Denver">Mountain Time (MT)</option>
+                                                    <option value="America/Los_Angeles" selected>Pacific Time (PT)</option>
+                                                    <option value="UTC">UTC</option>
+                                                    <option value="Europe/London">London (GMT)</option>
+                                                    <option value="Europe/Paris">Paris (CET)</option>
+                                                    <option value="Asia/Tokyo">Tokyo (JST)</option>
+                                                    <option value="Asia/Shanghai">Shanghai (CST)</option>
+                                                    <option value="Australia/Sydney">Sydney (AEST)</option>
+                                                </select>
+                                                <div class="form-text">Timezone for scheduling and limits</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label for="dailyEmailLimit" class="form-label fw-semibold">Daily Email Limit</label>
+                                                <div class="input-group">
+                                                    <input type="number" class="form-control" id="dailyEmailLimit" 
+                                                           value="50" min="1" max="500">
+                                                    <span class="input-group-text">per day</span>
+                                                </div>
+                                                <div class="form-text">Maximum emails in 24 hours</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Business Hours Settings -->
+                                    <div class="row mt-3">
+                                        <div class="col-12">
+                                            <div class="form-check mb-3">
+                                                <input class="form-check-input" type="checkbox" id="respectBusinessHours" checked>
+                                                <label class="form-check-label fw-semibold" for="respectBusinessHours">
+                                                    <i class="fas fa-clock me-1"></i>Respect Business Hours
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row" id="businessHoursSettings">
+                                        <div class="col-md-3">
+                                            <div class="mb-3">
+                                                <label for="businessStartTime" class="form-label">Start Time</label>
+                                                <input type="time" class="form-control" id="businessStartTime" value="09:00">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="mb-3">
+                                                <label for="businessEndTime" class="form-label">End Time</label>
+                                                <input type="time" class="form-control" id="businessEndTime" value="17:00">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Business Days</label>
+                                                <div class="d-flex flex-wrap gap-2">
+                                                    <div class="form-check form-check-inline">
+                                                        <input class="form-check-input" type="checkbox" id="businessMon" checked>
+                                                        <label class="form-check-label" for="businessMon">Mon</label>
+                                                    </div>
+                                                    <div class="form-check form-check-inline">
+                                                        <input class="form-check-input" type="checkbox" id="businessTue" checked>
+                                                        <label class="form-check-label" for="businessTue">Tue</label>
+                                                    </div>
+                                                    <div class="form-check form-check-inline">
+                                                        <input class="form-check-input" type="checkbox" id="businessWed" checked>
+                                                        <label class="form-check-label" for="businessWed">Wed</label>
+                                                    </div>
+                                                    <div class="form-check form-check-inline">
+                                                        <input class="form-check-input" type="checkbox" id="businessThu" checked>
+                                                        <label class="form-check-label" for="businessThu">Thu</label>
+                                                    </div>
+                                                    <div class="form-check form-check-inline">
+                                                        <input class="form-check-input" type="checkbox" id="businessFri" checked>
+                                                        <label class="form-check-label" for="businessFri">Fri</label>
+                                                    </div>
+                                                    <div class="form-check form-check-inline">
+                                                        <input class="form-check-input" type="checkbox" id="businessSat">
+                                                        <label class="form-check-label" for="businessSat">Sat</label>
+                                                    </div>
+                                                    <div class="form-check form-check-inline">
+                                                        <input class="form-check-input" type="checkbox" id="businessSun">
+                                                        <label class="form-check-label" for="businessSun">Sun</label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Basic Sending Preferences -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">
+                                <i class="fas fa-sliders-h me-2"></i>Sending Preferences
+                            </label>
                             <div class="card border-light bg-light">
                                 <div class="card-body">
                                     <div class="row">
@@ -511,6 +632,26 @@
                                                 <label class="form-check-label" for="enablePersonalization">
                                                     <strong>Smart Personalization</strong>
                                                     <div class="text-muted small">Auto-personalize with contact info</div>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-check mb-3">
+                                                <input class="form-check-input" type="checkbox" id="enableSpamCheck" checked>
+                                                <label class="form-check-label" for="enableSpamCheck">
+                                                    <strong>Spam Check</strong>
+                                                    <div class="text-muted small">Validate emails before sending</div>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-check mb-3">
+                                                <input class="form-check-input" type="checkbox" id="enableUnsubscribeLink" checked>
+                                                <label class="form-check-label" for="enableUnsubscribeLink">
+                                                    <strong>Unsubscribe Link</strong>
+                                                    <div class="text-muted small">Include unsubscribe option</div>
                                                 </label>
                                             </div>
                                         </div>
@@ -569,6 +710,41 @@
                                             <div class="mt-3" id="reviewDescription">
                                                 <strong>Description:</strong>
                                                 <p class="text-muted mb-0" id="reviewDescriptionText">No description provided</p>
+                                            </div>
+                                            
+                                            <!-- Email Sending Settings Review -->
+                                            <div class="mt-3 border-top pt-3">
+                                                <h6 class="fw-semibold mb-2">
+                                                    <i class="fas fa-cog me-1"></i>Email Settings
+                                                </h6>
+                                                <div class="row">
+                                                    <div class="col-6">
+                                                        <div class="review-item small">
+                                                            <strong>Frequency:</strong>
+                                                            <span id="reviewEmailFrequency" class="text-muted">30 minutes</span>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <div class="review-item small">
+                                                            <strong>Daily Limit:</strong>
+                                                            <span id="reviewDailyLimit" class="text-muted">50 emails</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="row mt-2">
+                                                    <div class="col-6">
+                                                        <div class="review-item small">
+                                                            <strong>Timezone:</strong>
+                                                            <span id="reviewTimezone" class="text-muted">Pacific Time</span>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <div class="review-item small">
+                                                            <strong>Business Hours:</strong>
+                                                            <span id="reviewBusinessHours" class="text-muted">Enabled</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

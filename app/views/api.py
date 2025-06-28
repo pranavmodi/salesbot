@@ -1686,6 +1686,24 @@ def create_campaign():
         
         current_app.logger.info(f"Final target contacts count: {len(target_contacts)}")
         
+        # Extract email sending settings
+        email_frequency = data.get('email_frequency', {'value': 30, 'unit': 'minutes'})
+        timezone = data.get('timezone', 'America/Los_Angeles')
+        daily_email_limit = data.get('daily_email_limit', 50)
+        respect_business_hours = data.get('respect_business_hours', True)
+        business_hours = data.get('business_hours', {
+            'start_time': '09:00',
+            'end_time': '17:00',
+            'days': {
+                'monday': True, 'tuesday': True, 'wednesday': True, 
+                'thursday': True, 'friday': True, 'saturday': False, 'sunday': False
+            }
+        })
+        
+        # Extract additional sending preferences
+        enable_spam_check = data.get('enable_spam_check', True)
+        enable_unsubscribe_link = data.get('enable_unsubscribe_link', True)
+        
         # Create campaign data
         campaign_data = {
             'id': f"camp_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
@@ -1704,7 +1722,20 @@ def create_campaign():
             'emails_sent': 0,
             'emails_opened': 0,
             'emails_clicked': 0,
-            'responses_received': 0
+            'responses_received': 0,
+            
+            # Email sending settings
+            'email_frequency': email_frequency,
+            'timezone': timezone,
+            'daily_email_limit': daily_email_limit,
+            'respect_business_hours': respect_business_hours,
+            'business_hours': business_hours if respect_business_hours else None,
+            'enable_spam_check': enable_spam_check,
+            'enable_unsubscribe_link': enable_unsubscribe_link,
+            
+            # Tracking settings
+            'enable_tracking': data.get('enable_tracking', True),
+            'enable_personalization': data.get('enable_personalization', True)
         }
         
         # Store campaign in session or simple file storage for demonstration

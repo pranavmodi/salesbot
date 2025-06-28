@@ -3795,6 +3795,38 @@ function saveCurrentStepData() {
             campaignData.followup_days = document.getElementById('followupDays')?.value || 3;
             campaignData.enable_tracking = document.getElementById('enableTracking')?.checked;
             campaignData.enable_personalization = document.getElementById('enablePersonalization')?.checked;
+            
+            // Email sending settings
+            const emailFrequencyValue = document.getElementById('emailFrequencyValue')?.value || 30;
+            const emailFrequencyUnit = document.getElementById('emailFrequencyUnit')?.value || 'minutes';
+            campaignData.email_frequency = {
+                value: parseInt(emailFrequencyValue),
+                unit: emailFrequencyUnit
+            };
+            campaignData.timezone = document.getElementById('campaignTimezone')?.value || 'America/Los_Angeles';
+            campaignData.daily_email_limit = parseInt(document.getElementById('dailyEmailLimit')?.value || 50);
+            
+            // Business hours settings
+            campaignData.respect_business_hours = document.getElementById('respectBusinessHours')?.checked;
+            if (campaignData.respect_business_hours) {
+                campaignData.business_hours = {
+                    start_time: document.getElementById('businessStartTime')?.value || '09:00',
+                    end_time: document.getElementById('businessEndTime')?.value || '17:00',
+                    days: {
+                        monday: document.getElementById('businessMon')?.checked || false,
+                        tuesday: document.getElementById('businessTue')?.checked || false,
+                        wednesday: document.getElementById('businessWed')?.checked || false,
+                        thursday: document.getElementById('businessThu')?.checked || false,
+                        friday: document.getElementById('businessFri')?.checked || false,
+                        saturday: document.getElementById('businessSat')?.checked || false,
+                        sunday: document.getElementById('businessSun')?.checked || false
+                    }
+                };
+            }
+            
+            // Additional sending preferences
+            campaignData.enable_spam_check = document.getElementById('enableSpamCheck')?.checked;
+            campaignData.enable_unsubscribe_link = document.getElementById('enableUnsubscribeLink')?.checked;
             break;
     }
 }
@@ -3846,6 +3878,42 @@ function populateReviewStep() {
     } else {
         document.getElementById('launchTime').textContent = 'Immediately';
     }
+    
+    // Email sending settings review
+    if (campaignData.email_frequency) {
+        const frequency = `${campaignData.email_frequency.value} ${campaignData.email_frequency.unit}`;
+        document.getElementById('reviewEmailFrequency').textContent = frequency;
+    }
+    
+    if (campaignData.daily_email_limit) {
+        document.getElementById('reviewDailyLimit').textContent = `${campaignData.daily_email_limit} emails`;
+    }
+    
+    if (campaignData.timezone) {
+        const timezoneMap = {
+            'America/New_York': 'Eastern Time',
+            'America/Chicago': 'Central Time', 
+            'America/Denver': 'Mountain Time',
+            'America/Los_Angeles': 'Pacific Time',
+            'UTC': 'UTC',
+            'Europe/London': 'London Time',
+            'Europe/Paris': 'Paris Time',
+            'Asia/Tokyo': 'Tokyo Time',
+            'Asia/Shanghai': 'Shanghai Time',
+            'Australia/Sydney': 'Sydney Time'
+        };
+        document.getElementById('reviewTimezone').textContent = timezoneMap[campaignData.timezone] || campaignData.timezone;
+    }
+    
+    if (campaignData.respect_business_hours !== undefined) {
+        if (campaignData.respect_business_hours && campaignData.business_hours) {
+            const businessDays = Object.values(campaignData.business_hours.days).filter(day => day).length;
+            const timeRange = `${campaignData.business_hours.start_time}-${campaignData.business_hours.end_time}`;
+            document.getElementById('reviewBusinessHours').textContent = `${timeRange} (${businessDays} days)`;
+        } else {
+            document.getElementById('reviewBusinessHours').textContent = 'Disabled';
+        }
+    }
 }
 
 function setupStepValidation() {
@@ -3879,6 +3947,35 @@ function setupStepValidation() {
             });
         }
     });
+    
+    // Add listener for business hours toggle
+    const respectBusinessHours = document.getElementById('respectBusinessHours');
+    if (respectBusinessHours) {
+        respectBusinessHours.addEventListener('change', function() {
+            const businessHoursSettings = document.getElementById('businessHoursSettings');
+            if (businessHoursSettings) {
+                if (this.checked) {
+                    businessHoursSettings.style.display = 'flex';
+                    businessHoursSettings.classList.remove('d-none');
+                } else {
+                    businessHoursSettings.style.display = 'none';
+                    businessHoursSettings.classList.add('d-none');
+                }
+            }
+        });
+        
+        // Initialize the state
+        const businessHoursSettings = document.getElementById('businessHoursSettings');
+        if (businessHoursSettings) {
+            if (respectBusinessHours.checked) {
+                businessHoursSettings.style.display = 'flex';
+                businessHoursSettings.classList.remove('d-none');
+            } else {
+                businessHoursSettings.style.display = 'none';
+                businessHoursSettings.classList.add('d-none');
+            }
+        }
+    }
 }
 
 function handleSelectionMethodChange() {
