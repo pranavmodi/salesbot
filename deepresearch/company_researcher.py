@@ -27,7 +27,7 @@ class CompanyResearcher:
         self.report_generator = ReportGenerator()
         logger.info("CompanyResearcher initialized with all services")
 
-    def research_single_company_by_id(self, company_id: int, generate_report: bool = True) -> bool:
+    def research_single_company_by_id(self, company_id: int, generate_report: bool = True, force_refresh: bool = False) -> bool:
         """Research a single company by its ID and optionally generate strategic report."""
         logger.info(f"Starting research for company ID: {company_id}")
         
@@ -39,6 +39,18 @@ class CompanyResearcher:
         
         company_name = company['company_name']
         website_url = company['website_url'] or ''
+        existing_research = company.get('company_research')
+        
+        # Check if research already exists
+        if existing_research and not force_refresh:
+            logger.info(f"⚠️ Company {company_name} already has research. Use --force-refresh to overwrite.")
+            logger.info(f"📊 Existing research length: {len(existing_research)} characters")
+            if generate_report and company.get('markdown_report'):
+                logger.info(f"📝 Markdown report already exists")
+            return True
+        
+        if existing_research and force_refresh:
+            logger.info(f"🔄 Force refresh enabled - overwriting existing research for: {company_name}")
         
         # Extract domain from website URL for research
         company_domain = ''
@@ -89,7 +101,8 @@ class CompanyResearcher:
             logger.error(f"❌ Failed to research: {company_name}")
             return False
 
-    def process_companies(self, max_companies: Optional[int] = None, delay_seconds: int = 2, generate_reports: bool = True):
+    def process_companies(self, max_companies: Optional[int] = None, delay_seconds: int = 2, generate_reports: bool = True, 
+                         skip_existing: bool = True, force_refresh: bool = False):
         """Main processing function to research and save companies."""
         logger.info("Starting company research process...")
         
@@ -99,16 +112,28 @@ class CompanyResearcher:
             logger.warning("No companies found in contacts table")
             return
         
-        # Get existing companies to avoid duplicates
-        existing_companies = self.db_service.get_existing_companies()
+        # Determine filtering strategy based on options
+        if force_refresh:
+            # Force refresh: research all companies, even those with existing research
+            existing_companies = set()  # Empty set means no filtering
+            logger.info("🔄 Force refresh mode: Will research all companies (overwriting existing)")
+        elif skip_existing:
+            # Skip companies that already have research (default behavior)
+            existing_companies = self.db_service.get_companies_with_research()
+            logger.info("⏭️ Skip existing mode: Will skip companies that already have research")
+        else:
+            # Skip only companies that exist in database but have no research
+            existing_companies = self.db_service.get_existing_companies()
+            logger.info("📝 Research missing mode: Will research companies without research data")
         
-        # Filter out companies that already exist
+        # Filter companies based on chosen strategy
         companies_to_research = []
         for company in contact_companies:
             if company['company_name'].lower() not in existing_companies:
                 companies_to_research.append(company)
         
-        logger.info(f"Found {len(companies_to_research)} new companies to research")
+        filter_desc = "force refresh all" if force_refresh else ("skip with research" if skip_existing else "skip existing records")
+        logger.info(f"Found {len(companies_to_research)} companies to research ({filter_desc})")
         
         if max_companies:
             companies_to_research = companies_to_research[:max_companies]
@@ -152,7 +177,23 @@ class CompanyResearcher:
                         logger.warning(f"⚠️ Failed to generate strategic analysis for: {company['company_name']}")
                 
                 # Save to database (with or without markdown report)
-                if self.db_service.save_company_research(company['company_name'], website_url, research, markdown_content):
+                save_success = False
+                if force_refresh and company['company_name'].lower() in self.db_service.get_existing_companies():
+                    # Company exists, we need to update it
+                    # First find the company ID
+                    all_existing = self.db_service.get_existing_companies()
+                    if company['company_name'].lower() in all_existing:
+                        # Get company by name to find ID (we'll need to add this method)
+                        save_success = self.db_service.update_existing_company_by_name(
+                            company['company_name'], website_url, research, markdown_content
+                        )
+                else:
+                    # Normal insert for new company
+                    save_success = self.db_service.save_company_research(
+                        company['company_name'], website_url, research, markdown_content
+                    )
+                
+                if save_success:
                     successful_count += 1
                     logger.info(f"✅ Successfully processed: {company['company_name']}")
                     
@@ -196,10 +237,20 @@ Report success rate: {(reports_generated/successful_count*100):.1f}% (of success
         
         logger.info(summary)
 
-    def get_dry_run_preview(self, max_companies: Optional[int] = None) -> dict:
+    def get_dry_run_preview(self, max_companies: Optional[int] = None, skip_existing: bool = True, force_refresh: bool = False) -> dict:
         """Get a preview of what would be processed in a dry run."""
         contact_companies = self.db_service.get_unique_companies_from_contacts()
-        existing_companies = self.db_service.get_existing_companies()
+        
+        # Use same filtering logic as process_companies
+        if force_refresh:
+            existing_companies = set()
+            filter_mode = "force refresh all"
+        elif skip_existing:
+            existing_companies = self.db_service.get_companies_with_research()
+            filter_mode = "skip with research"
+        else:
+            existing_companies = self.db_service.get_existing_companies()
+            filter_mode = "skip existing records"
         
         companies_to_research = [
             company for company in contact_companies 
@@ -212,5 +263,6 @@ Report success rate: {(reports_generated/successful_count*100):.1f}% (of success
         return {
             'total_companies_to_research': len(companies_to_research),
             'companies_preview': companies_to_research[:10],  # Show first 10
-            'has_more': len(companies_to_research) > 10
+            'has_more': len(companies_to_research) > 10,
+            'filter_mode': filter_mode
         } 

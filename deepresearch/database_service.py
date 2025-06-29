@@ -86,6 +86,59 @@ class DatabaseService:
             logger.error(f"Unexpected error checking existing companies: {e}")
             return set()
 
+    def get_companies_with_research(self) -> Set[str]:
+        """Get set of company names that already have research data."""
+        logger.info("Checking companies with existing research...")
+        
+        try:
+            with self.engine.connect() as conn:
+                result = conn.execute(text("""
+                    SELECT company_name FROM companies 
+                    WHERE company_research IS NOT NULL AND company_research != ''
+                """))
+                existing = {row.company_name.strip().lower() for row in result}
+                logger.info(f"Found {len(existing)} companies with existing research")
+                return existing
+                
+        except SQLAlchemyError as e:
+            logger.error(f"Database error checking companies with research: {e}")
+            return set()
+        except Exception as e:
+            logger.error(f"Unexpected error checking companies with research: {e}")
+            return set()
+
+    def get_companies_without_research(self) -> List[Dict]:
+        """Get companies that exist but don't have research data."""
+        logger.info("Fetching companies without research...")
+        
+        try:
+            with self.engine.connect() as conn:
+                result = conn.execute(text("""
+                    SELECT id, company_name, website_url, created_at
+                    FROM companies 
+                    WHERE company_research IS NULL OR company_research = ''
+                    ORDER BY created_at ASC
+                """))
+                
+                companies = []
+                for row in result:
+                    companies.append({
+                        'id': row.id,
+                        'company_name': row.company_name,
+                        'website_url': row.website_url,
+                        'created_at': row.created_at
+                    })
+                
+                logger.info(f"Found {len(companies)} companies without research")
+                return companies
+                
+        except SQLAlchemyError as e:
+            logger.error(f"Database error fetching companies without research: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error fetching companies without research: {e}")
+            return []
+
     def save_company_research(self, company_name: str, website_url: str, research: str, markdown_report: str = None) -> bool:
         """Save company research to the companies table."""
         logger.info(f"Saving research for: {company_name}")
@@ -247,4 +300,50 @@ class DatabaseService:
             return []
         except Exception as e:
             logger.error(f"Unexpected error fetching companies with reports: {e}")
-            return [] 
+            return []
+
+    def update_existing_company_by_name(self, company_name: str, website_url: str, research: str, markdown_report: str = None) -> bool:
+        """Update existing company research by company name."""
+        logger.info(f"Updating existing company by name: {company_name}")
+        
+        try:
+            with self.engine.connect() as conn:
+                with conn.begin():
+                    if markdown_report is not None:
+                        update_query = text("""
+                            UPDATE companies 
+                            SET website_url = :website_url, company_research = :research, 
+                                markdown_report = :markdown_report, updated_at = CURRENT_TIMESTAMP
+                            WHERE LOWER(company_name) = LOWER(:company_name)
+                        """)
+                        result = conn.execute(update_query, {
+                            'website_url': website_url,
+                            'research': research,
+                            'markdown_report': markdown_report,
+                            'company_name': company_name
+                        })
+                    else:
+                        update_query = text("""
+                            UPDATE companies 
+                            SET website_url = :website_url, company_research = :research, updated_at = CURRENT_TIMESTAMP
+                            WHERE LOWER(company_name) = LOWER(:company_name)
+                        """)
+                        result = conn.execute(update_query, {
+                            'website_url': website_url,
+                            'research': research,
+                            'company_name': company_name
+                        })
+                    
+                    if result.rowcount > 0:
+                        logger.info(f"Successfully updated existing company: {company_name}")
+                        return True
+                    else:
+                        logger.warning(f"No company found with name: {company_name}")
+                        return False
+            
+        except SQLAlchemyError as e:
+            logger.error(f"Database error updating company {company_name}: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error updating company {company_name}: {e}")
+            return False 

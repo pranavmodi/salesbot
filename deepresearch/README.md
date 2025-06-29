@@ -52,8 +52,22 @@ deepresearch/
 
 ## 🚀 Usage
 
+### 🧠 Smart Research Logic
+
+The system now intelligently handles existing research:
+
+**🔍 Default Behavior:**
+- **Batch Processing**: Skip companies that already have research data
+- **Single Company**: Check if research exists, prompt for force refresh
+- **Smart Filtering**: Only research what's actually missing
+
+**⚙️ Control Options:**
+- `--force-refresh`: Overwrite existing research (batch or single)
+- `--research-missing`: Research companies that exist but have no research data
+- `--show-missing`: List companies without research
+- `--show-reports`: List companies with reports
+
 ### Command Line Interface
-The CLI interface remains exactly the same as before:
 
 ```bash
 # Research all new companies
@@ -76,6 +90,18 @@ python -m deepresearch.cli --show-reports
 
 # Get a specific company's report from database
 python -m deepresearch.cli --get-report 123
+
+# Show companies that exist but have no research
+python -m deepresearch.cli --show-missing
+
+# Research companies that exist but have no research data
+python -m deepresearch.cli --research-missing
+
+# Force refresh existing research (overwrite)
+python -m deepresearch.cli --force-refresh --max-companies 5
+
+# Research specific company with force refresh
+python -m deepresearch.cli --company-id 123 --force-refresh
 
 # Legacy entry point (still works)
 python deepresearch/deep_research_companies.py --help
