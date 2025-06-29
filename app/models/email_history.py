@@ -123,6 +123,34 @@ class EmailHistory:
         history = cls.get_by_campaign(campaign_id)
         return {record.to.lower() for record in history if record.to}
 
+    @classmethod
+    def get_daily_count_for_campaign(cls, campaign_id: int, date: datetime.date) -> int:
+        """Get number of emails sent today for a specific campaign."""
+        engine = cls.get_db_engine()
+        if not engine:
+            return 0
+            
+        try:
+            with engine.connect() as connection:
+                result = connection.execute(
+                    text("""
+                        SELECT COUNT(*) 
+                        FROM email_history 
+                        WHERE campaign_id = :campaign_id 
+                        AND DATE(date) = :date
+                        AND status = 'Success'
+                    """),
+                    {"campaign_id": campaign_id, "date": date}
+                )
+                count = result.fetchone()[0]
+                return count
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Error getting daily count for campaign {campaign_id}: {e}")
+            return 0
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error getting daily count: {e}")
+            return 0
+
     def to_dict(self) -> Dict:
         """Convert email history to dictionary for JSON serialization."""
         return {

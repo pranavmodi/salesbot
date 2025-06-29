@@ -29,7 +29,7 @@ class EmailService:
         ]
 
     @staticmethod
-    def send_email_with_account(recipient_email: str, recipient_name: str, subject: str, body: str, account_name: str = None) -> bool:
+    def send_email_with_account(recipient_email: str, recipient_name: str, subject: str, body: str, account_name: str = None, campaign_id: int = None) -> bool:
         """
         Send an email using a specific account.
         
@@ -220,7 +220,8 @@ class EmailService:
                 'to': recipient_email,
                 'subject': subject,
                 'body': body,
-                'status': 'Success' if success else 'Failed'
+                'status': 'Success' if success else 'Failed',
+                'campaign_id': campaign_id
             }
             
             EmailHistory.save(email_data)

@@ -464,6 +464,136 @@ class Campaign:
             current_app.logger.error(f"Unexpected error in bulk add: {e}")
             return {'success': 0, 'failed': len(contact_emails), 'errors': [str(e)]}
 
+    @classmethod
+    def update_status(cls, campaign_id: int, status: str) -> bool:
+        """Update campaign status."""
+        engine = cls._get_db_engine()
+        if not engine:
+            current_app.logger.error("Failed to update campaign status: Database engine not available.")
+            return False
+
+        try:
+            with engine.connect() as conn:
+                with conn.begin():
+                    update_query = text("""
+                        UPDATE campaigns 
+                        SET status = :status, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :id
+                    """)
+                    result = conn.execute(update_query, {
+                        'id': campaign_id,
+                        'status': status
+                    })
+                    
+                    if result.rowcount > 0:
+                        current_app.logger.info(f"Successfully updated campaign {campaign_id} status to {status}")
+                        return True
+                    else:
+                        current_app.logger.warning(f"No campaign found with ID: {campaign_id}")
+                        return False
+                        
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Database error updating campaign status: {e}")
+            return False
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error updating campaign status: {e}")
+            return False
+
+    @classmethod
+    def get_campaign_settings(cls, campaign_id: int) -> Dict:
+        """Get campaign settings from campaign_settings table or return defaults."""
+        engine = cls._get_db_engine()
+        if not engine:
+            return cls._get_default_settings()
+            
+        try:
+            with engine.connect() as conn:
+                # First check if we have a campaign_settings table
+                # For now, return default settings since we're transitioning from JSON
+                return cls._get_default_settings()
+                    
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Error getting campaign settings: {e}")
+            return cls._get_default_settings()
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error getting campaign settings: {e}")
+            return cls._get_default_settings()
+
+    @classmethod
+    def _get_default_settings(cls) -> Dict:
+        """Get default campaign settings."""
+        return {
+            'email_template': 'warm',
+            'email_frequency': {'value': 30, 'unit': 'minutes'},
+            'timezone': 'America/Los_Angeles',
+            'daily_email_limit': 50,
+            'respect_business_hours': True,
+            'business_hours': {
+                'start_time': '09:00',
+                'end_time': '17:00',
+                'days': {
+                    'monday': True, 'tuesday': True, 'wednesday': True,
+                    'thursday': True, 'friday': True, 'saturday': False, 'sunday': False
+                }
+            },
+            'enable_spam_check': True,
+            'enable_unsubscribe_link': True,
+            'enable_tracking': True,
+            'enable_personalization': True
+        }
+
+    @classmethod
+    def create_campaign_with_settings(cls, campaign_data: Dict, settings: Dict, contacts: List[str]) -> Optional[int]:
+        """Create a campaign with settings and contacts."""
+        engine = cls._get_db_engine()
+        if not engine:
+            current_app.logger.error("Failed to create campaign: Database engine not available.")
+            return None
+
+        try:
+            with engine.connect() as conn:
+                with conn.begin():
+                    # Insert campaign
+                    insert_query = text("""
+                        INSERT INTO campaigns (name, description, status) 
+                        VALUES (:name, :description, :status)
+                        RETURNING id
+                    """)
+                    result = conn.execute(insert_query, {
+                        'name': campaign_data['name'],
+                        'description': campaign_data.get('description', ''),
+                        'status': campaign_data.get('status', 'active')
+                    })
+                    
+                    campaign_id = result.fetchone()[0]
+                    
+                    # Add contacts to campaign
+                    if contacts:
+                        for contact_email in contacts:
+                            contact_query = text("""
+                                INSERT INTO campaign_contacts (campaign_id, contact_email, status) 
+                                VALUES (:campaign_id, :contact_email, :status)
+                                ON CONFLICT (campaign_id, contact_email) 
+                                DO UPDATE SET 
+                                    status = :status,
+                                    updated_at = CURRENT_TIMESTAMP
+                            """)
+                            conn.execute(contact_query, {
+                                'campaign_id': campaign_id,
+                                'contact_email': contact_email,
+                                'status': 'active'
+                            })
+                    
+                    current_app.logger.info(f"Successfully created campaign: {campaign_data['name']} with ID {campaign_id}")
+                    return campaign_id
+                    
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Database error creating campaign: {e}")
+            return None
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error creating campaign: {e}")
+            return None
+
     def to_dict(self) -> Dict:
         """Convert campaign to dictionary for JSON serialization."""
         return {

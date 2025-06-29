@@ -1569,7 +1569,7 @@ def research_single_company(company_id):
 
 @bp.route('/campaigns', methods=['POST'])
 def create_campaign():
-    """Create a new GTM campaign."""
+    """Create a new GTM campaign with database storage and background processing."""
     try:
         data = request.get_json()
         
@@ -1592,6 +1592,10 @@ def create_campaign():
                 'message': 'Email template is required'
             }), 400
         
+        # Import required models and scheduler
+        from app.models.campaign import Campaign
+        from app.services.campaign_scheduler import campaign_scheduler
+        
         # Get campaign data
         campaign_name = data.get('name')
         campaign_type = data.get('type')
@@ -1604,12 +1608,12 @@ def create_campaign():
         selected_contacts = data.get('selected_contacts', [])
         
         # Log campaign creation
-        current_app.logger.info(f"Creating campaign: {campaign_name}")
+        current_app.logger.info(f"Creating database campaign: {campaign_name}")
         current_app.logger.info(f"Campaign type: {campaign_type}")
         current_app.logger.info(f"Selection criteria: {selection_criteria}")
         current_app.logger.info(f"Selected contacts count: {len(selected_contacts)}")
         
-        # Get target contacts based on selection criteria
+        # Get target contacts based on selection criteria (same logic as before)
         target_contacts = []
         if selection_criteria.get('type') == 'manual':
             target_contacts = selected_contacts
@@ -1704,27 +1708,16 @@ def create_campaign():
         enable_spam_check = data.get('enable_spam_check', True)
         enable_unsubscribe_link = data.get('enable_unsubscribe_link', True)
         
-        # Create campaign data
+        # Prepare campaign data for database
         campaign_data = {
-            'id': f"camp_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
             'name': campaign_name,
-            'type': campaign_type,
             'description': description,
+            'status': 'draft' if schedule_date else 'ready'
+        }
+        
+        # Prepare campaign settings
+        campaign_settings = {
             'email_template': email_template,
-            'priority': priority,
-            'schedule_date': schedule_date,
-            'followup_days': followup_days,
-            'target_contacts_count': len(target_contacts),
-            'target_contacts': target_contacts,
-            'selection_criteria': selection_criteria,
-            'created_at': datetime.now().isoformat(),
-            'status': 'draft' if schedule_date else 'ready',
-            'emails_sent': 0,
-            'emails_opened': 0,
-            'emails_clicked': 0,
-            'responses_received': 0,
-            
-            # Email sending settings
             'email_frequency': email_frequency,
             'timezone': timezone,
             'daily_email_limit': daily_email_limit,
@@ -1732,124 +1725,59 @@ def create_campaign():
             'business_hours': business_hours if respect_business_hours else None,
             'enable_spam_check': enable_spam_check,
             'enable_unsubscribe_link': enable_unsubscribe_link,
-            
-            # Tracking settings
             'enable_tracking': data.get('enable_tracking', True),
-            'enable_personalization': data.get('enable_personalization', True)
+            'enable_personalization': data.get('enable_personalization', True),
+            'priority': priority,
+            'followup_days': followup_days
         }
         
-        # Store campaign in session or simple file storage for demonstration
-        # In production, this would be stored in a proper database
-        import json
-        import os
+        # Extract contact emails for database storage
+        contact_emails = [contact.get('email') for contact in target_contacts if contact.get('email')]
         
-        campaigns_file = 'campaigns.json'
-        campaigns_list = []
+        # Create campaign in database
+        campaign_id = Campaign.create_campaign_with_settings(
+            campaign_data, 
+            campaign_settings, 
+            contact_emails
+        )
         
-        # Load existing campaigns
-        if os.path.exists(campaigns_file):
-            try:
-                with open(campaigns_file, 'r') as f:
-                    campaigns_list = json.load(f)
-            except:
-                campaigns_list = []
+        if not campaign_id:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to create campaign in database'
+            }), 500
         
-        # Add new campaign
-        campaigns_list.append(campaign_data)
+        current_app.logger.info(f"Campaign created in database with ID: {campaign_id}")
         
-        # Save campaigns
-        with open(campaigns_file, 'w') as f:
-            json.dump(campaigns_list, f, indent=2)
-        
-        current_app.logger.info(f"Campaign created and saved successfully: {campaign_data}")
-        
-        # If no schedule date, trigger email sending immediately
-        emails_sent = 0
-        if not schedule_date and target_contacts:
-            try:
-                current_app.logger.info(f"Starting immediate email sending for campaign: {campaign_name}")
+        # Schedule campaign execution
+        try:
+            success = campaign_scheduler.schedule_campaign(campaign_id, schedule_date)
+            
+            if success:
+                status_message = f'Campaign "{campaign_name}" created and scheduled successfully!'
+                if not schedule_date:
+                    status_message += ' Background processing started.'
+                else:
+                    status_message += f' Scheduled for {schedule_date}.'
                 
-                # Send emails to target contacts
-                for contact in target_contacts:
-                    try:
-                        # Generate email content for this contact
-                        email_content = EmailService.compose_email(
-                            contact_id=None,  # We'll use contact data directly
-                            calendar_url=os.getenv("CALENDAR_URL", "https://calendly.com/pranav-modi/15-minute-meeting"),
-                            extra_context=f"This email is part of the '{campaign_name}' campaign.",
-                            composer_type=email_template
-                        )
-                        
-                        if not email_content:
-                            # Fallback to direct composer usage
-                            if email_template == "alt_subject":
-                                from email_composers.email_composer_alt_subject import AltSubjectEmailComposer
-                                composer = AltSubjectEmailComposer()
-                            else:
-                                from email_composers.email_composer_warm import WarmEmailComposer
-                                composer = WarmEmailComposer()
-                            
-                            lead_data = {
-                                "name": contact.get('display_name') or contact.get('full_name') or f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip(),
-                                "email": contact.get('email'),
-                                "company": contact.get('company'),
-                                "position": contact.get('job_title'),
-                                "website": contact.get('company_domain'),
-                                "notes": f"Campaign: {campaign_name}",
-                            }
-                            
-                            calendar_url = os.getenv("CALENDAR_URL", "https://calendly.com/pranav-modi/15-minute-meeting")
-                            email_content = composer.compose_email(
-                                lead=lead_data, 
-                                calendar_url=calendar_url, 
-                                extra_context=f"This email is part of the '{campaign_name}' campaign."
-                            )
-                        
-                        if email_content and 'subject' in email_content and 'body' in email_content:
-                            # Send the email
-                            recipient_name = contact.get('display_name') or contact.get('full_name') or f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip()
-                            success = EmailService.send_email_with_account(
-                                contact.get('email'),
-                                recipient_name,
-                                email_content['subject'],
-                                email_content['body'],
-                                None  # Use primary account
-                            )
-                            
-                            if success:
-                                emails_sent += 1
-                                current_app.logger.info(f"Email sent successfully to {contact.get('email')} for campaign {campaign_name}")
-                            else:
-                                current_app.logger.error(f"Failed to send email to {contact.get('email')} for campaign {campaign_name}")
-                        
-                    except Exception as email_error:
-                        current_app.logger.error(f"Error sending email to {contact.get('email', 'unknown')}: {str(email_error)}")
-                        continue
+                return jsonify({
+                    'success': True,
+                    'message': status_message,
+                    'campaign_id': campaign_id,
+                    'target_contacts_count': len(target_contacts)
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'message': 'Campaign created but failed to schedule execution'
+                }), 500
                 
-                # Update campaign with email stats
-                campaign_data['emails_sent'] = emails_sent
-                campaign_data['status'] = 'active' if emails_sent > 0 else 'failed'
-                
-                # Update stored campaign
-                for i, stored_campaign in enumerate(campaigns_list):
-                    if stored_campaign['id'] == campaign_data['id']:
-                        campaigns_list[i] = campaign_data
-                        break
-                
-                with open(campaigns_file, 'w') as f:
-                    json.dump(campaigns_list, f, indent=2)
-                
-                current_app.logger.info(f"Campaign {campaign_name} completed. Emails sent: {emails_sent}/{len(target_contacts)}")
-                
-            except Exception as send_error:
-                current_app.logger.error(f"Error in email sending process: {str(send_error)}")
-        
-        return jsonify({
-            'success': True,
-            'message': f'Campaign "{campaign_name}" created successfully! {emails_sent} emails sent.' if emails_sent > 0 else f'Campaign "{campaign_name}" created successfully!',
-            'campaign': campaign_data,
-            'emails_sent': emails_sent
-        })
+        except Exception as schedule_error:
+            current_app.logger.error(f"Error scheduling campaign: {str(schedule_error)}")
+            return jsonify({
+                'success': False,
+                'message': f'Campaign created but scheduling failed: {str(schedule_error)}'
+            }), 500
         
     except Exception as e:
         current_app.logger.error(f"Error creating campaign: {str(e)}")
@@ -1904,24 +1832,31 @@ def save_campaign_draft():
 
 @bp.route('/campaigns', methods=['GET'])
 def get_campaigns():
-    """Get all campaigns."""
+    """Get all campaigns from database."""
     try:
-        import json
-        import os
+        from app.models.campaign import Campaign
         
-        campaigns_file = 'campaigns.json'
-        campaigns_list = []
+        # Load campaigns from database
+        campaigns = Campaign.load_all()
+        campaigns_list = [campaign.to_dict() for campaign in campaigns]
         
-        # Load existing campaigns
-        if os.path.exists(campaigns_file):
+        # Add stats for each campaign
+        for campaign_dict in campaigns_list:
             try:
-                with open(campaigns_file, 'r') as f:
-                    campaigns_list = json.load(f)
-            except:
-                campaigns_list = []
-        
-        # Sort by creation date (newest first)
-        campaigns_list.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+                stats = Campaign.get_campaign_stats(campaign_dict['id'])
+                campaign_dict.update(stats)
+            except Exception as stats_error:
+                current_app.logger.error(f"Error getting stats for campaign {campaign_dict['id']}: {stats_error}")
+                # Add default stats
+                campaign_dict.update({
+                    'total_emails': 0,
+                    'sent_emails': 0,
+                    'failed_emails': 0,
+                    'total_contacts': 0,
+                    'active_contacts': 0,
+                    'completed_contacts': 0,
+                    'success_rate': 0
+                })
         
         return jsonify({
             'success': True,
@@ -1934,4 +1869,82 @@ def get_campaigns():
         return jsonify({
             'success': False,
             'message': f'Failed to load campaigns: {str(e)}'
+        }), 500
+
+@bp.route('/campaigns/<int:campaign_id>/pause', methods=['POST'])
+def pause_campaign(campaign_id):
+    """Pause a running campaign."""
+    try:
+        from app.services.campaign_scheduler import campaign_scheduler
+        
+        success = campaign_scheduler.pause_campaign(campaign_id)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': f'Campaign {campaign_id} paused successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': f'Failed to pause campaign {campaign_id}'
+            }), 500
+            
+    except Exception as e:
+        current_app.logger.error(f"Error pausing campaign {campaign_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error pausing campaign: {str(e)}'
+        }), 500
+
+@bp.route('/campaigns/<int:campaign_id>/resume', methods=['POST'])
+def resume_campaign(campaign_id):
+    """Resume a paused campaign."""
+    try:
+        from app.services.campaign_scheduler import campaign_scheduler
+        
+        success = campaign_scheduler.resume_campaign(campaign_id)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': f'Campaign {campaign_id} resumed successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': f'Failed to resume campaign {campaign_id}'
+            }), 500
+            
+    except Exception as e:
+        current_app.logger.error(f"Error resuming campaign {campaign_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error resuming campaign: {str(e)}'
+        }), 500
+
+@bp.route('/campaigns/<int:campaign_id>/status', methods=['GET'])
+def get_campaign_status(campaign_id):
+    """Get detailed status of a campaign."""
+    try:
+        from app.services.campaign_scheduler import campaign_scheduler
+        
+        status = campaign_scheduler.get_campaign_status(campaign_id)
+        
+        if 'error' in status:
+            return jsonify({
+                'success': False,
+                'message': status['error']
+            }), 404
+        
+        return jsonify({
+            'success': True,
+            'status': status
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting campaign status {campaign_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error getting campaign status: {str(e)}'
         }), 500

@@ -4585,8 +4585,12 @@ function displayCampaignList(campaigns, containerId, type) {
                                 </button>` : ''
                             }
                             ${campaign.status === 'active' ? 
-                                `<button type="button" class="btn btn-outline-warning btn-sm" onclick="pauseCampaign('${campaign.id}')">
+                                `<button type="button" class="btn btn-outline-warning btn-sm" onclick="pauseCampaign(${campaign.id})">
                                     <i class="fas fa-pause me-1"></i>Pause
+                                </button>` : 
+                                campaign.status === 'paused' ?
+                                `<button type="button" class="btn btn-outline-success btn-sm" onclick="resumeCampaign(${campaign.id})">
+                                    <i class="fas fa-play me-1"></i>Resume
                                 </button>` : ''
                             }
                         </div>
@@ -4634,9 +4638,55 @@ function launchCampaign(campaignId) {
 }
 
 function pauseCampaign(campaignId) {
-    // TODO: Implement campaign pause functionality
-    console.log('Pausing campaign:', campaignId);
-    showToast('successToast', 'Campaign pause feature coming soon!');
+    if (!confirm('Are you sure you want to pause this campaign?')) {
+        return;
+    }
+    
+    fetch(`/api/campaigns/${campaignId}/pause`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('successToast', data.message);
+            loadCampaigns(); // Refresh campaigns list
+        } else {
+            showToast('errorToast', data.message || 'Failed to pause campaign');
+        }
+    })
+    .catch(error => {
+        console.error('Error pausing campaign:', error);
+        showToast('errorToast', 'An error occurred while pausing the campaign');
+    });
+}
+
+function resumeCampaign(campaignId) {
+    if (!confirm('Are you sure you want to resume this campaign?')) {
+        return;
+    }
+    
+    fetch(`/api/campaigns/${campaignId}/resume`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('successToast', data.message);
+            loadCampaigns(); // Refresh campaigns list
+        } else {
+            showToast('errorToast', data.message || 'Failed to resume campaign');
+        }
+    })
+    .catch(error => {
+        console.error('Error resuming campaign:', error);
+        showToast('errorToast', 'An error occurred while resuming the campaign');
+    });
 }
 
 function updateCampaignStats(campaigns) {
