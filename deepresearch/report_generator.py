@@ -27,15 +27,9 @@ class ReportGenerator:
         os.makedirs(self.reports_dir, exist_ok=True)
         logger.info(f"ReportGenerator initialized with reports directory: {self.reports_dir}")
 
-    def write_markdown_report(self, company_name: str, research_content: str, strategic_content: str) -> bool:
-        """Write combined research and strategic analysis to markdown file."""
-        logger.info(f"Writing markdown report for: {company_name}")
-        
-        # Generate filename (company name with safe characters)
-        safe_company_name = "".join(c for c in company_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
-        safe_company_name = safe_company_name.replace(' ', '_').lower()
-        filename = f"{safe_company_name}_analysis.md"
-        filepath = os.path.join(self.reports_dir, filename)
+    def generate_markdown_report(self, company_name: str, research_content: str, strategic_content: str) -> str:
+        """Generate combined research and strategic analysis markdown content."""
+        logger.info(f"Generating markdown report for: {company_name}")
         
         # Combine research and strategic analysis
         full_report = f"""# Deep Research Analysis: {company_name}
@@ -56,6 +50,22 @@ class ReportGenerator:
 
 *This analysis was generated using AI-powered research and strategic analysis tools. All recommendations should be validated with current market data and company-specific context.*
 """
+        
+        logger.info(f"Successfully generated markdown report for: {company_name}")
+        return full_report
+
+    def write_markdown_report(self, company_name: str, research_content: str, strategic_content: str) -> bool:
+        """Write combined research and strategic analysis to markdown file."""
+        logger.info(f"Writing markdown report to file for: {company_name}")
+        
+        # Generate filename (company name with safe characters)
+        safe_company_name = "".join(c for c in company_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+        safe_company_name = safe_company_name.replace(' ', '_').lower()
+        filename = f"{safe_company_name}_analysis.md"
+        filepath = os.path.join(self.reports_dir, filename)
+        
+        # Get the markdown content
+        full_report = self.generate_markdown_report(company_name, research_content, strategic_content)
         
         try:
             with open(filepath, 'w', encoding='utf-8') as f:

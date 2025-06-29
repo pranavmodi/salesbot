@@ -86,22 +86,23 @@ class DatabaseService:
             logger.error(f"Unexpected error checking existing companies: {e}")
             return set()
 
-    def save_company_research(self, company_name: str, website_url: str, research: str) -> bool:
+    def save_company_research(self, company_name: str, website_url: str, research: str, markdown_report: str = None) -> bool:
         """Save company research to the companies table."""
         logger.info(f"Saving research for: {company_name}")
         
         company_data = {
             'company_name': company_name,
             'website_url': website_url,
-            'company_research': research
+            'company_research': research,
+            'markdown_report': markdown_report
         }
         
         try:
             with self.engine.connect() as conn:
                 with conn.begin():
                     insert_query = text("""
-                        INSERT INTO companies (company_name, website_url, company_research) 
-                        VALUES (:company_name, :website_url, :company_research)
+                        INSERT INTO companies (company_name, website_url, company_research, markdown_report) 
+                        VALUES (:company_name, :website_url, :company_research, :markdown_report)
                     """)
                     conn.execute(insert_query, company_data)
             
@@ -115,22 +116,34 @@ class DatabaseService:
             logger.error(f"Unexpected error saving company {company_name}: {e}")
             return False
 
-    def update_company_research(self, company_id: int, research: str) -> bool:
+    def update_company_research(self, company_id: int, research: str, markdown_report: str = None) -> bool:
         """Update existing company research in the companies table."""
         logger.info(f"Updating research for company ID: {company_id}")
         
         try:
             with self.engine.connect() as conn:
                 with conn.begin():
-                    update_query = text("""
-                        UPDATE companies 
-                        SET company_research = :research, updated_at = CURRENT_TIMESTAMP
-                        WHERE id = :company_id
-                    """)
-                    result = conn.execute(update_query, {
-                        'research': research,
-                        'company_id': company_id
-                    })
+                    if markdown_report is not None:
+                        update_query = text("""
+                            UPDATE companies 
+                            SET company_research = :research, markdown_report = :markdown_report, updated_at = CURRENT_TIMESTAMP
+                            WHERE id = :company_id
+                        """)
+                        result = conn.execute(update_query, {
+                            'research': research,
+                            'markdown_report': markdown_report,
+                            'company_id': company_id
+                        })
+                    else:
+                        update_query = text("""
+                            UPDATE companies 
+                            SET company_research = :research, updated_at = CURRENT_TIMESTAMP
+                            WHERE id = :company_id
+                        """)
+                        result = conn.execute(update_query, {
+                            'research': research,
+                            'company_id': company_id
+                        })
                     
                     if result.rowcount > 0:
                         logger.info(f"Successfully updated research for company ID: {company_id}")
@@ -153,7 +166,7 @@ class DatabaseService:
         try:
             with self.engine.connect() as conn:
                 result = conn.execute(text("""
-                    SELECT id, company_name, website_url, company_research
+                    SELECT id, company_name, website_url, company_research, markdown_report
                     FROM companies 
                     WHERE id = :company_id
                 """), {"company_id": company_id})
@@ -164,7 +177,8 @@ class DatabaseService:
                         'id': row.id,
                         'company_name': row.company_name,
                         'website_url': row.website_url,
-                        'company_research': row.company_research
+                        'company_research': row.company_research,
+                        'markdown_report': row.markdown_report
                     }
                 else:
                     logger.warning(f"No company found with ID: {company_id}")
@@ -175,4 +189,62 @@ class DatabaseService:
             return None
         except Exception as e:
             logger.error(f"Unexpected error fetching company {company_id}: {e}")
-            return None 
+            return None
+
+    def get_company_markdown_report(self, company_id: int) -> Optional[str]:
+        """Get just the markdown report for a specific company by ID."""
+        logger.info(f"Fetching markdown report for company ID: {company_id}")
+        
+        try:
+            with self.engine.connect() as conn:
+                result = conn.execute(text("""
+                    SELECT markdown_report FROM companies 
+                    WHERE id = :company_id
+                """), {"company_id": company_id})
+                
+                row = result.fetchone()
+                if row:
+                    return row.markdown_report
+                else:
+                    logger.warning(f"No company found with ID: {company_id}")
+                    return None
+                    
+        except SQLAlchemyError as e:
+            logger.error(f"Database error fetching markdown report for company {company_id}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error fetching markdown report for company {company_id}: {e}")
+            return None
+
+    def get_companies_with_reports(self) -> List[Dict]:
+        """Get all companies that have markdown reports."""
+        logger.info("Fetching companies with markdown reports...")
+        
+        try:
+            with self.engine.connect() as conn:
+                result = conn.execute(text("""
+                    SELECT id, company_name, website_url, created_at, updated_at
+                    FROM companies 
+                    WHERE markdown_report IS NOT NULL
+                    ORDER BY updated_at DESC
+                """))
+                
+                companies = []
+                for row in result:
+                    companies.append({
+                        'id': row.id,
+                        'company_name': row.company_name,
+                        'website_url': row.website_url,
+                        'created_at': row.created_at,
+                        'updated_at': row.updated_at
+                    })
+                
+                logger.info(f"Found {len(companies)} companies with markdown reports")
+                return companies
+                
+        except SQLAlchemyError as e:
+            logger.error(f"Database error fetching companies with reports: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error fetching companies with reports: {e}")
+            return [] 

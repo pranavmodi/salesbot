@@ -64,10 +64,20 @@ class CompanyResearcher:
                     strategic_analysis = self.ai_service.generate_strategic_recommendations(company_name, research)
                     
                     if strategic_analysis:
-                        if self.report_generator.write_markdown_report(company_name, research, strategic_analysis):
-                            logger.info(f"📝 Successfully generated report for: {company_name}")
+                        # Generate markdown report content
+                        markdown_content = self.report_generator.generate_markdown_report(company_name, research, strategic_analysis)
+                        
+                        # Update database with markdown report
+                        if self.db_service.update_company_research(company_id, research, markdown_content):
+                            logger.info(f"📊 Successfully updated database with markdown report for: {company_name}")
                         else:
-                            logger.warning(f"⚠️ Failed to write report for: {company_name}")
+                            logger.warning(f"⚠️ Failed to update database with markdown report for: {company_name}")
+                        
+                        # Write to file
+                        if self.report_generator.write_markdown_report(company_name, research, strategic_analysis):
+                            logger.info(f"📝 Successfully generated report file for: {company_name}")
+                        else:
+                            logger.warning(f"⚠️ Failed to write report file for: {company_name}")
                     else:
                         logger.warning(f"⚠️ Failed to generate strategic analysis for: {company_name}")
                 
@@ -127,24 +137,32 @@ class CompanyResearcher:
             )
             
             if research:
-                # Save to database
-                if self.db_service.save_company_research(company['company_name'], website_url, research):
+                # Generate strategic recommendations first if requested
+                strategic_analysis = None
+                markdown_content = None
+                
+                if generate_reports:
+                    logger.info(f"Generating strategic analysis for: {company['company_name']}")
+                    strategic_analysis = self.ai_service.generate_strategic_recommendations(company['company_name'], research)
+                    
+                    if strategic_analysis:
+                        # Generate markdown report content
+                        markdown_content = self.report_generator.generate_markdown_report(company['company_name'], research, strategic_analysis)
+                    else:
+                        logger.warning(f"⚠️ Failed to generate strategic analysis for: {company['company_name']}")
+                
+                # Save to database (with or without markdown report)
+                if self.db_service.save_company_research(company['company_name'], website_url, research, markdown_content):
                     successful_count += 1
                     logger.info(f"✅ Successfully processed: {company['company_name']}")
                     
-                    # Generate strategic recommendations and markdown report if requested
-                    if generate_reports:
-                        logger.info(f"Generating strategic analysis for: {company['company_name']}")
-                        strategic_analysis = self.ai_service.generate_strategic_recommendations(company['company_name'], research)
-                        
-                        if strategic_analysis:
-                            if self.report_generator.write_markdown_report(company['company_name'], research, strategic_analysis):
-                                reports_generated += 1
-                                logger.info(f"📝 Successfully generated report for: {company['company_name']}")
-                            else:
-                                logger.warning(f"⚠️ Failed to write report for: {company['company_name']}")
+                    # Write report file if strategic analysis was generated
+                    if generate_reports and strategic_analysis:
+                        if self.report_generator.write_markdown_report(company['company_name'], research, strategic_analysis):
+                            reports_generated += 1
+                            logger.info(f"📝 Successfully generated report file for: {company['company_name']}")
                         else:
-                            logger.warning(f"⚠️ Failed to generate strategic analysis for: {company['company_name']}")
+                            logger.warning(f"⚠️ Failed to write report file for: {company['company_name']}")
                         
                         # Additional delay for report generation to avoid rate limiting
                         if i < len(companies_to_research):

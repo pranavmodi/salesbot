@@ -71,6 +71,12 @@ python -m deepresearch.cli --dry-run --max-companies 5
 # Skip report generation (research only)
 python -m deepresearch.cli --no-reports
 
+# List all companies with reports in database
+python -m deepresearch.cli --show-reports
+
+# Get a specific company's report from database
+python -m deepresearch.cli --get-report 123
+
 # Legacy entry point (still works)
 python deepresearch/deep_research_companies.py --help
 ```
@@ -91,6 +97,11 @@ companies = db_service.get_unique_companies_from_contacts()
 
 ai_service = AIResearchService()
 research = ai_service.research_company("Example Corp", "example.com")
+
+# Access database directly for reports
+db_service = DatabaseService()
+companies_with_reports = db_service.get_companies_with_reports()
+markdown_report = db_service.get_company_markdown_report(company_id=123)
 ```
 
 ## 🎯 Benefits of Refactoring
@@ -120,9 +131,18 @@ research = ai_service.research_company("Example Corp", "example.com")
 - Better organization
 - More readable and maintainable
 
-## 📊 Generated Reports
+## 📊 Report Storage: Database + Files
 
-Reports are generated in the `deepresearch/reports/` directory with the following structure:
+The system now stores reports in **both** the database and as markdown files:
+
+### 🗄️ Database Storage
+- **Primary Storage**: Complete markdown reports stored in `companies.markdown_report` column
+- **Programmatic Access**: Query reports directly from database via API
+- **Persistence**: Reports survive file system changes and deployments
+- **Integration**: Easy access for web interfaces, APIs, and other services
+
+### 📁 File Storage
+Reports are also generated in the `deepresearch/reports/` directory with the following structure:
 
 ```markdown
 # Deep Research Analysis: [Company Name]
@@ -141,6 +161,24 @@ Reports are generated in the `deepresearch/reports/` directory with the followin
 - AI Agents: Strategic Priority Assessment
 - Implementation Roadmap (12-18 months)
 - Risk Assessment & Mitigation
+```
+
+### 📋 Database Report Management
+
+```bash
+# List all companies with reports in database
+python -m deepresearch.cli --show-reports
+
+# Output:
+# Found 15 companies with reports:
+#   ID: 123 | Acme Corp | Updated: 2025-01-15 10:30:45
+#   ID: 124 | Tech Startup Inc | Updated: 2025-01-15 09:15:22
+#   ...
+
+# Get specific company report from database
+python -m deepresearch.cli --get-report 123
+
+# Output: Full markdown report printed to console
 ```
 
 ## 🔧 Environment Setup

@@ -35,11 +35,41 @@ def main():
     parser.add_argument('--delay', type=int, default=2, help='Delay between API calls in seconds')
     parser.add_argument('--dry-run', action='store_true', help='Show what would be processed without actually doing it')
     parser.add_argument('--no-reports', action='store_true', help='Skip generating strategic reports and markdown files')
+    parser.add_argument('--show-reports', action='store_true', help='List all companies with reports in database')
+    parser.add_argument('--get-report', type=int, help='Get markdown report for specific company ID from database')
     
     args = parser.parse_args()
     
     try:
         researcher = CompanyResearcher()
+        
+        # Handle showing reports from database
+        if args.show_reports:
+            logger.info("Fetching companies with reports from database...")
+            companies_with_reports = researcher.db_service.get_companies_with_reports()
+            
+            if companies_with_reports:
+                logger.info(f"Found {len(companies_with_reports)} companies with reports:")
+                for company in companies_with_reports:
+                    logger.info(f"  ID: {company['id']} | {company['company_name']} | Updated: {company['updated_at']}")
+                logger.info("\nUse --get-report <ID> to retrieve a specific report")
+            else:
+                logger.info("No companies with reports found in database")
+            return
+        
+        # Handle getting specific report from database
+        if args.get_report:
+            logger.info(f"Fetching report for company ID: {args.get_report}")
+            markdown_report = researcher.db_service.get_company_markdown_report(args.get_report)
+            
+            if markdown_report:
+                print("\n" + "="*80)
+                print(markdown_report)
+                print("="*80)
+            else:
+                logger.error(f"No report found for company ID: {args.get_report}")
+                exit(1)
+            return
         
         # Handle single company research
         if args.company_id:
