@@ -102,12 +102,7 @@ class StepByStepResearcher:
             Company.update_full_research(company_id, basic_research, strategic_analysis, markdown_report)
             logger.info(f"Step 3 completed for {company.company_name}")
             
-            # Write report file
-            try:
-                self.report_generator.write_report_file(company.company_name, markdown_report)
-                logger.info(f"Report file written for {company.company_name}")
-            except Exception as e:
-                logger.warning(f"Failed to write report file for {company.company_name}: {e}")
+            # Note: Markdown report is now only stored in database, not as disk file
             
             return {
                 'success': True,

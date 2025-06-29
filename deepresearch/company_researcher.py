@@ -85,11 +85,7 @@ class CompanyResearcher:
                         else:
                             logger.warning(f"⚠️ Failed to update database with markdown report for: {company_name}")
                         
-                        # Write to file
-                        if self.report_generator.write_markdown_report(company_name, research, strategic_analysis):
-                            logger.info(f"📝 Successfully generated report file for: {company_name}")
-                        else:
-                            logger.warning(f"⚠️ Failed to write report file for: {company_name}")
+                        # Note: Markdown report is now only stored in database, not as disk file
                     else:
                         logger.warning(f"⚠️ Failed to generate strategic analysis for: {company_name}")
                 
@@ -197,13 +193,10 @@ class CompanyResearcher:
                     successful_count += 1
                     logger.info(f"✅ Successfully processed: {company['company_name']}")
                     
-                    # Write report file if strategic analysis was generated
+                    # Note: Markdown report is now only stored in database, not as disk file
                     if generate_reports and strategic_analysis:
-                        if self.report_generator.write_markdown_report(company['company_name'], research, strategic_analysis):
-                            reports_generated += 1
-                            logger.info(f"📝 Successfully generated report file for: {company['company_name']}")
-                        else:
-                            logger.warning(f"⚠️ Failed to write report file for: {company['company_name']}")
+                        reports_generated += 1
+                        logger.info(f"📊 Successfully stored markdown report in database for: {company['company_name']}")
                         
                         # Additional delay for report generation to avoid rate limiting
                         if i < len(companies_to_research):
@@ -232,7 +225,7 @@ Success rate: {(successful_count/len(companies_to_research)*100):.1f}%"""
         
         if generate_reports:
             summary += f"""
-Strategic reports generated: {reports_generated}
+Strategic reports stored in database: {reports_generated}
 Report success rate: {(reports_generated/successful_count*100):.1f}% (of successful research)"""
         
         logger.info(summary)
