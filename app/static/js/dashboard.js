@@ -2933,15 +2933,7 @@ function setupCompaniesPagination() {
         });
     });
     
-    // Individual company research buttons
-    document.querySelectorAll('.research-company-btn').forEach(button => {
-        button.addEventListener('click', function(e) {
-            e.preventDefault();
-            const companyId = this.getAttribute('data-company-id');
-            const companyName = this.getAttribute('data-company-name');
-            researchSingleCompany(companyId, companyName, this);
-        });
-    });
+    // Deep research buttons are handled by delegated event listeners in deep-research.js
     
     // Company view buttons
     document.querySelectorAll('.company-view-btn').forEach(button => {
@@ -3118,14 +3110,9 @@ function displayCompaniesTable(companies, pagination) {
                             <button class="btn btn-sm btn-outline-primary company-view-btn" data-bs-toggle="modal" data-bs-target="#companyDetailModal" data-company-id="${company.id}">
                                 <i class="fas fa-eye"></i> View
                             </button>
-                            ${company.needs_research ? 
-                                `<button class="btn btn-sm btn-outline-warning research-company-btn" data-company-id="${company.id}" data-company-name="${company.company_name}" title="Research this company">
-                                    <i class="fas fa-search"></i> Research
-                                </button>` :
-                                `<button class="btn btn-sm btn-outline-success research-company-btn" data-company-id="${company.id}" data-company-name="${company.company_name}" title="Re-research this company">
-                                    <i class="fas fa-redo"></i> Re-research
-                                </button>`
-                            }
+                            <button class="btn btn-sm btn-outline-info deep-research-btn" data-company-id="${company.id}" data-company-name="${company.company_name}">
+                                <i class="fas fa-microscope"></i> Deep Research
+                            </button>
                         </div>
                     </td>
                 </tr>
