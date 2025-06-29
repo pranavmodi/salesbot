@@ -1,0 +1,109 @@
+<!-- Deep Research Modal -->
+<div class="modal fade" id="deepResearchModal" tabindex="-1" aria-labelledby="deepResearchModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deepResearchModalLabel">
+                    <i class="fas fa-microscope me-2"></i>Deep Research Center
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Company Info Header -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="deep-research-header">
+                            <h6 class="mb-1" id="deepResearchCompanyName">Loading...</h6>
+                            <small class="text-muted" id="deepResearchCompanyUrl"></small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Research Progress Section -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="deep-research-progress" id="deepResearchProgress">
+                            <div class="d-flex justify-content-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading progress...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Research Steps -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="deep-research-steps" id="deepResearchSteps">
+                            <!-- Steps will be populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Real-time Log -->
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="deep-research-log" id="deepResearchLog" style="display: none;">
+                            <h6 class="fw-bold">
+                                <i class="fas fa-terminal me-2"></i>Research Log
+                                <button class="btn btn-sm btn-outline-secondary ms-2" onclick="toggleResearchLog()">
+                                    <i class="fas fa-eye"></i> Toggle
+                                </button>
+                            </h6>
+                            <div class="log-container bg-dark text-light p-3 rounded" style="height: 200px; overflow-y: auto; font-family: monospace; font-size: 0.85rem;">
+                                <div id="logContent">Research log will appear here...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="deep-research-actions me-auto" id="deepResearchActions">
+                    <button type="button" class="btn btn-success" id="startDeepResearchBtn">
+                        <i class="fas fa-play me-1"></i>Start Deep Research
+                    </button>
+                    <button type="button" class="btn btn-warning" id="forceRefreshDeepBtn" style="display: none;">
+                        <i class="fas fa-redo me-1"></i>Force Refresh
+                    </button>
+                    <button type="button" class="btn btn-info" id="resumeDeepResearchBtn" style="display: none;">
+                        <i class="fas fa-play-circle me-1"></i>Resume Research
+                    </button>
+                    <button type="button" class="btn btn-outline-danger" id="stopResearchBtn" style="display: none;">
+                        <i class="fas fa-stop me-1"></i>Stop Research
+                    </button>
+                </div>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Step Detail Modal (for viewing individual step content) -->
+<div class="modal fade" id="stepDetailModal" tabindex="-1" aria-labelledby="stepDetailModalLabel" aria-hidden="true" data-bs-backdrop="true" data-bs-keyboard="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="stepDetailModalLabel">
+                    <i class="fas fa-file-alt me-2"></i>Research Step Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="stepDetailContent" style="max-height: 70vh; overflow-y: auto;">
+                    <div class="d-flex justify-content-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-primary" id="downloadStepBtn">
+                    <i class="fas fa-download me-1"></i>Download
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div> 

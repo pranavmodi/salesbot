@@ -14,6 +14,17 @@ class Company:
         self.company_name = data.get('company_name', '')
         self.website_url = data.get('website_url', '')
         self.company_research = data.get('company_research', '')
+        self.markdown_report = data.get('markdown_report', '')
+        
+        # Research step tracking fields
+        self.research_status = data.get('research_status', 'pending')  # pending, in_progress, completed, failed
+        self.research_step_1_basic = data.get('research_step_1_basic', '')
+        self.research_step_2_strategic = data.get('research_step_2_strategic', '')
+        self.research_step_3_report = data.get('research_step_3_report', '')
+        self.research_started_at = data.get('research_started_at')
+        self.research_completed_at = data.get('research_completed_at')
+        self.research_error = data.get('research_error', '')
+        
         self.created_at = data.get('created_at')
         self.updated_at = data.get('updated_at')
 
@@ -41,7 +52,10 @@ class Company:
         try:
             with engine.connect() as conn:
                 result = conn.execute(text("""
-                    SELECT id, company_name, website_url, company_research, created_at, updated_at
+                    SELECT id, company_name, website_url, company_research, markdown_report,
+                           research_status, research_step_1_basic, research_step_2_strategic, 
+                           research_step_3_report, research_started_at, research_completed_at, 
+                           research_error, created_at, updated_at
                     FROM companies 
                     ORDER BY created_at DESC
                 """))
@@ -82,7 +96,10 @@ class Company:
                 # Get paginated results
                 offset = (page - 1) * per_page
                 result = conn.execute(text("""
-                    SELECT id, company_name, website_url, company_research, created_at, updated_at
+                    SELECT id, company_name, website_url, company_research, markdown_report,
+                           research_status, research_step_1_basic, research_step_2_strategic, 
+                           research_step_3_report, research_started_at, research_completed_at, 
+                           research_error, created_at, updated_at
                     FROM companies 
                     ORDER BY created_at DESC
                     LIMIT :limit OFFSET :offset
@@ -118,7 +135,10 @@ class Company:
         try:
             with engine.connect() as conn:
                 result = conn.execute(text("""
-                    SELECT id, company_name, website_url, company_research, created_at, updated_at
+                    SELECT id, company_name, website_url, company_research, markdown_report,
+                           research_status, research_step_1_basic, research_step_2_strategic, 
+                           research_step_3_report, research_started_at, research_completed_at, 
+                           research_error, created_at, updated_at
                     FROM companies 
                     WHERE company_name ILIKE :search OR website_url ILIKE :search 
                        OR company_research ILIKE :search
@@ -147,7 +167,10 @@ class Company:
         try:
             with engine.connect() as conn:
                 result = conn.execute(text("""
-                    SELECT id, company_name, website_url, company_research, created_at, updated_at
+                    SELECT id, company_name, website_url, company_research, markdown_report,
+                           research_status, research_step_1_basic, research_step_2_strategic, 
+                           research_step_3_report, research_started_at, research_completed_at, 
+                           research_error, created_at, updated_at
                     FROM companies 
                     WHERE id = :id
                 """), {"id": company_id})
@@ -259,6 +282,151 @@ class Company:
             current_app.logger.error(f"Unexpected error deleting company: {e}")
             return False
 
+    @classmethod
+    def update_research_status(cls, company_id: int, status: str, error: str = None) -> bool:
+        """Update research status for a company."""
+        engine = cls._get_db_engine()
+        if not engine:
+            current_app.logger.error("Failed to update research status: Database engine not available.")
+            return False
+
+        try:
+            with engine.connect() as conn:
+                with conn.begin():
+                    if status == 'in_progress':
+                        update_query = text("""
+                            UPDATE companies 
+                            SET research_status = :status, 
+                                research_started_at = CURRENT_TIMESTAMP,
+                                research_error = NULL,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE id = :id
+                        """)
+                        conn.execute(update_query, {'id': company_id, 'status': status})
+                    elif status == 'completed':
+                        update_query = text("""
+                            UPDATE companies 
+                            SET research_status = :status, 
+                                research_completed_at = CURRENT_TIMESTAMP,
+                                research_error = NULL,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE id = :id
+                        """)
+                        conn.execute(update_query, {'id': company_id, 'status': status})
+                    elif status == 'failed':
+                        update_query = text("""
+                            UPDATE companies 
+                            SET research_status = :status, 
+                                research_error = :error,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE id = :id
+                        """)
+                        conn.execute(update_query, {'id': company_id, 'status': status, 'error': error or ''})
+                    else:
+                        update_query = text("""
+                            UPDATE companies 
+                            SET research_status = :status, 
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE id = :id
+                        """)
+                        conn.execute(update_query, {'id': company_id, 'status': status})
+                        
+            current_app.logger.info(f"Successfully updated research status to {status} for company ID: {company_id}")
+            return True
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Database error updating research status: {e}")
+            return False
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error updating research status: {e}")
+            return False
+
+    @classmethod
+    def update_research_step(cls, company_id: int, step: int, content: str) -> bool:
+        """Update a specific research step for a company."""
+        engine = cls._get_db_engine()
+        if not engine:
+            current_app.logger.error("Failed to update research step: Database engine not available.")
+            return False
+
+        step_column_map = {
+            1: 'research_step_1_basic',
+            2: 'research_step_2_strategic', 
+            3: 'research_step_3_report'
+        }
+        
+        if step not in step_column_map:
+            current_app.logger.error(f"Invalid research step: {step}")
+            return False
+
+        try:
+            with engine.connect() as conn:
+                with conn.begin():
+                    column_name = step_column_map[step]
+                    update_query = text(f"""
+                        UPDATE companies 
+                        SET {column_name} = :content,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :id
+                    """)
+                    result = conn.execute(update_query, {'id': company_id, 'content': content})
+                    
+                    if result.rowcount == 0:
+                        current_app.logger.warning(f"No company found with ID: {company_id}")
+                        return False
+                        
+            current_app.logger.info(f"Successfully updated research step {step} for company ID: {company_id}")
+            return True
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Database error updating research step: {e}")
+            return False
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error updating research step: {e}")
+            return False
+
+    @classmethod
+    def update_full_research(cls, company_id: int, basic_research: str, strategic_analysis: str, markdown_report: str) -> bool:
+        """Update all research steps and markdown report for a company."""
+        engine = cls._get_db_engine()
+        if not engine:
+            current_app.logger.error("Failed to update full research: Database engine not available.")
+            return False
+
+        try:
+            with engine.connect() as conn:
+                with conn.begin():
+                    update_query = text("""
+                        UPDATE companies 
+                        SET research_step_1_basic = :basic_research,
+                            research_step_2_strategic = :strategic_analysis,
+                            research_step_3_report = :markdown_report,
+                            company_research = :basic_research,
+                            markdown_report = :markdown_report,
+                            research_status = 'completed',
+                            research_completed_at = CURRENT_TIMESTAMP,
+                            research_error = NULL,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :id
+                    """)
+                    result = conn.execute(update_query, {
+                        'id': company_id,
+                        'basic_research': basic_research,
+                        'strategic_analysis': strategic_analysis,
+                        'markdown_report': markdown_report
+                    })
+                    
+                    if result.rowcount == 0:
+                        current_app.logger.warning(f"No company found with ID: {company_id}")
+                        return False
+                        
+            current_app.logger.info(f"Successfully updated full research for company ID: {company_id}")
+            return True
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Database error updating full research: {e}")
+            return False
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error updating full research: {e}")
+            return False
+
     def to_dict(self) -> Dict:
         """Convert company to dictionary for JSON serialization."""
         return {
@@ -266,6 +434,14 @@ class Company:
             'company_name': self.company_name,
             'website_url': self.website_url,
             'company_research': self.company_research,
+            'markdown_report': self.markdown_report,
+            'research_status': self.research_status,
+            'research_step_1_basic': self.research_step_1_basic,
+            'research_step_2_strategic': self.research_step_2_strategic,
+            'research_step_3_report': self.research_step_3_report,
+            'research_started_at': self.research_started_at.isoformat() if isinstance(self.research_started_at, datetime) else str(self.research_started_at) if self.research_started_at else None,
+            'research_completed_at': self.research_completed_at.isoformat() if isinstance(self.research_completed_at, datetime) else str(self.research_completed_at) if self.research_completed_at else None,
+            'research_error': self.research_error,
             'created_at': self.created_at.isoformat() if isinstance(self.created_at, datetime) else str(self.created_at) if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if isinstance(self.updated_at, datetime) else str(self.updated_at) if self.updated_at else None
         } 

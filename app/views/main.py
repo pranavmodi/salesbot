@@ -111,4 +111,25 @@ def import_contacts():
 @bp.route('/config')
 def config():
     """Email configuration page."""
-    return render_template('config.html') 
+    return render_template('config.html')
+
+@bp.route('/companies')
+def companies():
+    """Companies management page."""
+    # Companies Pagination
+    companies_page = request.args.get('page', 1, type=int)
+    companies_per_page = request.args.get('per_page', current_app.config.get('COMPANIES_PER_PAGE', 15), type=int)
+    company_data = Company.get_paginated(page=companies_page, per_page=companies_per_page)
+    
+    # Add research status to each company
+    for company in company_data['companies']:
+        company.needs_research = not company.company_research or 'Research pending' in company.company_research
+    
+    return render_template(
+        'companies.html',
+        companies=company_data['companies'],
+        companies_current_page=company_data['current_page'],
+        companies_total_pages=company_data['total_pages'],
+        companies_per_page=companies_per_page,
+        total_companies=company_data['total_companies']
+    ) 

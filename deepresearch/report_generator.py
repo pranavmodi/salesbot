@@ -54,18 +54,17 @@ class ReportGenerator:
         logger.info(f"Successfully generated markdown report for: {company_name}")
         return full_report
 
-    def write_markdown_report(self, company_name: str, research_content: str, strategic_content: str) -> bool:
+    def write_markdown_report(self, company_name: str, company_research: str, strategic_analysis: str) -> bool:
         """Write combined research and strategic analysis to markdown file."""
         logger.info(f"Writing markdown report to file for: {company_name}")
         
-        # Generate filename (company name with safe characters)
-        safe_company_name = "".join(c for c in company_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
-        safe_company_name = safe_company_name.replace(' ', '_').lower()
+        # Generate filename using sanitized company name
+        safe_company_name = self._sanitize_filename(company_name)
         filename = f"{safe_company_name}_analysis.md"
         filepath = os.path.join(self.reports_dir, filename)
         
         # Get the markdown content
-        full_report = self.generate_markdown_report(company_name, research_content, strategic_content)
+        full_report = self.generate_markdown_report(company_name, company_research, strategic_analysis)
         
         try:
             with open(filepath, 'w', encoding='utf-8') as f:
@@ -109,4 +108,29 @@ class ReportGenerator:
                 return False
         except Exception as e:
             logger.error(f"Error deleting report for {company_name}: {e}")
-            return False 
+            return False
+
+    def write_report_file(self, company_name: str, markdown_content: str) -> bool:
+        """Write markdown report directly to file."""
+        try:
+            os.makedirs(self.reports_dir, exist_ok=True)
+            
+            # Clean company name for filename
+            safe_name = self._sanitize_filename(company_name)
+            report_filename = f"{safe_name}_research_report.md"
+            report_path = os.path.join(self.reports_dir, report_filename)
+            
+            with open(report_path, 'w', encoding='utf-8') as f:
+                f.write(markdown_content)
+            
+            logger.info(f"Report file written: {report_path}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error writing report file for {company_name}: {e}")
+            return False
+
+    def _sanitize_filename(self, company_name: str) -> str:
+        """Sanitize company name for use in filenames."""
+        safe_name = "".join(c for c in company_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+        return safe_name.replace(' ', '_').lower() 
