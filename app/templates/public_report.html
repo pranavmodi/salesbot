@@ -8,29 +8,48 @@
     <!-- External CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@300;400;600;700&family=Source+Serif+Pro:wght@400;600;700&display=swap" rel="stylesheet">
     
     <style>
         :root {
-            --primary-color: #1e40af;
-            --primary-light: #3b82f6;
-            --primary-dark: #1e3a8a;
-            --secondary-color: #64748b;
-            --accent-color: #f59e0b;
-            --success-color: #059669;
-            --danger-color: #dc2626;
-            --warning-color: #d97706;
-            --surface-color: #ffffff;
-            --surface-light: #f8fafc;
-            --surface-dark: #f1f5f9;
-            --text-primary: #0f172a;
-            --text-secondary: #475569;
-            --text-muted: #64748b;
-            --border-color: #e2e8f0;
-            --shadow-light: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-            --shadow-medium: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            --shadow-large: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            /* McKinsey Color Palette */
+            --mckinsey-navy: #003366;
+            --mckinsey-blue: #0073e6;
+            --mckinsey-light-blue: #e6f2ff;
+            --mckinsey-gray-90: #1a1a1a;
+            --mckinsey-gray-70: #4d4d4d;
+            --mckinsey-gray-50: #808080;
+            --mckinsey-gray-30: #b3b3b3;
+            --mckinsey-gray-10: #e6e6e6;
+            --mckinsey-gray-5: #f5f5f5;
+            --mckinsey-white: #ffffff;
+            
+            /* Accent Colors */
+            --accent-teal: #20b2aa;
+            --accent-orange: #ff6b35;
+            --accent-green: #28a745;
+            --accent-red: #dc3545;
+            --accent-yellow: #ffc107;
+            
+            /* Typography */
+            --font-primary: 'Source Sans Pro', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-serif: 'Source Serif Pro', Georgia, serif;
+            --font-mono: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            
+            /* Shadows */
+            --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.05);
+            --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.08);
+            --shadow-medium: 0 4px 16px rgba(0, 0, 0, 0.1);
+            --shadow-strong: 0 8px 32px rgba(0, 0, 0, 0.12);
+            
+            /* Spacing */
+            --spacing-xs: 0.25rem;
+            --spacing-sm: 0.5rem;
+            --spacing-md: 1rem;
+            --spacing-lg: 1.5rem;
+            --spacing-xl: 2rem;
+            --spacing-2xl: 3rem;
+            --spacing-3xl: 4rem;
         }
         
         * {
@@ -40,115 +59,196 @@
         }
         
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            line-height: 1.7;
-            color: var(--text-primary);
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
+            font-family: var(--font-primary);
             font-size: 16px;
+            line-height: 1.6;
+            color: var(--mckinsey-gray-90);
+            background: #f8fafc;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
+            overflow-x: hidden;
         }
         
+        /* Premium Container */
         .report-container {
-            background: var(--surface-color);
-            border-radius: 16px;
-            box-shadow: var(--shadow-xl);
-            margin: 2rem auto;
+            background: var(--mckinsey-white);
+            margin: var(--spacing-xl) auto;
             max-width: 1200px;
-            overflow: hidden;
+            box-shadow: var(--shadow-strong);
             position: relative;
+            overflow: hidden;
         }
         
-        .report-container::before {
+        /* McKinsey Brand Strip */
+        .brand-strip {
+            height: 6px;
+            background: linear-gradient(90deg, var(--mckinsey-navy) 0%, var(--mckinsey-blue) 50%, var(--accent-teal) 100%);
+        }
+        
+        /* Executive Header */
+        .executive-header {
+            background: var(--mckinsey-white);
+            padding: var(--spacing-3xl) var(--spacing-2xl);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .executive-header::before {
             content: '';
             position: absolute;
             top: 0;
-            left: 0;
             right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, var(--primary-color) 0%, var(--primary-light) 50%, var(--accent-color) 100%);
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, var(--mckinsey-light-blue) 0%, transparent 70%);
+            opacity: 0.3;
+            z-index: 1;
         }
         
-        .report-header {
-            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-color) 100%);
-            color: white;
-            padding: 3rem 2rem;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .report-header::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
-            animation: float 20s ease-in-out infinite;
-        }
-        
-        @keyframes float {
-            0%, 100% { transform: translateY(0px) rotate(0deg); }
-            50% { transform: translateY(-20px) rotate(180deg); }
-        }
-        
-        .report-header .content {
+        .header-content {
             position: relative;
             z-index: 2;
         }
         
-        .report-header h1 {
-            font-family: 'Playfair Display', serif;
-            font-size: 2.75rem;
+        .report-type {
+            color: var(--mckinsey-blue);
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: var(--spacing-sm);
+        }
+        
+        .main-title {
+            font-family: var(--font-serif);
+            font-size: 3rem;
             font-weight: 700;
-            margin: 0 0 1rem 0;
+            color: var(--mckinsey-navy);
+            line-height: 1.2;
+            margin-bottom: var(--spacing-md);
             letter-spacing: -0.02em;
         }
         
-        .report-header .company-name {
-            font-size: 1.75rem;
-            font-weight: 500;
-            margin: 0.5rem 0 1.5rem 0;
-            opacity: 0.95;
-            letter-spacing: -0.01em;
+        .company-subtitle {
+            font-size: 1.5rem;
+            color: var(--mckinsey-gray-70);
+            font-weight: 400;
+            margin-bottom: var(--spacing-xl);
         }
         
-        .report-header .meta-info {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 2rem;
-            flex-wrap: wrap;
-            font-size: 0.95rem;
-            opacity: 0.9;
+        .header-meta {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--spacing-lg);
+            padding-top: var(--spacing-xl);
+            border-top: 1px solid var(--mckinsey-gray-10);
         }
         
-        .report-header .meta-item {
+        .meta-item {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: var(--spacing-sm);
+            color: var(--mckinsey-gray-70);
+            font-size: 0.9rem;
         }
         
-        .report-header .meta-item i {
+        .meta-icon {
+            width: 20px;
+            height: 20px;
+            color: var(--mckinsey-blue);
+        }
+        
+        /* Executive Summary Section */
+        .executive-summary {
+            background: var(--mckinsey-gray-5);
+            padding: var(--spacing-2xl);
+            border-left: 4px solid var(--mckinsey-blue);
+            margin: var(--spacing-2xl) 0;
+        }
+        
+        .executive-summary h2 {
+            font-family: var(--font-serif);
+            font-size: 1.5rem;
+            color: var(--mckinsey-navy);
+            margin-bottom: var(--spacing-lg);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+        }
+        
+        .key-insights {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: var(--spacing-lg);
+            margin-top: var(--spacing-lg);
+        }
+        
+        .insight-card {
+            background: var(--mckinsey-white);
+            padding: var(--spacing-lg);
+            border-radius: 8px;
+            box-shadow: var(--shadow-soft);
+            border-left: 3px solid var(--accent-teal);
+        }
+        
+        .insight-title {
+            font-weight: 600;
+            color: var(--mckinsey-navy);
+            margin-bottom: var(--spacing-sm);
             font-size: 1.1rem;
         }
         
-        .report-content {
-            padding: 3rem;
-            max-width: none;
+        .insight-text {
+            color: var(--mckinsey-gray-70);
+            font-size: 0.95rem;
+            line-height: 1.6;
         }
         
-        .report-content h1 {
-            font-family: 'Playfair Display', serif;
-            color: var(--text-primary);
-            font-size: 2.25rem;
+        /* Content Sections */
+        .report-content {
+            padding: 0 var(--spacing-2xl) var(--spacing-2xl);
+        }
+        
+        .content-section {
+            margin-bottom: var(--spacing-3xl);
+        }
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-xl);
+            padding-bottom: var(--spacing-md);
+            border-bottom: 2px solid var(--mckinsey-gray-10);
+        }
+        
+        .section-number {
+            background: var(--mckinsey-navy);
+            color: var(--mckinsey-white);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+        
+        .section-title {
+            font-family: var(--font-serif);
+            font-size: 1.75rem;
+            color: var(--mckinsey-navy);
             font-weight: 600;
-            margin: 3rem 0 1.5rem 0;
-            padding-bottom: 1rem;
-            border-bottom: 3px solid var(--primary-color);
+        }
+        
+        /* Typography Hierarchy */
+        .report-content h1 {
+            font-family: var(--font-serif);
+            font-size: 2rem;
+            color: var(--mckinsey-navy);
+            font-weight: 600;
+            margin: var(--spacing-2xl) 0 var(--spacing-lg) 0;
             position: relative;
         }
         
@@ -159,370 +259,509 @@
         .report-content h1::after {
             content: '';
             position: absolute;
-            bottom: -3px;
+            bottom: -8px;
             left: 0;
             width: 60px;
             height: 3px;
-            background: var(--accent-color);
+            background: var(--mckinsey-blue);
         }
         
         .report-content h2 {
-            font-family: 'Inter', sans-serif;
-            color: var(--text-primary);
-            font-size: 1.5rem;
+            font-size: 1.4rem;
+            color: var(--mckinsey-navy);
             font-weight: 600;
-            margin: 2.5rem 0 1rem 0;
+            margin: var(--spacing-xl) 0 var(--spacing-md) 0;
             position: relative;
-            padding-left: 1rem;
+            padding-left: var(--spacing-lg);
         }
         
         .report-content h2::before {
             content: '';
             position: absolute;
             left: 0;
-            top: 0.2em;
+            top: 0.3em;
             width: 4px;
             height: 1.2em;
-            background: var(--primary-color);
+            background: var(--mckinsey-blue);
             border-radius: 2px;
         }
         
         .report-content h3 {
-            color: var(--text-secondary);
-            font-size: 1.25rem;
+            font-size: 1.2rem;
+            color: var(--mckinsey-gray-70);
             font-weight: 600;
-            margin: 2rem 0 1rem 0;
+            margin: var(--spacing-lg) 0 var(--spacing-sm) 0;
         }
         
         .report-content h4 {
-            color: var(--text-secondary);
             font-size: 1.1rem;
+            color: var(--mckinsey-gray-70);
             font-weight: 600;
-            margin: 1.5rem 0 0.75rem 0;
+            margin: var(--spacing-md) 0 var(--spacing-sm) 0;
         }
         
         .report-content p {
-            color: var(--text-secondary);
-            margin-bottom: 1.25rem;
-            line-height: 1.8;
+            color: var(--mckinsey-gray-70);
+            margin-bottom: var(--spacing-md);
+            line-height: 1.7;
+            font-size: 1rem;
         }
         
         .report-content ul, .report-content ol {
-            margin: 1rem 0 1.5rem 1.5rem;
-            color: var(--text-secondary);
+            margin: var(--spacing-md) 0 var(--spacing-lg) var(--spacing-xl);
+            color: var(--mckinsey-gray-70);
         }
         
         .report-content li {
-            margin-bottom: 0.5rem;
+            margin-bottom: var(--spacing-sm);
             line-height: 1.7;
         }
         
         .report-content strong {
-            color: var(--text-primary);
+            color: var(--mckinsey-gray-90);
             font-weight: 600;
         }
         
+        /* Strategic Callouts */
+        .strategic-callout {
+            background: linear-gradient(135deg, var(--mckinsey-light-blue) 0%, #f0f8ff 100%);
+            border: 1px solid var(--mckinsey-blue);
+            border-radius: 12px;
+            padding: var(--spacing-xl);
+            margin: var(--spacing-xl) 0;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .strategic-callout::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: var(--mckinsey-blue);
+        }
+        
+        .callout-header {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            margin-bottom: var(--spacing-md);
+        }
+        
+        .callout-icon {
+            background: var(--mckinsey-blue);
+            color: var(--mckinsey-white);
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+        }
+        
+        .callout-title {
+            font-weight: 600;
+            color: var(--mckinsey-navy);
+            font-size: 1.1rem;
+        }
+        
+        /* Premium Tables */
         .report-content table {
             width: 100%;
-            margin: 2rem 0;
+            margin: var(--spacing-xl) 0;
             border-collapse: separate;
             border-spacing: 0;
-            background: var(--surface-color);
+            background: var(--mckinsey-white);
             border-radius: 12px;
             overflow: hidden;
             box-shadow: var(--shadow-medium);
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--mckinsey-gray-10);
         }
         
         .report-content thead {
-            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
+            background: linear-gradient(135deg, var(--mckinsey-navy) 0%, var(--mckinsey-blue) 100%);
         }
         
         .report-content th {
-            color: white;
-            padding: 1.25rem 1.5rem;
+            color: var(--mckinsey-white);
+            padding: var(--spacing-lg) var(--spacing-xl);
             text-align: left;
             font-weight: 600;
-            font-size: 0.95rem;
-            letter-spacing: 0.025em;
+            font-size: 0.9rem;
+            letter-spacing: 0.5px;
             text-transform: uppercase;
             border: none;
+            position: relative;
+        }
+        
+        .report-content th:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 25%;
+            height: 50%;
+            width: 1px;
+            background: rgba(255, 255, 255, 0.2);
         }
         
         .report-content td {
-            padding: 1.25rem 1.5rem;
-            border-bottom: 1px solid var(--border-color);
-            color: var(--text-secondary);
+            padding: var(--spacing-lg) var(--spacing-xl);
+            border-bottom: 1px solid var(--mckinsey-gray-10);
+            color: var(--mckinsey-gray-70);
             font-size: 0.95rem;
             line-height: 1.6;
             vertical-align: top;
         }
         
         .report-content tbody tr {
-            transition: background-color 0.2s ease;
+            transition: all 0.2s ease;
+        }
+        
+        .report-content tbody tr:nth-child(even) {
+            background-color: var(--mckinsey-gray-5);
         }
         
         .report-content tbody tr:hover {
-            background-color: var(--surface-light);
+            background-color: var(--mckinsey-light-blue);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-soft);
         }
         
         .report-content tbody tr:last-child td {
             border-bottom: none;
         }
         
+        /* Quote Styling */
         .report-content blockquote {
-            background: var(--surface-light);
-            border-left: 4px solid var(--primary-color);
-            padding: 1.5rem;
-            margin: 2rem 0;
+            background: var(--mckinsey-gray-5);
+            border-left: 4px solid var(--accent-teal);
+            padding: var(--spacing-xl);
+            margin: var(--spacing-xl) 0;
             border-radius: 0 8px 8px 0;
             font-style: italic;
-            color: var(--text-secondary);
+            color: var(--mckinsey-gray-70);
+            position: relative;
         }
         
+        .report-content blockquote::before {
+            content: '"';
+            font-size: 4rem;
+            color: var(--mckinsey-gray-30);
+            position: absolute;
+            top: -10px;
+            left: var(--spacing-md);
+            line-height: 1;
+        }
+        
+        /* Code Styling */
         .report-content code {
-            background: var(--surface-dark);
+            background: var(--mckinsey-gray-5);
             padding: 0.25rem 0.5rem;
             border-radius: 4px;
-            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+            font-family: var(--font-mono);
             font-size: 0.875rem;
-            color: var(--text-primary);
+            color: var(--mckinsey-navy);
+            border: 1px solid var(--mckinsey-gray-10);
         }
         
-        .metadata {
-            padding: 2rem 3rem;
-            background: var(--surface-light);
-            border-top: 1px solid var(--border-color);
-            font-size: 0.9rem;
-            color: var(--text-muted);
-        }
-        
-        .metadata .row {
+        /* Status Indicators */
+        .status-indicator {
+            display: inline-flex;
             align-items: center;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            gap: 0.5rem;
         }
         
-        .metadata strong {
-            color: var(--text-secondary);
+        .status-high {
+            background: #fef2f2;
+            color: var(--accent-red);
+            border: 1px solid #fecaca;
+        }
+        
+        .status-medium {
+            background: #fffbeb;
+            color: var(--accent-yellow);
+            border: 1px solid #fed7aa;
+        }
+        
+        .status-low {
+            background: #f0fdf4;
+            color: var(--accent-green);
+            border: 1px solid #bbf7d0;
+        }
+        
+        /* Report Metadata */
+        .report-metadata {
+            background: var(--mckinsey-gray-5);
+            border-top: 1px solid var(--mckinsey-gray-10);
+            padding: var(--spacing-xl) var(--spacing-2xl);
+        }
+        
+        .metadata-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: var(--spacing-lg);
+        }
+        
+        .metadata-item {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-xs);
+        }
+        
+        .metadata-label {
+            font-size: 0.8rem;
+            color: var(--mckinsey-gray-50);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
             font-weight: 600;
         }
         
-        .metadata a {
-            color: var(--primary-color);
-            text-decoration: none;
+        .metadata-value {
+            color: var(--mckinsey-gray-70);
             font-weight: 500;
+        }
+        
+        .metadata-value a {
+            color: var(--mckinsey-blue);
+            text-decoration: none;
             transition: color 0.2s ease;
         }
         
-        .metadata a:hover {
-            color: var(--primary-dark);
+        .metadata-value a:hover {
+            color: var(--mckinsey-navy);
             text-decoration: underline;
         }
         
-        .action-buttons {
-            padding: 2rem 3rem;
-            background: var(--surface-color);
-            border-top: 1px solid var(--border-color);
+        /* Action Center */
+        .action-center {
+            background: var(--mckinsey-white);
+            border-top: 1px solid var(--mckinsey-gray-10);
+            padding: var(--spacing-xl) var(--spacing-2xl);
             display: flex;
-            gap: 1rem;
             justify-content: center;
+            gap: var(--spacing-md);
             flex-wrap: wrap;
         }
         
-        .btn-custom {
-            padding: 0.875rem 2rem;
-            border-radius: 50px;
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 0.95rem;
-            transition: all 0.3s ease;
+        .action-btn {
             display: inline-flex;
             align-items: center;
-            gap: 0.5rem;
-            border: 2px solid transparent;
+            gap: var(--spacing-sm);
+            padding: var(--spacing-md) var(--spacing-xl);
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
             text-transform: uppercase;
-            letter-spacing: 0.025em;
+            letter-spacing: 0.5px;
+            border: 2px solid transparent;
             position: relative;
             overflow: hidden;
+            min-width: 160px;
+            justify-content: center;
         }
         
-        .btn-custom::before {
+        .action-btn::before {
             content: '';
             position: absolute;
             top: 0;
             left: -100%;
             width: 100%;
             height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-            transition: left 0.5s ease;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: left 0.6s ease;
         }
         
-        .btn-custom:hover::before {
+        .action-btn:hover::before {
             left: 100%;
         }
         
-        .btn-pdf {
-            background: linear-gradient(135deg, var(--danger-color) 0%, #b91c1c 100%);
-            color: white;
+        .btn-primary {
+            background: linear-gradient(135deg, var(--mckinsey-navy) 0%, var(--mckinsey-blue) 100%);
+            color: var(--mckinsey-white);
             box-shadow: var(--shadow-medium);
         }
         
-        .btn-pdf:hover {
-            background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%);
-            color: white;
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #002244 0%, #0066cc 100%);
+            color: var(--mckinsey-white);
             transform: translateY(-2px);
-            box-shadow: var(--shadow-large);
+            box-shadow: var(--shadow-strong);
         }
         
-        .btn-share {
-            background: linear-gradient(135deg, var(--success-color) 0%, #047857 100%);
-            color: white;
+        .btn-secondary {
+            background: linear-gradient(135deg, var(--accent-green) 0%, #20a040 100%);
+            color: var(--mckinsey-white);
             box-shadow: var(--shadow-medium);
         }
         
-        .btn-share:hover {
-            background: linear-gradient(135deg, #047857 0%, #065f46 100%);
-            color: white;
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #228b22 0%, #1e8e1e 100%);
+            color: var(--mckinsey-white);
             transform: translateY(-2px);
-            box-shadow: var(--shadow-large);
+            box-shadow: var(--shadow-strong);
         }
         
-        .btn-print {
-            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
-            color: white;
+        .btn-tertiary {
+            background: linear-gradient(135deg, var(--mckinsey-gray-70) 0%, var(--mckinsey-gray-50) 100%);
+            color: var(--mckinsey-white);
             box-shadow: var(--shadow-medium);
         }
         
-        .btn-print:hover {
-            background: linear-gradient(135deg, #6d28d9 0%, #5b21b6 100%);
-            color: white;
+        .btn-tertiary:hover {
+            background: linear-gradient(135deg, var(--mckinsey-gray-90) 0%, var(--mckinsey-gray-70) 100%);
+            color: var(--mckinsey-white);
             transform: translateY(-2px);
-            box-shadow: var(--shadow-large);
+            box-shadow: var(--shadow-strong);
         }
         
-        .powered-by {
+        /* Professional Footer */
+        .professional-footer {
+            background: linear-gradient(135deg, var(--mckinsey-navy) 0%, var(--mckinsey-gray-90) 100%);
+            color: var(--mckinsey-white);
+            padding: var(--spacing-xl) var(--spacing-2xl);
             text-align: center;
-            padding: 1.5rem;
-            background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
-            color: white;
+        }
+        
+        .footer-content {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .footer-logo {
+            font-family: var(--font-serif);
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: var(--spacing-md);
+            color: var(--mckinsey-white);
+        }
+        
+        .footer-tagline {
+            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: var(--spacing-md);
+            font-weight: 400;
+        }
+        
+        .footer-contact {
+            color: rgba(255, 255, 255, 0.7);
             font-size: 0.9rem;
+        }
+        
+        .footer-contact a {
+            color: var(--accent-teal);
+            text-decoration: none;
             font-weight: 500;
         }
         
-        .powered-by a {
-            color: var(--accent-color);
-            text-decoration: none;
-            font-weight: 600;
-            transition: color 0.2s ease;
-        }
-        
-        .powered-by a:hover {
-            color: #fbbf24;
-        }
-        
-        /* Badge Styles */
-        .priority-badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.5rem 1rem;
-            border-radius: 25px;
-            font-size: 0.875rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.025em;
-            margin: 0.5rem 0;
-        }
-        
-        .priority-high {
-            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-            color: var(--danger-color);
-            border: 1px solid #fca5a5;
-        }
-        
-        .priority-medium {
-            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-            color: var(--warning-color);
-            border: 1px solid #f59e0b;
-        }
-        
-        .priority-low {
-            background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
-            color: var(--success-color);
-            border: 1px solid #34d399;
+        .footer-contact a:hover {
+            color: #32cd32;
+            text-decoration: underline;
         }
         
         /* Responsive Design */
         @media (max-width: 768px) {
             .report-container {
-                margin: 1rem;
-                border-radius: 12px;
+                margin: var(--spacing-md);
             }
             
-            .report-header {
-                padding: 2rem 1.5rem;
+            .executive-header {
+                padding: var(--spacing-xl) var(--spacing-lg);
             }
             
-            .report-header h1 {
-                font-size: 2rem;
+            .main-title {
+                font-size: 2.5rem;
             }
             
-            .report-header .company-name {
-                font-size: 1.4rem;
+            .company-subtitle {
+                font-size: 1.25rem;
             }
             
-            .report-header .meta-info {
-                flex-direction: column;
-                gap: 1rem;
+            .header-meta {
+                grid-template-columns: 1fr;
+                gap: var(--spacing-md);
             }
             
             .report-content {
-                padding: 2rem 1.5rem;
+                padding: 0 var(--spacing-lg) var(--spacing-lg);
+            }
+            
+            .key-insights {
+                grid-template-columns: 1fr;
+            }
+            
+            .section-header {
+                flex-direction: column;
+                text-align: center;
+                gap: var(--spacing-sm);
+            }
+            
+            .section-title {
+                font-size: 1.5rem;
             }
             
             .report-content h1 {
-                font-size: 1.875rem;
+                font-size: 1.75rem;
             }
             
             .report-content h2 {
-                font-size: 1.375rem;
+                font-size: 1.25rem;
             }
             
             .report-content table {
-                font-size: 0.875rem;
+                font-size: 0.85rem;
             }
             
             .report-content th,
             .report-content td {
-                padding: 1rem;
+                padding: var(--spacing-md);
             }
             
-            .action-buttons {
-                padding: 1.5rem;
+            .action-center {
                 flex-direction: column;
                 align-items: center;
+                padding: var(--spacing-lg);
             }
             
-            .btn-custom {
+            .action-btn {
                 width: 100%;
                 max-width: 280px;
-                justify-content: center;
             }
             
-            .metadata {
-                padding: 1.5rem;
+            .report-metadata {
+                padding: var(--spacing-lg);
+            }
+            
+            .metadata-grid {
+                grid-template-columns: 1fr;
+                gap: var(--spacing-md);
             }
         }
         
         @media (max-width: 480px) {
-            .report-header h1 {
-                font-size: 1.75rem;
+            .main-title {
+                font-size: 2rem;
             }
             
-            .report-content h1 {
-                font-size: 1.625rem;
+            .company-subtitle {
+                font-size: 1.1rem;
             }
             
             .report-content {
-                padding: 1.5rem 1rem;
+                padding: 0 var(--spacing-md) var(--spacing-md);
+            }
+            
+            .executive-summary {
+                padding: var(--spacing-lg);
             }
         }
         
@@ -531,133 +770,212 @@
             body {
                 background: white;
                 color: black;
+                font-size: 12pt;
+                line-height: 1.4;
             }
             
             .report-container {
                 box-shadow: none;
                 margin: 0;
-                border-radius: 0;
             }
             
-            .report-header {
+            .executive-header {
                 background: white !important;
                 color: black !important;
-                border-bottom: 2px solid #000;
+                page-break-inside: avoid;
             }
             
-            .action-buttons, 
-            .powered-by {
+            .action-center,
+            .professional-footer {
                 display: none;
+            }
+            
+            .content-section {
+                page-break-inside: avoid;
             }
             
             .report-content table {
                 box-shadow: none;
                 border: 1px solid #000;
+                page-break-inside: avoid;
             }
             
             .report-content th {
                 background: #f5f5f5 !important;
                 color: black !important;
             }
+            
+            .strategic-callout {
+                background: #f8f9fa !important;
+                border: 1px solid #000;
+                page-break-inside: avoid;
+            }
         }
         
-        /* Loading Animation */
-        .loading-shimmer {
-            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-            background-size: 200% 100%;
-            animation: shimmer 2s infinite;
+        /* Smooth Animations */
+        .fade-in {
+            animation: fadeIn 0.8s ease-out;
         }
         
-        @keyframes shimmer {
-            0% { background-position: -200% 0; }
-            100% { background-position: 200% 0; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .slide-in {
+            animation: slideIn 1s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-30px); }
+            to { opacity: 1; transform: translateX(0); }
         }
     </style>
 </head>
 <body>
     <div class="report-container">
-        <!-- Header -->
-        <div class="report-header">
-            <div class="content">
-                <h1><i class="fas fa-chart-line me-3"></i>Strategic Analysis Report</h1>
-                <div class="company-name">{{ company_name }}</div>
-                <div class="meta-info">
+        <!-- McKinsey Brand Strip -->
+        <div class="brand-strip"></div>
+        
+        <!-- Executive Header -->
+        <div class="executive-header fade-in">
+            <div class="header-content">
+                <div class="report-type">Strategic Analysis Report</div>
+                <h1 class="main-title">{{ company_name }}</h1>
+                <div class="company-subtitle">Comprehensive Market Intelligence & Strategic Insights</div>
+                
+                <div class="header-meta">
                     <div class="meta-item">
-                        <i class="fas fa-calendar"></i>
-                        <span>Generated: {{ generated_date.strftime('%B %d, %Y') if generated_date else 'N/A' }}</span>
+                        <i class="fas fa-calendar meta-icon"></i>
+                        <span>{{ generated_date.strftime('%B %d, %Y') if generated_date else 'N/A' }}</span>
                     </div>
                     {% if company_website %}
                     <div class="meta-item">
-                        <i class="fas fa-globe"></i>
-                        <a href="{{ company_website }}" target="_blank" style="color: rgba(255,255,255,0.9);">{{ company_website }}</a>
+                        <i class="fas fa-globe meta-icon"></i>
+                        <a href="{{ company_website }}" target="_blank" style="color: var(--mckinsey-blue);">{{ company_website }}</a>
                     </div>
                     {% endif %}
                     <div class="meta-item">
-                        <i class="fas fa-robot"></i>
-                        <span>AI-Powered Analysis</span>
+                        <i class="fas fa-chart-line meta-icon"></i>
+                        <span>AI-Enhanced Analysis</span>
                     </div>
+                    <div class="meta-item">
+                        <i class="fas fa-shield-alt meta-icon"></i>
+                        <span>Confidential</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Executive Summary -->
+        <div class="executive-summary slide-in">
+            <h2><i class="fas fa-star"></i>Executive Summary</h2>
+            <p>This comprehensive strategic analysis provides actionable insights into {{ company_name }}'s market position, competitive landscape, and growth opportunities. Our AI-enhanced research methodology combines real-time market intelligence with strategic frameworks to deliver McKinsey-grade analysis.</p>
+            
+            <div class="key-insights">
+                <div class="insight-card">
+                    <div class="insight-title">Market Position</div>
+                    <div class="insight-text">Comprehensive analysis of competitive positioning and market dynamics</div>
+                </div>
+                <div class="insight-card">
+                    <div class="insight-title">Growth Opportunities</div>
+                    <div class="insight-text">Identification of strategic growth vectors and expansion potential</div>
+                </div>
+                <div class="insight-card">
+                    <div class="insight-title">Risk Assessment</div>
+                    <div class="insight-text">Strategic risk evaluation and mitigation recommendations</div>
                 </div>
             </div>
         </div>
         
         <!-- Report Content -->
         <div class="report-content">
+            <!-- Strategic Callout Example -->
+            <div class="strategic-callout fade-in">
+                <div class="callout-header">
+                    <div class="callout-icon">
+                        <i class="fas fa-lightbulb"></i>
+                    </div>
+                    <div class="callout-title">Key Strategic Insight</div>
+                </div>
+                <p>The following analysis represents our strategic assessment based on comprehensive market research, competitive intelligence, and proprietary analytical frameworks.</p>
+            </div>
+            
             {{ html_content | safe }}
         </div>
         
-        <!-- Metadata -->
-        <div class="metadata">
-            <div class="row">
-                <div class="col-md-6">
-                    <strong>Report ID:</strong> {{ company_name | replace(' ', '_') | lower }}_{{ generated_date.strftime('%Y%m%d') if generated_date else 'unknown' }}
+        <!-- Report Metadata -->
+        <div class="report-metadata">
+            <div class="metadata-grid">
+                <div class="metadata-item">
+                    <div class="metadata-label">Report ID</div>
+                    <div class="metadata-value">{{ company_name | replace(' ', '_') | lower }}_{{ generated_date.strftime('%Y%m%d') if generated_date else 'unknown' }}</div>
                 </div>
-                <div class="col-md-6 text-md-end">
-                    <strong>Share URL:</strong> <a href="{{ report_url }}" target="_blank">{{ report_url }}</a>
+                <div class="metadata-item">
+                    <div class="metadata-label">Classification</div>
+                    <div class="metadata-value">Confidential Strategic Analysis</div>
+                </div>
+                <div class="metadata-item">
+                    <div class="metadata-label">Analysis Method</div>
+                    <div class="metadata-value">AI-Enhanced Research + Strategic Frameworks</div>
+                </div>
+                <div class="metadata-item">
+                    <div class="metadata-label">Share URL</div>
+                    <div class="metadata-value">
+                        <a href="{{ report_url }}" target="_blank">{{ report_url }}</a>
+                    </div>
                 </div>
             </div>
         </div>
         
-        <!-- Action Buttons -->
-        <div class="action-buttons">
+        <!-- Action Center -->
+        <div class="action-center">
             <a href="{{ url_for('api.get_company_report_pdf', company_id=request.view_args.company_id) }}" 
-               class="btn btn-custom btn-pdf" target="_blank">
-                <i class="fas fa-file-pdf"></i>Download PDF
+               class="action-btn btn-primary" target="_blank">
+                <i class="fas fa-file-pdf"></i>Export PDF
             </a>
-            <button class="btn btn-custom btn-share" onclick="shareReport()">
-                <i class="fas fa-share-alt"></i>Share Report
+            <button class="action-btn btn-secondary" onclick="shareReport()">
+                <i class="fas fa-share-nodes"></i>Share Report
             </button>
-            <button class="btn btn-custom btn-print" onclick="window.print()">
-                <i class="fas fa-print"></i>Print Report
+            <button class="action-btn btn-tertiary" onclick="window.print()">
+                <i class="fas fa-print"></i>Print
             </button>
         </div>
         
-        <!-- Powered By -->
-        <div class="powered-by">
-            Powered by <strong>AI-Driven Strategic Analysis</strong> | 
-            <a href="mailto:contact@possibleminds.ai">Contact Us</a> for custom analysis
+        <!-- Professional Footer -->
+        <div class="professional-footer">
+            <div class="footer-content">
+                <div class="footer-logo">Strategic Intelligence Platform</div>
+                <div class="footer-tagline">Powered by advanced AI analytics and strategic consulting frameworks</div>
+                <div class="footer-contact">
+                    For inquiries: <a href="mailto:insights@possibleminds.ai">insights@possibleminds.ai</a> | 
+                    <a href="tel:+1-555-STRATEGY">+1-555-STRATEGY</a>
+                </div>
+            </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // McKinsey-level interactions
         function shareReport() {
             if (navigator.share) {
                 navigator.share({
                     title: 'Strategic Analysis: {{ company_name }}',
-                    text: 'Check out this AI-generated strategic analysis report',
+                    text: 'Comprehensive strategic analysis and market intelligence report',
                     url: window.location.href
                 });
             } else {
-                // Fallback to clipboard
+                // Premium clipboard functionality
                 navigator.clipboard.writeText(window.location.href).then(() => {
-                    // Show success message
-                    const button = event.target;
-                    const originalText = button.innerHTML;
+                    const button = event.target.closest('.action-btn');
+                    const originalHTML = button.innerHTML;
+                    
                     button.innerHTML = '<i class="fas fa-check"></i>Copied!';
-                    button.style.background = 'linear-gradient(135deg, #059669 0%, #047857 100%)';
+                    button.style.background = 'linear-gradient(135deg, var(--accent-green) 0%, #20a040 100%)';
                     
                     setTimeout(() => {
-                        button.innerHTML = originalText;
+                        button.innerHTML = originalHTML;
                         button.style.background = '';
                     }, 2000);
                 }).catch(() => {
@@ -666,23 +984,62 @@
             }
         }
         
-        // Track analytics (optional)
-        console.log('Strategic report viewed:', '{{ company_name }}', new Date());
+        // Smooth animations on scroll
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
         
-        // Add smooth scrolling for anchor links
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, observerOptions);
+        
+        // Observe all content sections
+        document.querySelectorAll('.content-section, .insight-card, .strategic-callout').forEach(el => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(20px)';
+            el.style.transition = 'all 0.6s ease-out';
+            observer.observe(el);
+        });
+        
+        // Premium smooth scrolling
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function (e) {
                 e.preventDefault();
-                document.querySelector(this.getAttribute('href')).scrollIntoView({
-                    behavior: 'smooth'
-                });
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
             });
         });
         
-        // Add loading animation for images
+        // Analytics tracking
+        console.log('McKinsey-level strategic report viewed:', '{{ company_name }}', new Date());
+        
+        // Professional loading states
         document.querySelectorAll('img').forEach(img => {
+            img.style.opacity = '0';
+            img.style.transition = 'opacity 0.3s ease';
             img.addEventListener('load', function() {
                 this.style.opacity = '1';
+            });
+        });
+        
+        // Enhanced table interactions
+        document.querySelectorAll('table tr').forEach(row => {
+            row.addEventListener('mouseenter', function() {
+                this.style.transform = 'scale(1.01)';
+            });
+            row.addEventListener('mouseleave', function() {
+                this.style.transform = 'scale(1)';
             });
         });
     </script>
