@@ -127,6 +127,7 @@
             line-height: 1.2;
             margin-bottom: var(--spacing-md);
             letter-spacing: -0.02em;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
         }
         
         .company-subtitle {
@@ -169,11 +170,13 @@
         .executive-summary h2 {
             font-family: var(--font-serif);
             font-size: 1.5rem;
+            font-weight: 700;
             color: var(--mckinsey-navy);
             margin-bottom: var(--spacing-lg);
             display: flex;
             align-items: center;
             gap: var(--spacing-sm);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
         }
         
         .key-insights {
@@ -192,7 +195,7 @@
         }
         
         .insight-title {
-            font-weight: 600;
+            font-weight: 700;
             color: var(--mckinsey-navy);
             margin-bottom: var(--spacing-sm);
             font-size: 1.1rem;
@@ -239,7 +242,7 @@
             font-family: var(--font-serif);
             font-size: 1.75rem;
             color: var(--mckinsey-navy);
-            font-weight: 600;
+            font-weight: 700;
         }
         
         /* Typography Hierarchy */
@@ -247,7 +250,7 @@
             font-family: var(--font-serif);
             font-size: 2rem;
             color: var(--mckinsey-navy);
-            font-weight: 600;
+            font-weight: 700;
             margin: var(--spacing-2xl) 0 var(--spacing-lg) 0;
             position: relative;
         }
@@ -269,7 +272,7 @@
         .report-content h2 {
             font-size: 1.4rem;
             color: var(--mckinsey-navy);
-            font-weight: 600;
+            font-weight: 700;
             margin: var(--spacing-xl) 0 var(--spacing-md) 0;
             position: relative;
             padding-left: var(--spacing-lg);
@@ -288,16 +291,32 @@
         
         .report-content h3 {
             font-size: 1.2rem;
-            color: var(--mckinsey-gray-70);
-            font-weight: 600;
+            color: var(--mckinsey-navy);
+            font-weight: 700;
             margin: var(--spacing-lg) 0 var(--spacing-sm) 0;
         }
         
         .report-content h4 {
             font-size: 1.1rem;
-            color: var(--mckinsey-gray-70);
-            font-weight: 600;
+            color: var(--mckinsey-navy);
+            font-weight: 700;
             margin: var(--spacing-md) 0 var(--spacing-sm) 0;
+        }
+        
+        .report-content h5 {
+            font-size: 1rem;
+            color: var(--mckinsey-navy);
+            font-weight: 700;
+            margin: var(--spacing-md) 0 var(--spacing-sm) 0;
+        }
+        
+        .report-content h6 {
+            font-size: 0.95rem;
+            color: var(--mckinsey-navy);
+            font-weight: 700;
+            margin: var(--spacing-sm) 0 var(--spacing-xs) 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
         
         .report-content p {
@@ -319,7 +338,27 @@
         
         .report-content strong {
             color: var(--mckinsey-gray-90);
-            font-weight: 600;
+            font-weight: 700;
+        }
+        
+        /* Enhanced bold for markdown headers within content */
+        .report-content h1 strong,
+        .report-content h2 strong,
+        .report-content h3 strong,
+        .report-content h4 strong,
+        .report-content h5 strong,
+        .report-content h6 strong {
+            font-weight: 700;
+            color: var(--mckinsey-navy);
+        }
+        
+        /* Specific styling for markdown bold headers */
+        .report-content p strong:only-child {
+            display: block;
+            font-size: 1.15em;
+            color: var(--mckinsey-navy);
+            font-weight: 700;
+            margin: var(--spacing-md) 0 var(--spacing-sm) 0;
         }
         
         /* Strategic Callouts */
@@ -363,7 +402,7 @@
         }
         
         .callout-title {
-            font-weight: 600;
+            font-weight: 700;
             color: var(--mckinsey-navy);
             font-size: 1.1rem;
         }
