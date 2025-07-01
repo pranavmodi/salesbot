@@ -72,6 +72,27 @@
                     <button type="button" class="btn btn-outline-danger" id="stopResearchBtn" style="display: none;">
                         <i class="fas fa-stop me-1"></i>Stop Research
                     </button>
+                    <button type="button" class="btn btn-primary" id="viewStrategicReportBtn" style="display: none;">
+                        <i class="fas fa-file-alt me-1"></i>View Strategic Report
+                    </button>
+                </div>
+                <div class="deep-research-secondary-actions me-auto">
+                    <div class="btn-group" id="reportFormatButtons" style="display: none;">
+                        <button type="button" class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-download me-1"></i>Export Report
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" id="viewHtmlReportLink" target="_blank">
+                                <i class="fas fa-globe me-2"></i>View Web Report
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" id="downloadPdfReportLink" target="_blank">
+                                <i class="fas fa-file-pdf me-2"></i>Download PDF
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" id="viewEmbedReportLink" target="_blank">
+                                <i class="fas fa-code me-2"></i>Embeddable Version
+                            </a></li>
+                        </ul>
+                    </div>
                 </div>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>

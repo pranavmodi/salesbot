@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strategic Analysis: {{ company_name }}</title>
+    
+    <!-- External CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .report-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin: 2rem auto;
+            max-width: 1000px;
+            overflow: hidden;
+        }
+        
+        .report-header {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        .report-header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 300;
+        }
+        
+        .report-header .company-name {
+            font-size: 1.5rem;
+            margin: 0.5rem 0;
+            opacity: 0.9;
+        }
+        
+        .report-content {
+            padding: 2rem;
+        }
+        
+        .report-content h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 0.5rem;
+            margin-top: 2rem;
+        }
+        
+        .report-content h2 {
+            color: #34495e;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+        }
+        
+        .report-content h3 {
+            color: #5d6d7e;
+            margin-top: 1.5rem;
+        }
+        
+        .report-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 1.5rem 0;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .report-content th {
+            background: #3498db;
+            color: white;
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        .report-content td {
+            padding: 1rem;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        
+        .report-content tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .action-buttons {
+            padding: 1.5rem 2rem;
+            background: #f8f9fa;
+            border-top: 1px solid #ecf0f1;
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+        
+        .btn-custom {
+            padding: 0.75rem 1.5rem;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-pdf {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .btn-pdf:hover {
+            background: #c0392b;
+            color: white;
+        }
+        
+        .btn-share {
+            background: #2ecc71;
+            color: white;
+        }
+        
+        .btn-share:hover {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .metadata {
+            padding: 1rem 2rem;
+            background: #ecf0f1;
+            font-size: 0.9rem;
+            color: #7f8c8d;
+        }
+        
+        .powered-by {
+            text-align: center;
+            padding: 1rem;
+            background: #34495e;
+            color: white;
+            font-size: 0.9rem;
+        }
+        
+        .powered-by a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        
+        @media (max-width: 768px) {
+            .report-container {
+                margin: 1rem;
+                border-radius: 8px;
+            }
+            
+            .report-header {
+                padding: 1.5rem;
+            }
+            
+            .report-header h1 {
+                font-size: 2rem;
+            }
+            
+            .report-content {
+                padding: 1.5rem;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+        
+        /* Print styles */
+        @media print {
+            body {
+                background: white;
+            }
+            
+            .report-container {
+                box-shadow: none;
+                margin: 0;
+            }
+            
+            .action-buttons, .powered-by {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="report-container">
+        <!-- Header -->
+        <div class="report-header">
+            <h1><i class="fas fa-chart-line me-3"></i>Strategic Analysis Report</h1>
+            <div class="company-name">{{ company_name }}</div>
+            <div class="mt-2">
+                <small><i class="fas fa-calendar me-2"></i>Generated: {{ generated_date.strftime('%B %d, %Y') if generated_date else 'N/A' }}</small>
+                {% if company_website %}
+                <br><small><i class="fas fa-globe me-2"></i><a href="{{ company_website }}" target="_blank" style="color: #ecf0f1;">{{ company_website }}</a></small>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Report Content -->
+        <div class="report-content">
+            {{ html_content | safe }}
+        </div>
+        
+        <!-- Metadata -->
+        <div class="metadata">
+            <div class="row">
+                <div class="col-md-6">
+                    <strong>Report ID:</strong> {{ company_name | replace(' ', '_') | lower }}_{{ generated_date.strftime('%Y%m%d') if generated_date else 'unknown' }}
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <strong>Share URL:</strong> <a href="{{ report_url }}" target="_blank">{{ report_url }}</a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+            <a href="{{ url_for('api.get_company_report_pdf', company_id=request.view_args.company_id) }}" 
+               class="btn btn-custom btn-pdf" target="_blank">
+                <i class="fas fa-file-pdf me-2"></i>Download PDF
+            </a>
+            <button class="btn btn-custom btn-share" onclick="shareReport()">
+                <i class="fas fa-share-alt me-2"></i>Share Report
+            </button>
+            <button class="btn btn-custom" style="background: #9b59b6; color: white;" onclick="window.print()">
+                <i class="fas fa-print me-2"></i>Print Report
+            </button>
+        </div>
+        
+        <!-- Powered By -->
+        <div class="powered-by">
+            Powered by <strong>AI-Driven Strategic Analysis</strong> | 
+            <a href="mailto:contact@possibleminds.ai">Contact Us</a> for custom analysis
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function shareReport() {
+            if (navigator.share) {
+                navigator.share({
+                    title: 'Strategic Analysis: {{ company_name }}',
+                    text: 'Check out this AI-generated strategic analysis report',
+                    url: window.location.href
+                });
+            } else {
+                // Fallback to clipboard
+                navigator.clipboard.writeText(window.location.href).then(() => {
+                    alert('Report URL copied to clipboard!');
+                });
+            }
+        }
+        
+        // Track analytics (optional)
+        console.log('Strategic report viewed:', '{{ company_name }}', new Date());
+    </script>
+</body>
+</html> 

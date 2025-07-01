@@ -32,6 +32,7 @@
         document.getElementById('forceRefreshDeepBtn')?.addEventListener('click', () => startDeepResearch(true));
         document.getElementById('resumeDeepResearchBtn')?.addEventListener('click', resumeDeepResearch);
         document.getElementById('stopResearchBtn')?.addEventListener('click', stopResearch);
+        document.getElementById('viewStrategicReportBtn')?.addEventListener('click', viewStrategicReport);
 
         // Modal focus and accessibility management
         const modal = document.getElementById('deepResearchModal');
@@ -276,11 +277,16 @@
         const forceBtn = document.getElementById('forceRefreshDeepBtn');
         const resumeBtn = document.getElementById('resumeDeepResearchBtn');
         const stopBtn = document.getElementById('stopResearchBtn');
+        const viewReportBtn = document.getElementById('viewStrategicReportBtn');
+        const reportFormatButtons = document.getElementById('reportFormatButtons');
 
         // Hide all buttons first
-        [startBtn, forceBtn, resumeBtn, stopBtn].forEach(btn => {
+        [startBtn, forceBtn, resumeBtn, stopBtn, viewReportBtn].forEach(btn => {
             if (btn) btn.style.display = 'none';
         });
+
+        // Hide report format buttons
+        if (reportFormatButtons) reportFormatButtons.style.display = 'none';
 
         switch (status) {
             case 'loading':
@@ -294,6 +300,9 @@
                 break;
             case 'completed':
                 if (forceBtn) forceBtn.style.display = 'inline-block';
+                if (viewReportBtn) viewReportBtn.style.display = 'inline-block';
+                if (reportFormatButtons) reportFormatButtons.style.display = 'inline-block';
+                updateReportLinks();
                 break;
             case 'failed':
                 if (resumeBtn) resumeBtn.style.display = 'inline-block';
@@ -302,6 +311,32 @@
             default:
                 if (startBtn) startBtn.style.display = 'inline-block';
         }
+    }
+
+    function updateReportLinks() {
+        if (!currentResearchCompanyId) return;
+
+        const htmlReportLink = document.getElementById('viewHtmlReportLink');
+        const pdfReportLink = document.getElementById('downloadPdfReportLink');
+        const embedReportLink = document.getElementById('viewEmbedReportLink');
+
+        if (htmlReportLink) {
+            htmlReportLink.href = `/api/public/reports/${currentResearchCompanyId}`;
+        }
+        if (pdfReportLink) {
+            pdfReportLink.href = `/api/public/reports/${currentResearchCompanyId}/pdf`;
+        }
+        if (embedReportLink) {
+            embedReportLink.href = `/api/public/reports/${currentResearchCompanyId}/embed`;
+        }
+    }
+
+    function viewStrategicReport() {
+        if (!currentResearchCompanyId) return;
+        
+        // Open the HTML report in a new tab
+        const reportUrl = `/api/public/reports/${currentResearchCompanyId}`;
+        window.open(reportUrl, '_blank');
     }
 
     function startDeepResearch(forceRefresh = false) {
@@ -547,5 +582,7 @@
             new bootstrap.Toast(toast).show();
         }
     }
+
+
 
 })(); 

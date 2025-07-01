@@ -188,6 +188,40 @@ class Company:
         return None
 
     @classmethod
+    def get_companies_with_reports(cls) -> List[Dict]:
+        """Get all companies that have markdown reports for public consumption."""
+        companies = []
+        engine = cls._get_db_engine()
+        if not engine:
+            return companies
+            
+        try:
+            with engine.connect() as conn:
+                result = conn.execute(text("""
+                    SELECT id, company_name, website_url, created_at, updated_at
+                    FROM companies 
+                    WHERE markdown_report IS NOT NULL 
+                      AND markdown_report != ''
+                    ORDER BY updated_at DESC
+                """))
+                
+                for row in result:
+                    companies.append({
+                        'id': row.id,
+                        'company_name': row.company_name,
+                        'website_url': row.website_url,
+                        'created_at': row.created_at,
+                        'updated_at': row.updated_at
+                    })
+                    
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Error getting companies with reports: {e}")
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error getting companies with reports: {e}")
+            
+        return companies
+
+    @classmethod
     def save(cls, company_data: Dict) -> bool:
         """Save a new company to the database."""
         engine = cls._get_db_engine()

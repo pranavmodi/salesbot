@@ -5,4 +5,9 @@ alembic
 pandas
 python-dotenv
 openai
-APScheduler 
+APScheduler
+
+# HTML/PDF Report Generation
+markdown==3.6
+pdfkit==1.0.0
+WeasyPrint==62.3 

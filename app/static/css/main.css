@@ -1847,6 +1847,50 @@ body {
     padding: 1.5rem;
 }
 
+.deep-research-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.deep-research-secondary-actions {
+    margin-left: 1rem;
+}
+
+#viewStrategicReportBtn {
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    border: none;
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+    transition: all 0.3s ease;
+}
+
+#viewStrategicReportBtn:hover {
+    background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+    box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+    transform: translateY(-1px);
+}
+
+.report-format-dropdown .dropdown-menu {
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    border-radius: 0.5rem;
+}
+
+.report-format-dropdown .dropdown-item {
+    padding: 0.5rem 1rem;
+    transition: background-color 0.2s ease;
+}
+
+.report-format-dropdown .dropdown-item:hover {
+    background-color: #f8fafc;
+}
+
+.report-format-dropdown .dropdown-item i {
+    width: 20px;
+    text-align: center;
+}
+
 .research-step-card {
     background-color: #f8fafc;
     border: 1px solid #e2e8f0;
