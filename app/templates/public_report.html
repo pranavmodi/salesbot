@@ -8,186 +8,569 @@
     <!-- External CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
     
     <style>
+        :root {
+            --primary-color: #1e40af;
+            --primary-light: #3b82f6;
+            --primary-dark: #1e3a8a;
+            --secondary-color: #64748b;
+            --accent-color: #f59e0b;
+            --success-color: #059669;
+            --danger-color: #dc2626;
+            --warning-color: #d97706;
+            --surface-color: #ffffff;
+            --surface-light: #f8fafc;
+            --surface-dark: #f1f5f9;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --shadow-light: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            --shadow-medium: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-large: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.7;
+            color: var(--text-primary);
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
+            font-size: 16px;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
         
         .report-container {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            background: var(--surface-color);
+            border-radius: 16px;
+            box-shadow: var(--shadow-xl);
             margin: 2rem auto;
-            max-width: 1000px;
+            max-width: 1200px;
             overflow: hidden;
+            position: relative;
+        }
+        
+        .report-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary-color) 0%, var(--primary-light) 50%, var(--accent-color) 100%);
         }
         
         .report-header {
-            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-color) 100%);
             color: white;
-            padding: 2rem;
+            padding: 3rem 2rem;
             text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .report-header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            animation: float 20s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(180deg); }
+        }
+        
+        .report-header .content {
+            position: relative;
+            z-index: 2;
         }
         
         .report-header h1 {
-            margin: 0;
-            font-size: 2.5rem;
-            font-weight: 300;
+            font-family: 'Playfair Display', serif;
+            font-size: 2.75rem;
+            font-weight: 700;
+            margin: 0 0 1rem 0;
+            letter-spacing: -0.02em;
         }
         
         .report-header .company-name {
-            font-size: 1.5rem;
-            margin: 0.5rem 0;
+            font-size: 1.75rem;
+            font-weight: 500;
+            margin: 0.5rem 0 1.5rem 0;
+            opacity: 0.95;
+            letter-spacing: -0.01em;
+        }
+        
+        .report-header .meta-info {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 2rem;
+            flex-wrap: wrap;
+            font-size: 0.95rem;
             opacity: 0.9;
         }
         
+        .report-header .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .report-header .meta-item i {
+            font-size: 1.1rem;
+        }
+        
         .report-content {
-            padding: 2rem;
+            padding: 3rem;
+            max-width: none;
         }
         
         .report-content h1 {
-            color: #2c3e50;
-            border-bottom: 3px solid #3498db;
-            padding-bottom: 0.5rem;
-            margin-top: 2rem;
+            font-family: 'Playfair Display', serif;
+            color: var(--text-primary);
+            font-size: 2.25rem;
+            font-weight: 600;
+            margin: 3rem 0 1.5rem 0;
+            padding-bottom: 1rem;
+            border-bottom: 3px solid var(--primary-color);
+            position: relative;
+        }
+        
+        .report-content h1:first-child {
+            margin-top: 0;
+        }
+        
+        .report-content h1::after {
+            content: '';
+            position: absolute;
+            bottom: -3px;
+            left: 0;
+            width: 60px;
+            height: 3px;
+            background: var(--accent-color);
         }
         
         .report-content h2 {
-            color: #34495e;
-            margin-top: 2rem;
-            margin-bottom: 1rem;
+            font-family: 'Inter', sans-serif;
+            color: var(--text-primary);
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 2.5rem 0 1rem 0;
+            position: relative;
+            padding-left: 1rem;
+        }
+        
+        .report-content h2::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0.2em;
+            width: 4px;
+            height: 1.2em;
+            background: var(--primary-color);
+            border-radius: 2px;
         }
         
         .report-content h3 {
-            color: #5d6d7e;
-            margin-top: 1.5rem;
+            color: var(--text-secondary);
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin: 2rem 0 1rem 0;
+        }
+        
+        .report-content h4 {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: 1.5rem 0 0.75rem 0;
+        }
+        
+        .report-content p {
+            color: var(--text-secondary);
+            margin-bottom: 1.25rem;
+            line-height: 1.8;
+        }
+        
+        .report-content ul, .report-content ol {
+            margin: 1rem 0 1.5rem 1.5rem;
+            color: var(--text-secondary);
+        }
+        
+        .report-content li {
+            margin-bottom: 0.5rem;
+            line-height: 1.7;
+        }
+        
+        .report-content strong {
+            color: var(--text-primary);
+            font-weight: 600;
         }
         
         .report-content table {
-            border-collapse: collapse;
             width: 100%;
-            margin: 1.5rem 0;
-            border-radius: 8px;
+            margin: 2rem 0;
+            border-collapse: separate;
+            border-spacing: 0;
+            background: var(--surface-color);
+            border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: var(--shadow-medium);
+            border: 1px solid var(--border-color);
+        }
+        
+        .report-content thead {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
         }
         
         .report-content th {
-            background: #3498db;
             color: white;
-            padding: 1rem;
+            padding: 1.25rem 1.5rem;
             text-align: left;
             font-weight: 600;
+            font-size: 0.95rem;
+            letter-spacing: 0.025em;
+            text-transform: uppercase;
+            border: none;
         }
         
         .report-content td {
-            padding: 1rem;
-            border-bottom: 1px solid #ecf0f1;
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            line-height: 1.6;
+            vertical-align: top;
         }
         
-        .report-content tr:hover {
-            background-color: #f8f9fa;
+        .report-content tbody tr {
+            transition: background-color 0.2s ease;
         }
         
-        .action-buttons {
-            padding: 1.5rem 2rem;
-            background: #f8f9fa;
-            border-top: 1px solid #ecf0f1;
-            display: flex;
-            gap: 1rem;
-            justify-content: center;
+        .report-content tbody tr:hover {
+            background-color: var(--surface-light);
         }
         
-        .btn-custom {
-            padding: 0.75rem 1.5rem;
-            border-radius: 25px;
-            text-decoration: none;
-            font-weight: 600;
-            transition: all 0.3s ease;
+        .report-content tbody tr:last-child td {
+            border-bottom: none;
         }
         
-        .btn-pdf {
-            background: #e74c3c;
-            color: white;
+        .report-content blockquote {
+            background: var(--surface-light);
+            border-left: 4px solid var(--primary-color);
+            padding: 1.5rem;
+            margin: 2rem 0;
+            border-radius: 0 8px 8px 0;
+            font-style: italic;
+            color: var(--text-secondary);
         }
         
-        .btn-pdf:hover {
-            background: #c0392b;
-            color: white;
-        }
-        
-        .btn-share {
-            background: #2ecc71;
-            color: white;
-        }
-        
-        .btn-share:hover {
-            background: #27ae60;
-            color: white;
+        .report-content code {
+            background: var(--surface-dark);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+            font-size: 0.875rem;
+            color: var(--text-primary);
         }
         
         .metadata {
-            padding: 1rem 2rem;
-            background: #ecf0f1;
+            padding: 2rem 3rem;
+            background: var(--surface-light);
+            border-top: 1px solid var(--border-color);
             font-size: 0.9rem;
-            color: #7f8c8d;
+            color: var(--text-muted);
+        }
+        
+        .metadata .row {
+            align-items: center;
+        }
+        
+        .metadata strong {
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+        
+        .metadata a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+        
+        .metadata a:hover {
+            color: var(--primary-dark);
+            text-decoration: underline;
+        }
+        
+        .action-buttons {
+            padding: 2rem 3rem;
+            background: var(--surface-color);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .btn-custom {
+            padding: 0.875rem 2rem;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            border: 2px solid transparent;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn-custom::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s ease;
+        }
+        
+        .btn-custom:hover::before {
+            left: 100%;
+        }
+        
+        .btn-pdf {
+            background: linear-gradient(135deg, var(--danger-color) 0%, #b91c1c 100%);
+            color: white;
+            box-shadow: var(--shadow-medium);
+        }
+        
+        .btn-pdf:hover {
+            background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-large);
+        }
+        
+        .btn-share {
+            background: linear-gradient(135deg, var(--success-color) 0%, #047857 100%);
+            color: white;
+            box-shadow: var(--shadow-medium);
+        }
+        
+        .btn-share:hover {
+            background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-large);
+        }
+        
+        .btn-print {
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+            color: white;
+            box-shadow: var(--shadow-medium);
+        }
+        
+        .btn-print:hover {
+            background: linear-gradient(135deg, #6d28d9 0%, #5b21b6 100%);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-large);
         }
         
         .powered-by {
             text-align: center;
-            padding: 1rem;
-            background: #34495e;
+            padding: 1.5rem;
+            background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
             color: white;
             font-size: 0.9rem;
+            font-weight: 500;
         }
         
         .powered-by a {
-            color: #3498db;
+            color: var(--accent-color);
             text-decoration: none;
+            font-weight: 600;
+            transition: color 0.2s ease;
         }
         
+        .powered-by a:hover {
+            color: #fbbf24;
+        }
+        
+        /* Badge Styles */
+        .priority-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            border-radius: 25px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+            margin: 0.5rem 0;
+        }
+        
+        .priority-high {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            color: var(--danger-color);
+            border: 1px solid #fca5a5;
+        }
+        
+        .priority-medium {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: var(--warning-color);
+            border: 1px solid #f59e0b;
+        }
+        
+        .priority-low {
+            background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+            color: var(--success-color);
+            border: 1px solid #34d399;
+        }
+        
+        /* Responsive Design */
         @media (max-width: 768px) {
             .report-container {
                 margin: 1rem;
-                border-radius: 8px;
+                border-radius: 12px;
             }
             
             .report-header {
-                padding: 1.5rem;
+                padding: 2rem 1.5rem;
             }
             
             .report-header h1 {
                 font-size: 2rem;
             }
             
+            .report-header .company-name {
+                font-size: 1.4rem;
+            }
+            
+            .report-header .meta-info {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
             .report-content {
-                padding: 1.5rem;
+                padding: 2rem 1.5rem;
+            }
+            
+            .report-content h1 {
+                font-size: 1.875rem;
+            }
+            
+            .report-content h2 {
+                font-size: 1.375rem;
+            }
+            
+            .report-content table {
+                font-size: 0.875rem;
+            }
+            
+            .report-content th,
+            .report-content td {
+                padding: 1rem;
             }
             
             .action-buttons {
+                padding: 1.5rem;
                 flex-direction: column;
                 align-items: center;
             }
+            
+            .btn-custom {
+                width: 100%;
+                max-width: 280px;
+                justify-content: center;
+            }
+            
+            .metadata {
+                padding: 1.5rem;
+            }
         }
         
-        /* Print styles */
+        @media (max-width: 480px) {
+            .report-header h1 {
+                font-size: 1.75rem;
+            }
+            
+            .report-content h1 {
+                font-size: 1.625rem;
+            }
+            
+            .report-content {
+                padding: 1.5rem 1rem;
+            }
+        }
+        
+        /* Print Styles */
         @media print {
             body {
                 background: white;
+                color: black;
             }
             
             .report-container {
                 box-shadow: none;
                 margin: 0;
+                border-radius: 0;
             }
             
-            .action-buttons, .powered-by {
+            .report-header {
+                background: white !important;
+                color: black !important;
+                border-bottom: 2px solid #000;
+            }
+            
+            .action-buttons, 
+            .powered-by {
                 display: none;
             }
+            
+            .report-content table {
+                box-shadow: none;
+                border: 1px solid #000;
+            }
+            
+            .report-content th {
+                background: #f5f5f5 !important;
+                color: black !important;
+            }
+        }
+        
+        /* Loading Animation */
+        .loading-shimmer {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 2s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
         }
     </style>
 </head>
@@ -195,13 +578,25 @@
     <div class="report-container">
         <!-- Header -->
         <div class="report-header">
-            <h1><i class="fas fa-chart-line me-3"></i>Strategic Analysis Report</h1>
-            <div class="company-name">{{ company_name }}</div>
-            <div class="mt-2">
-                <small><i class="fas fa-calendar me-2"></i>Generated: {{ generated_date.strftime('%B %d, %Y') if generated_date else 'N/A' }}</small>
-                {% if company_website %}
-                <br><small><i class="fas fa-globe me-2"></i><a href="{{ company_website }}" target="_blank" style="color: #ecf0f1;">{{ company_website }}</a></small>
-                {% endif %}
+            <div class="content">
+                <h1><i class="fas fa-chart-line me-3"></i>Strategic Analysis Report</h1>
+                <div class="company-name">{{ company_name }}</div>
+                <div class="meta-info">
+                    <div class="meta-item">
+                        <i class="fas fa-calendar"></i>
+                        <span>Generated: {{ generated_date.strftime('%B %d, %Y') if generated_date else 'N/A' }}</span>
+                    </div>
+                    {% if company_website %}
+                    <div class="meta-item">
+                        <i class="fas fa-globe"></i>
+                        <a href="{{ company_website }}" target="_blank" style="color: rgba(255,255,255,0.9);">{{ company_website }}</a>
+                    </div>
+                    {% endif %}
+                    <div class="meta-item">
+                        <i class="fas fa-robot"></i>
+                        <span>AI-Powered Analysis</span>
+                    </div>
+                </div>
             </div>
         </div>
         
@@ -226,13 +621,13 @@
         <div class="action-buttons">
             <a href="{{ url_for('api.get_company_report_pdf', company_id=request.view_args.company_id) }}" 
                class="btn btn-custom btn-pdf" target="_blank">
-                <i class="fas fa-file-pdf me-2"></i>Download PDF
+                <i class="fas fa-file-pdf"></i>Download PDF
             </a>
             <button class="btn btn-custom btn-share" onclick="shareReport()">
-                <i class="fas fa-share-alt me-2"></i>Share Report
+                <i class="fas fa-share-alt"></i>Share Report
             </button>
-            <button class="btn btn-custom" style="background: #9b59b6; color: white;" onclick="window.print()">
-                <i class="fas fa-print me-2"></i>Print Report
+            <button class="btn btn-custom btn-print" onclick="window.print()">
+                <i class="fas fa-print"></i>Print Report
             </button>
         </div>
         
@@ -255,13 +650,41 @@
             } else {
                 // Fallback to clipboard
                 navigator.clipboard.writeText(window.location.href).then(() => {
-                    alert('Report URL copied to clipboard!');
+                    // Show success message
+                    const button = event.target;
+                    const originalText = button.innerHTML;
+                    button.innerHTML = '<i class="fas fa-check"></i>Copied!';
+                    button.style.background = 'linear-gradient(135deg, #059669 0%, #047857 100%)';
+                    
+                    setTimeout(() => {
+                        button.innerHTML = originalText;
+                        button.style.background = '';
+                    }, 2000);
+                }).catch(() => {
+                    alert('Unable to copy URL. Please copy manually: ' + window.location.href);
                 });
             }
         }
         
         // Track analytics (optional)
         console.log('Strategic report viewed:', '{{ company_name }}', new Date());
+        
+        // Add smooth scrolling for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+        
+        // Add loading animation for images
+        document.querySelectorAll('img').forEach(img => {
+            img.addEventListener('load', function() {
+                this.style.opacity = '1';
+            });
+        });
     </script>
 </body>
 </html> 
