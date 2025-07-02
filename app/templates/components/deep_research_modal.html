@@ -57,6 +57,38 @@
                         </div>
                     </div>
                 </div>
+                
+                <!-- Publish Status Alert -->
+                <div class="row mt-3" id="publishStatusContainer" style="display: none;">
+                    <div class="col-12">
+                        <div class="alert" id="publishStatusAlert" role="alert">
+                            <div class="d-flex align-items-center">
+                                <div class="spinner-border spinner-border-sm me-2" id="publishSpinner" style="display: none;"></div>
+                                <i class="fas fa-check-circle me-2 text-success" id="publishSuccessIcon" style="display: none;"></i>
+                                <i class="fas fa-exclamation-triangle me-2 text-warning" id="publishErrorIcon" style="display: none;"></i>
+                                <div id="publishStatusText">Publishing report...</div>
+                            </div>
+                                                    <div class="mt-2" id="publishUrlContainer" style="display: none;">
+                            <strong>Published URL:</strong> 
+                            <a href="#" id="publishedReportUrl" target="_blank" class="text-decoration-none">
+                                <i class="fas fa-external-link-alt me-1"></i>View Published Report
+                            </a>
+                            
+                            <!-- Debug response section -->
+                            <div class="mt-2" id="publishDebugContainer" style="display: none;">
+                                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#publishResponseDetails" aria-expanded="false">
+                                    <i class="fas fa-code me-1"></i>View Raw Response
+                                </button>
+                                <div class="collapse mt-2" id="publishResponseDetails">
+                                    <div class="card card-body bg-light">
+                                        <pre id="publishRawResponse" class="mb-0" style="font-size: 0.8rem; max-height: 200px; overflow-y: auto;"></pre>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <div class="deep-research-actions me-auto" id="deepResearchActions">
@@ -93,6 +125,9 @@
                             </a></li>
                         </ul>
                     </div>
+                    <button type="button" class="btn btn-sm btn-outline-success" id="publishReportBtn" style="display: none; margin-left: 0.5rem;">
+                        <i class="fas fa-cloud-upload-alt me-1"></i>Publish to Website
+                    </button>
                 </div>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
