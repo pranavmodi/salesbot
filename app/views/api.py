@@ -58,6 +58,80 @@ def get_contact(email):
         current_app.logger.error(f"Error getting contact: {str(e)}")
         return jsonify({'error': 'Failed to load contact'}), 500
 
+@bp.route('/contact/<email>', methods=['PUT'])
+def update_contact(email):
+    """Update an existing contact's details."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+ 
+        # Allowed fields for update (matching column names)
+        allowed_fields = [
+            'first_name', 'last_name', 'full_name', 'job_title', 'company_name',
+            'company_domain', 'linkedin_profile', 'location', 'phone', 'linkedin_message'
+        ]
+ 
+        update_fields = {k: v.strip() if isinstance(v, str) else v for k, v in data.items() if k in allowed_fields}
+        if not update_fields:
+            return jsonify({'success': False, 'message': 'No valid fields to update'}), 400
+ 
+        from sqlalchemy import create_engine, text
+        import os
+        from datetime import datetime
+        database_url = os.getenv("DATABASE_URL")
+        if not database_url:
+            return jsonify({'success': False, 'message': 'Database connection error'}), 500
+ 
+        engine = create_engine(database_url)
+        with engine.connect() as conn:
+            with conn.begin():
+                # Build dynamic SET clause
+                set_clause = ", ".join([f"{field} = :{field}" for field in update_fields.keys()])
+                update_fields['updated_at'] = datetime.now()
+                update_fields['email'] = email
+                conn.execute(text(f"""
+                    UPDATE contacts 
+                    SET {set_clause}, updated_at = :updated_at
+                    WHERE LOWER(email) = LOWER(:email)
+                """), update_fields)
+ 
+                # Ensure company exists if company_name/domain updated
+                company_name = update_fields.get('company_name') or data.get('company_name')
+                company_domain = update_fields.get('company_domain') or data.get('company_domain')
+                if company_name or company_domain:
+                    company_exists = False
+                    # Check by name
+                    if company_name:
+                        result = conn.execute(text("""
+                            SELECT id FROM companies WHERE LOWER(company_name) = LOWER(:company_name) LIMIT 1
+                        """), {"company_name": company_name})
+                        company_exists = result.fetchone() is not None
+                    if not company_exists and company_domain:
+                        domain_pattern = f"%{company_domain.lower()}%"
+                        result = conn.execute(text("""
+                            SELECT id FROM companies WHERE LOWER(website_url) LIKE :domain_pattern LIMIT 1
+                        """), {"domain_pattern": domain_pattern})
+                        company_exists = result.fetchone() is not None
+                    if not company_exists:
+                        website_url = ''
+                        if company_domain:
+                            website_url = company_domain if company_domain.startswith(('http://', 'https://')) else f"https://{company_domain}"
+                        fallback_name = company_name or company_domain or 'Unknown'
+                        conn.execute(text("""
+                            INSERT INTO companies (company_name, website_url)
+                            VALUES (:company_name, :website_url)
+                        """), {
+                            "company_name": fallback_name,
+                            "website_url": website_url
+                        })
+ 
+        current_app.logger.info(f"Updated contact: {email}")
+        return jsonify({'success': True, 'message': f'Contact {email} updated successfully'})
+    except Exception as e:
+        current_app.logger.error(f"Error updating contact: {e}")
+        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+
 @bp.route('/preview_email', methods=['POST'])
 def preview_email():
     """Generate email preview for a contact."""
@@ -751,6 +825,49 @@ def add_contact():
                         'entry_date': datetime.now().isoformat()
                     })
                 })
+
+                # -------------------------------------------------------------
+                # Ensure the associated company exists in the companies table
+                # -------------------------------------------------------------
+                company_name = contact_data.get('company_name')
+                company_domain = contact_data.get('company_domain')
+
+                if company_name or company_domain:
+                    # Check by company name (case-insensitive)
+                    company_exists = False
+                    if company_name:
+                        result = conn.execute(text("""
+                            SELECT id FROM companies
+                            WHERE LOWER(company_name) = LOWER(:company_name)
+                            LIMIT 1
+                        """), {"company_name": company_name})
+                        company_exists = result.fetchone() is not None
+
+                    # If not found by name, check by website_url/domain
+                    if not company_exists and company_domain:
+                        domain_pattern = f"%{company_domain.lower()}%"
+                        result = conn.execute(text("""
+                            SELECT id FROM companies
+                            WHERE LOWER(website_url) LIKE :domain_pattern
+                            LIMIT 1
+                        """), {"domain_pattern": domain_pattern})
+                        company_exists = result.fetchone() is not None
+
+                    # Insert new company if it doesn't exist
+                    if not company_exists:
+                        website_url = ''
+                        if company_domain:
+                            website_url = company_domain if company_domain.startswith(('http://', 'https://')) else f"https://{company_domain}"
+                        # Use company_name if available, otherwise fallback to domain
+                        fallback_name = company_name or company_domain or 'Unknown'
+                        conn.execute(text("""
+                            INSERT INTO companies (company_name, website_url)
+                            VALUES (:company_name, :website_url)
+                        """), {
+                            "company_name": fallback_name,
+                            "website_url": website_url
+                        })
+                # -------------------------------------------------------------
         
         current_app.logger.info(f"Successfully added new contact: {email}")
         

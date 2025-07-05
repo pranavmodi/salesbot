@@ -2750,9 +2750,13 @@ function saveNewContact() {
     saveBtn.disabled = true;
     saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
     
+    // Determine endpoint and method based on add vs edit
+    const endpoint = saveBtn.dataset.editingEmail ? `/api/contact/${encodeURIComponent(saveBtn.dataset.editingEmail)}` : '/api/contacts/add';
+    const method = saveBtn.dataset.editingEmail ? 'PUT' : 'POST';
+    
     // Send request to backend
-    fetch('/api/contacts/add', {
-        method: 'POST',
+    fetch(endpoint, {
+        method: method,
         headers: {
             'Content-Type': 'application/json',
         },
@@ -2788,6 +2792,10 @@ function saveNewContact() {
         // Restore button state
         saveBtn.disabled = false;
         saveBtn.innerHTML = originalText;
+        // Clear edit state after operation completes
+        delete saveBtn.dataset.editingEmail;
+        const emailInput = document.getElementById('addEmail');
+        if (emailInput) emailInput.readOnly = false;
     });
 }
 
@@ -4700,4 +4708,54 @@ function updateCampaignStats(campaigns) {
     if (emailsSentEl) emailsSentEl.textContent = totalEmailsSent;
     if (responseRateEl) responseRateEl.textContent = responseRate + '%';
     if (conversionRateEl) conversionRateEl.textContent = conversionRate + '%';
+}
+
+// -------------------------------------------------------------
+// Editing existing contact
+// -------------------------------------------------------------
+// currentContactEmail is declared at the top of this file; no need to redeclare here.
+
+function editContact(email) {
+    // Fetch contact details and pre-fill the Add Contact form for editing
+    fetch(`/api/contact/${encodeURIComponent(email)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                showToast('errorToast', data.error);
+                return;
+            }
+
+            // Open the add contact modal in edit mode
+            const modalEl = document.getElementById('addContactModal');
+            const form = document.getElementById('addContactForm');
+            if (!modalEl || !form) {
+                showToast('errorToast', 'Add Contact modal not found');
+                return;
+            }
+
+            // Populate form fields
+            form.first_name.value = data.first_name || '';
+            form.last_name.value = data.last_name || '';
+            form.email.value = data.email || '';
+            form.job_title.value = data.job_title || '';
+            form.company_name.value = data.company_name || '';
+            form.linkedin_profile.value = data.linkedin_profile || '';
+            form.location.value = data.location || '';
+            form.phone.value = data.phone || '';
+
+            // Make email read-only during edit
+            form.email.readOnly = true;
+
+            // Mark save button with editing email
+            const saveBtn = document.getElementById('saveContactBtn');
+            saveBtn.dataset.editingEmail = email;
+
+            // Show modal
+            const bsModal = new bootstrap.Modal(modalEl);
+            bsModal.show();
+        })
+        .catch(error => {
+            console.error('Error loading contact:', error);
+            showToast('errorToast', 'Failed to load contact data');
+        });
 }
