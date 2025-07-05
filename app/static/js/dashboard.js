@@ -4543,10 +4543,13 @@ function loadCampaigns() {
 }
 
 function displayCampaigns(campaigns) {
+    // Store campaigns globally for campaign details modal access
+    window.lastLoadedCampaigns = campaigns;
+    
     // Separate campaigns by status
-    const activeCampaigns = campaigns.filter(c => c.status === 'active' || c.status === 'ready');
+    const activeCampaigns = campaigns.filter(c => c.status === 'active' || c.status === 'ready' || c.status === 'scheduled');
     const draftCampaigns = campaigns.filter(c => c.status === 'draft');
-    const completedCampaigns = campaigns.filter(c => c.status === 'completed' || c.status === 'failed');
+    const completedCampaigns = campaigns.filter(c => c.status === 'completed' || c.status === 'failed' || c.status === 'paused');
     
     // Display active campaigns
     displayCampaignList(activeCampaigns, 'activeCampaignsContainer', 'active');
@@ -4682,9 +4685,222 @@ function getPriorityBadge(priority) {
 }
 
 function viewCampaignDetails(campaignId) {
-    // TODO: Implement campaign details modal
-    console.log('Viewing campaign details for:', campaignId);
-    showToast('successToast', 'Campaign details feature coming soon!');
+    console.log('Loading campaign details for:', campaignId);
+    
+    // Show the modal immediately with loading state
+    const modal = new bootstrap.Modal(document.getElementById('campaignDetailsModal'));
+    modal.show();
+    
+    // Set loading state
+    setDetailsLoadingState(true);
+    
+    // Set campaign ID for controls
+    setCampaignDetailsId(campaignId);
+    
+    // Fetch campaign data from campaigns list first (immediate display)
+    const campaignsData = getCurrentCampaignData(campaignId);
+    if (campaignsData) {
+        populateCampaignDetails(campaignsData);
+    }
+    
+    // Then fetch detailed status (may have additional info)
+    fetch(`/api/campaigns/${campaignId}/status`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Merge status data with campaign data
+                const enhancedData = { ...campaignsData, ...data.status };
+                populateCampaignDetails(enhancedData);
+            } else {
+                console.error('Failed to load campaign status:', data.message);
+                // Keep displaying basic campaign data
+            }
+        })
+        .catch(error => {
+            console.error('Error loading campaign status:', error);
+            // Keep displaying basic campaign data
+        })
+        .finally(() => {
+            setDetailsLoadingState(false);
+        });
+}
+
+let currentCampaignDetailsId = null;
+
+function setCampaignDetailsId(campaignId) {
+    currentCampaignDetailsId = campaignId;
+    
+    // Set up control button event handlers
+    const pauseBtn = document.getElementById('pauseCampaignBtn');
+    const resumeBtn = document.getElementById('resumeCampaignBtn');
+    const refreshBtn = document.getElementById('refreshCampaignBtn');
+    
+    if (pauseBtn) {
+        pauseBtn.onclick = () => pauseCampaign(campaignId);
+    }
+    if (resumeBtn) {
+        resumeBtn.onclick = () => resumeCampaign(campaignId);
+    }
+    if (refreshBtn) {
+        refreshBtn.onclick = () => viewCampaignDetails(campaignId);
+    }
+}
+
+function getCurrentCampaignData(campaignId) {
+    // Try to get campaign data from currently loaded campaigns
+    const containers = ['activeCampaignsContainer', 'draftCampaignsContainer', 'completedCampaignsContainer'];
+    for (const containerId of containers) {
+        const container = document.getElementById(containerId);
+        if (container) {
+            // Look for campaign data in the global campaigns array if available
+            if (window.lastLoadedCampaigns) {
+                return window.lastLoadedCampaigns.find(c => c.id == campaignId);
+            }
+        }
+    }
+    return null;
+}
+
+function setDetailsLoadingState(isLoading) {
+    const loadingText = isLoading ? 'Loading...' : '';
+    const fields = [
+        'detailsCampaignName', 'detailsCampaignType', 'detailsEmailTemplate',
+        'detailsFollowupDays', 'detailsCampaignDescription', 'detailsCreatedAt',
+        'detailsUpdatedAt', 'detailsTotalContacts', 'detailsEmailsSent',
+        'detailsFailedEmails', 'detailsSuccessRate', 'detailsResponses',
+        'detailsActiveContacts', 'detailsFirstEmail', 'detailsLastEmail',
+        'detailsUniqueRecipients', 'detailsTotalEmails'
+    ];
+    
+    fields.forEach(fieldId => {
+        const element = document.getElementById(fieldId);
+        if (element && isLoading) {
+            element.textContent = loadingText;
+        }
+    });
+}
+
+function populateCampaignDetails(campaign) {
+    if (!campaign) return;
+    
+    // Update modal title
+    document.getElementById('campaignDetailsTitle').textContent = `${campaign.name} - Details`;
+    
+    // Basic Information
+    document.getElementById('detailsCampaignName').textContent = campaign.name || 'N/A';
+    document.getElementById('detailsCampaignType').textContent = (campaign.type || 'cold_outreach').replace('_', ' ').toUpperCase();
+    document.getElementById('detailsEmailTemplate').textContent = getEmailTemplateDisplayName(campaign.email_template || 'deep_research');
+    document.getElementById('detailsFollowupDays').textContent = `${campaign.followup_days || 3} days`;
+    document.getElementById('detailsCampaignDescription').textContent = campaign.description || 'No description provided';
+    
+    // Dates
+    if (campaign.created_at) {
+        document.getElementById('detailsCreatedAt').textContent = new Date(campaign.created_at).toLocaleString();
+    }
+    if (campaign.updated_at) {
+        document.getElementById('detailsUpdatedAt').textContent = new Date(campaign.updated_at).toLocaleString();
+    }
+    
+    // Status badges
+    const statusElement = document.getElementById('detailsCampaignStatus');
+    statusElement.className = `badge ${getStatusBadgeClass(campaign.status)}`;
+    statusElement.textContent = (campaign.status || 'unknown').toUpperCase();
+    
+    const priorityElement = document.getElementById('detailsCampaignPriority');
+    priorityElement.className = `badge ${getPriorityBadgeClass(campaign.priority)}`;
+    priorityElement.textContent = (campaign.priority || 'medium').toUpperCase();
+    
+    // Metrics
+    document.getElementById('detailsTotalContacts').textContent = campaign.total_contacts || campaign.target_contacts_count || 0;
+    document.getElementById('detailsEmailsSent').textContent = campaign.sent_emails || campaign.emails_sent || 0;
+    document.getElementById('detailsFailedEmails').textContent = campaign.failed_emails || 0;
+    document.getElementById('detailsSuccessRate').textContent = `${campaign.success_rate || 0}%`;
+    document.getElementById('detailsResponses').textContent = campaign.responses_received || 0;
+    document.getElementById('detailsActiveContacts').textContent = campaign.active_contacts || 0;
+    
+    // Timeline
+    document.getElementById('detailsFirstEmail').textContent = campaign.first_email_date ? 
+        new Date(campaign.first_email_date).toLocaleString() : 'No emails sent yet';
+    document.getElementById('detailsLastEmail').textContent = campaign.last_email_date ? 
+        new Date(campaign.last_email_date).toLocaleString() : 'No emails sent yet';
+    document.getElementById('detailsUniqueRecipients').textContent = campaign.unique_recipients || 0;
+    document.getElementById('detailsTotalEmails').textContent = campaign.total_emails || 0;
+    
+    // Progress bars
+    const totalContacts = campaign.total_contacts || campaign.target_contacts_count || 1;
+    const activeContacts = campaign.active_contacts || 0;
+    const completedContacts = campaign.completed_contacts || 0;
+    const pausedContacts = campaign.paused_contacts || 0;
+    const failedContacts = campaign.failed_emails || 0;
+    
+    updateProgressBar('detailsActiveProgress', 'detailsActiveCount', activeContacts, totalContacts);
+    updateProgressBar('detailsCompletedProgress', 'detailsCompletedCount', completedContacts, totalContacts);
+    updateProgressBar('detailsPausedProgress', 'detailsPausedCount', pausedContacts, totalContacts);
+    updateProgressBar('detailsFailedProgress', 'detailsFailedCount', failedContacts, totalContacts);
+    
+    // Show/hide control buttons based on status
+    updateCampaignControlButtons(campaign.status);
+}
+
+function updateProgressBar(progressId, countId, value, total) {
+    const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+    document.getElementById(progressId).style.width = `${percentage}%`;
+    document.getElementById(countId).textContent = value;
+}
+
+function getEmailTemplateDisplayName(template) {
+    const templateNames = {
+        'deep_research': '🔬 Deep Research',
+        'warm': '🤝 Warm Outreach',
+        'alt_subject': '📧 Alternative Subject',
+        'custom': '✏️ Custom Template'
+    };
+    return templateNames[template] || template;
+}
+
+function getStatusBadgeClass(status) {
+    const classes = {
+        'active': 'bg-success',
+        'ready': 'bg-primary',
+        'draft': 'bg-secondary',
+        'completed': 'bg-info',
+        'failed': 'bg-danger',
+        'paused': 'bg-warning',
+        'scheduled': 'bg-primary'
+    };
+    return classes[status] || 'bg-light';
+}
+
+function getPriorityBadgeClass(priority) {
+    const classes = {
+        'high': 'bg-danger',
+        'medium': 'bg-warning',
+        'low': 'bg-info'
+    };
+    return classes[priority] || 'bg-warning';
+}
+
+function updateCampaignControlButtons(status) {
+    const pauseBtn = document.getElementById('pauseCampaignBtn');
+    const resumeBtn = document.getElementById('resumeCampaignBtn');
+    const editBtn = document.getElementById('editCampaignBtn');
+    
+    // Hide all first
+    [pauseBtn, resumeBtn, editBtn].forEach(btn => {
+        if (btn) btn.style.display = 'none';
+    });
+    
+    // Show appropriate buttons based on status
+    if (status === 'active' || status === 'ready') {
+        if (pauseBtn) pauseBtn.style.display = 'inline-block';
+    } else if (status === 'paused') {
+        if (resumeBtn) resumeBtn.style.display = 'inline-block';
+    }
+    
+    // Edit button for draft campaigns
+    if (status === 'draft' && editBtn) {
+        editBtn.style.display = 'inline-block';
+    }
 }
 
 function launchCampaign(campaignId) {
@@ -4709,6 +4925,11 @@ function pauseCampaign(campaignId) {
         if (data.success) {
             showToast('successToast', data.message);
             loadCampaigns(); // Refresh campaigns list
+            
+            // If campaign details modal is open for this campaign, refresh it
+            if (currentCampaignDetailsId == campaignId) {
+                setTimeout(() => viewCampaignDetails(campaignId), 500);
+            }
         } else {
             showToast('errorToast', data.message || 'Failed to pause campaign');
         }
@@ -4735,6 +4956,11 @@ function resumeCampaign(campaignId) {
         if (data.success) {
             showToast('successToast', data.message);
             loadCampaigns(); // Refresh campaigns list
+            
+            // If campaign details modal is open for this campaign, refresh it
+            if (currentCampaignDetailsId == campaignId) {
+                setTimeout(() => viewCampaignDetails(campaignId), 500);
+            }
         } else {
             showToast('errorToast', data.message || 'Failed to resume campaign');
         }

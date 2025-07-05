@@ -806,4 +806,270 @@
             </div>
         </div>
     </div>
+</div>
+
+<!-- Campaign Details Modal -->
+<div class="modal fade" id="campaignDetailsModal" tabindex="-1" aria-labelledby="campaignDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="campaignDetailsModalLabel">
+                    <i class="fas fa-chart-line me-2"></i><span id="campaignDetailsTitle">Campaign Details</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            
+            <div class="modal-body">
+                <!-- Campaign Overview Section -->
+                <div class="row mb-4">
+                    <div class="col-md-8">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-header bg-primary text-white">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-info-circle me-2"></i>Campaign Overview
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <strong>Campaign Name:</strong>
+                                            <div id="detailsCampaignName" class="text-muted">Loading...</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <strong>Campaign Type:</strong>
+                                            <div id="detailsCampaignType" class="text-muted">Loading...</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <strong>Status:</strong>
+                                            <span id="detailsCampaignStatus" class="badge">Loading...</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <strong>Priority:</strong>
+                                            <span id="detailsCampaignPriority" class="badge">Loading...</span>
+                                        </div>
+                                        <div class="mb-3">
+                                            <strong>Email Template:</strong>
+                                            <div id="detailsEmailTemplate" class="text-muted">Loading...</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <strong>Follow-up Days:</strong>
+                                            <div id="detailsFollowupDays" class="text-muted">Loading...</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <strong>Description:</strong>
+                                    <div id="detailsCampaignDescription" class="text-muted">Loading...</div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <strong>Created:</strong>
+                                            <div id="detailsCreatedAt" class="text-muted">Loading...</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <strong>Last Updated:</strong>
+                                            <div id="detailsUpdatedAt" class="text-muted">Loading...</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-header bg-success text-white">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-chart-bar me-2"></i>Campaign Metrics
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="metric-item mb-3">
+                                    <div class="d-flex justify-content-between">
+                                        <span>Total Contacts:</span>
+                                        <strong id="detailsTotalContacts" class="text-primary">0</strong>
+                                    </div>
+                                </div>
+                                <div class="metric-item mb-3">
+                                    <div class="d-flex justify-content-between">
+                                        <span>Emails Sent:</span>
+                                        <strong id="detailsEmailsSent" class="text-success">0</strong>
+                                    </div>
+                                </div>
+                                <div class="metric-item mb-3">
+                                    <div class="d-flex justify-content-between">
+                                        <span>Failed Emails:</span>
+                                        <strong id="detailsFailedEmails" class="text-danger">0</strong>
+                                    </div>
+                                </div>
+                                <div class="metric-item mb-3">
+                                    <div class="d-flex justify-content-between">
+                                        <span>Success Rate:</span>
+                                        <strong id="detailsSuccessRate" class="text-info">0%</strong>
+                                    </div>
+                                </div>
+                                <div class="metric-item mb-3">
+                                    <div class="d-flex justify-content-between">
+                                        <span>Responses:</span>
+                                        <strong id="detailsResponses" class="text-warning">0</strong>
+                                    </div>
+                                </div>
+                                <div class="metric-item">
+                                    <div class="d-flex justify-content-between">
+                                        <span>Active Contacts:</span>
+                                        <strong id="detailsActiveContacts" class="text-primary">0</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Campaign Progress Section -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-header bg-info text-white">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-tasks me-2"></i>Campaign Progress
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <div class="progress-stat text-center">
+                                            <div class="progress mb-2" style="height: 8px;">
+                                                <div id="detailsActiveProgress" class="progress-bar bg-primary" style="width: 0%"></div>
+                                            </div>
+                                            <div class="d-flex justify-content-between">
+                                                <small>Active</small>
+                                                <small id="detailsActiveCount">0</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="progress-stat text-center">
+                                            <div class="progress mb-2" style="height: 8px;">
+                                                <div id="detailsCompletedProgress" class="progress-bar bg-success" style="width: 0%"></div>
+                                            </div>
+                                            <div class="d-flex justify-content-between">
+                                                <small>Completed</small>
+                                                <small id="detailsCompletedCount">0</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="progress-stat text-center">
+                                            <div class="progress mb-2" style="height: 8px;">
+                                                <div id="detailsPausedProgress" class="progress-bar bg-warning" style="width: 0%"></div>
+                                            </div>
+                                            <div class="d-flex justify-content-between">
+                                                <small>Paused</small>
+                                                <small id="detailsPausedCount">0</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="progress-stat text-center">
+                                            <div class="progress mb-2" style="height: 8px;">
+                                                <div id="detailsFailedProgress" class="progress-bar bg-danger" style="width: 0%"></div>
+                                            </div>
+                                            <div class="d-flex justify-content-between">
+                                                <small>Failed</small>
+                                                <small id="detailsFailedCount">0</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Email Timeline Section -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-header bg-secondary text-white">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-clock me-2"></i>Email Timeline
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <strong>First Email Sent:</strong>
+                                            <div id="detailsFirstEmail" class="text-muted">No emails sent yet</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <strong>Last Email Sent:</strong>
+                                            <div id="detailsLastEmail" class="text-muted">No emails sent yet</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <strong>Unique Recipients:</strong>
+                                            <div id="detailsUniqueRecipients" class="text-muted">0</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <strong>Total Emails:</strong>
+                                            <div id="detailsTotalEmails" class="text-muted">0</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Campaign Controls Section -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-header bg-dark text-white">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-cogs me-2"></i>Campaign Controls
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-flex gap-2" id="campaignControlButtons">
+                                    <button type="button" class="btn btn-outline-warning" id="pauseCampaignBtn" style="display: none;">
+                                        <i class="fas fa-pause me-1"></i>Pause Campaign
+                                    </button>
+                                    <button type="button" class="btn btn-outline-success" id="resumeCampaignBtn" style="display: none;">
+                                        <i class="fas fa-play me-1"></i>Resume Campaign
+                                    </button>
+                                    <button type="button" class="btn btn-outline-primary" id="editCampaignBtn" style="display: none;">
+                                        <i class="fas fa-edit me-1"></i>Edit Campaign
+                                    </button>
+                                    <button type="button" class="btn btn-outline-info" id="refreshCampaignBtn">
+                                        <i class="fas fa-sync-alt me-1"></i>Refresh Data
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>Close
+                </button>
+            </div>
+        </div>
+    </div>
 </div> 
