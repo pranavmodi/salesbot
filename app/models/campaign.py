@@ -523,7 +523,7 @@ class Campaign:
     def _get_default_settings(cls) -> Dict:
         """Get default campaign settings."""
         return {
-            'email_template': 'warm',
+            'email_template': 'deep_research',  # Changed default to deep_research
             'email_frequency': {'value': 30, 'unit': 'minutes'},
             'timezone': 'America/Los_Angeles',
             'daily_email_limit': 50,

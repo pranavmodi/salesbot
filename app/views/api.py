@@ -69,7 +69,7 @@ def update_contact(email):
         # Allowed fields for update (matching column names)
         allowed_fields = [
             'first_name', 'last_name', 'full_name', 'job_title', 'company_name',
-            'company_domain', 'linkedin_profile', 'location', 'phone', 'linkedin_message'
+            'company_domain', 'linkedin_profile', 'location', 'phone', 'linkedin_message', 'company_id'
         ]
  
         update_fields = {k: v.strip() if isinstance(v, str) else v for k, v in data.items() if k in allowed_fields}
@@ -86,6 +86,50 @@ def update_contact(email):
         engine = create_engine(database_url)
         with engine.connect() as conn:
             with conn.begin():
+                # Handle company_id if company info is being updated
+                company_id = None
+                company_name = update_fields.get('company_name') or data.get('company_name')
+                company_domain = update_fields.get('company_domain') or data.get('company_domain')
+                
+                if company_name or company_domain:
+                    # Check by name first
+                    if company_name:
+                        result = conn.execute(text("""
+                            SELECT id FROM companies WHERE LOWER(company_name) = LOWER(:company_name) LIMIT 1
+                        """), {"company_name": company_name})
+                        row = result.fetchone()
+                        if row:
+                            company_id = row.id
+                    
+                    # If not found by name, check by domain
+                    if not company_id and company_domain:
+                        domain_pattern = f"%{company_domain.lower()}%"
+                        result = conn.execute(text("""
+                            SELECT id FROM companies WHERE LOWER(website_url) LIKE :domain_pattern LIMIT 1
+                        """), {"domain_pattern": domain_pattern})
+                        row = result.fetchone()
+                        if row:
+                            company_id = row.id
+                    
+                    # Create new company if not found
+                    if not company_id:
+                        website_url = ''
+                        if company_domain:
+                            website_url = company_domain if company_domain.startswith(('http://', 'https://')) else f"https://{company_domain}"
+                        fallback_name = company_name or company_domain or 'Unknown'
+                        result = conn.execute(text("""
+                            INSERT INTO companies (company_name, website_url)
+                            VALUES (:company_name, :website_url)
+                            RETURNING id
+                        """), {
+                            "company_name": fallback_name,
+                            "website_url": website_url
+                        })
+                        company_id = result.fetchone().id
+                    
+                    # Add company_id to update fields
+                    update_fields['company_id'] = company_id
+
                 # Build dynamic SET clause
                 set_clause = ", ".join([f"{field} = :{field}" for field in update_fields.keys()])
                 update_fields['updated_at'] = datetime.now()
@@ -95,36 +139,6 @@ def update_contact(email):
                     SET {set_clause}, updated_at = :updated_at
                     WHERE LOWER(email) = LOWER(:email)
                 """), update_fields)
- 
-                # Ensure company exists if company_name/domain updated
-                company_name = update_fields.get('company_name') or data.get('company_name')
-                company_domain = update_fields.get('company_domain') or data.get('company_domain')
-                if company_name or company_domain:
-                    company_exists = False
-                    # Check by name
-                    if company_name:
-                        result = conn.execute(text("""
-                            SELECT id FROM companies WHERE LOWER(company_name) = LOWER(:company_name) LIMIT 1
-                        """), {"company_name": company_name})
-                        company_exists = result.fetchone() is not None
-                    if not company_exists and company_domain:
-                        domain_pattern = f"%{company_domain.lower()}%"
-                        result = conn.execute(text("""
-                            SELECT id FROM companies WHERE LOWER(website_url) LIKE :domain_pattern LIMIT 1
-                        """), {"domain_pattern": domain_pattern})
-                        company_exists = result.fetchone() is not None
-                    if not company_exists:
-                        website_url = ''
-                        if company_domain:
-                            website_url = company_domain if company_domain.startswith(('http://', 'https://')) else f"https://{company_domain}"
-                        fallback_name = company_name or company_domain or 'Unknown'
-                        conn.execute(text("""
-                            INSERT INTO companies (company_name, website_url)
-                            VALUES (:company_name, :website_url)
-                        """), {
-                            "company_name": fallback_name,
-                            "website_url": website_url
-                        })
  
         current_app.logger.info(f"Updated contact: {email}")
         return jsonify({'success': True, 'message': f'Contact {email} updated successfully'})
@@ -804,20 +818,69 @@ def add_contact():
         
         engine = create_engine(database_url)
         with engine.connect() as conn:
-            # Insert new contact
             with conn.begin():
+                # -------------------------------------------------------------
+                # First, ensure the associated company exists and get its ID
+                # -------------------------------------------------------------
+                company_id = None
+                company_name = contact_data.get('company_name')
+                company_domain = contact_data.get('company_domain')
+
+                if company_name or company_domain:
+                    # Check by company name (case-insensitive)
+                    if company_name:
+                        result = conn.execute(text("""
+                            SELECT id FROM companies
+                            WHERE LOWER(company_name) = LOWER(:company_name)
+                            LIMIT 1
+                        """), {"company_name": company_name})
+                        row = result.fetchone()
+                        if row:
+                            company_id = row.id
+
+                    # If not found by name, check by website_url/domain
+                    if not company_id and company_domain:
+                        domain_pattern = f"%{company_domain.lower()}%"
+                        result = conn.execute(text("""
+                            SELECT id FROM companies
+                            WHERE LOWER(website_url) LIKE :domain_pattern
+                            LIMIT 1
+                        """), {"domain_pattern": domain_pattern})
+                        row = result.fetchone()
+                        if row:
+                            company_id = row.id
+
+                    # Insert new company if it doesn't exist
+                    if not company_id:
+                        website_url = ''
+                        if company_domain:
+                            website_url = company_domain if company_domain.startswith(('http://', 'https://')) else f"https://{company_domain}"
+                        # Use company_name if available, otherwise fallback to domain
+                        fallback_name = company_name or company_domain or 'Unknown'
+                        result = conn.execute(text("""
+                            INSERT INTO companies (company_name, website_url)
+                            VALUES (:company_name, :website_url)
+                            RETURNING id
+                        """), {
+                            "company_name": fallback_name,
+                            "website_url": website_url
+                        })
+                        company_id = result.fetchone().id
+
+                # Insert new contact with company_id foreign key
                 conn.execute(text("""
                     INSERT INTO contacts (
                         email, first_name, last_name, full_name, job_title, 
                         company_name, company_domain, linkedin_profile, location, 
-                        phone, linkedin_message, source_files, all_data
+                        phone, linkedin_message, company_id, source_files, all_data
                     ) VALUES (
                         :email, :first_name, :last_name, :full_name, :job_title,
                         :company_name, :company_domain, :linkedin_profile, :location,
-                        :phone, :linkedin_message, :source_files, :all_data
+                        :phone, :linkedin_message, :company_id, :source_files, :all_data
                     )
                 """), {
                     **contact_data,
+                    'company_id': company_id,
                     'source_files': json.dumps(["manual_entry"]),
                     'all_data': json.dumps({
                         'source': 'manual_entry',
@@ -825,48 +888,6 @@ def add_contact():
                         'entry_date': datetime.now().isoformat()
                     })
                 })
-
-                # -------------------------------------------------------------
-                # Ensure the associated company exists in the companies table
-                # -------------------------------------------------------------
-                company_name = contact_data.get('company_name')
-                company_domain = contact_data.get('company_domain')
-
-                if company_name or company_domain:
-                    # Check by company name (case-insensitive)
-                    company_exists = False
-                    if company_name:
-                        result = conn.execute(text("""
-                            SELECT id FROM companies
-                            WHERE LOWER(company_name) = LOWER(:company_name)
-                            LIMIT 1
-                        """), {"company_name": company_name})
-                        company_exists = result.fetchone() is not None
-
-                    # If not found by name, check by website_url/domain
-                    if not company_exists and company_domain:
-                        domain_pattern = f"%{company_domain.lower()}%"
-                        result = conn.execute(text("""
-                            SELECT id FROM companies
-                            WHERE LOWER(website_url) LIKE :domain_pattern
-                            LIMIT 1
-                        """), {"domain_pattern": domain_pattern})
-                        company_exists = result.fetchone() is not None
-
-                    # Insert new company if it doesn't exist
-                    if not company_exists:
-                        website_url = ''
-                        if company_domain:
-                            website_url = company_domain if company_domain.startswith(('http://', 'https://')) else f"https://{company_domain}"
-                        # Use company_name if available, otherwise fallback to domain
-                        fallback_name = company_name or company_domain or 'Unknown'
-                        conn.execute(text("""
-                            INSERT INTO companies (company_name, website_url)
-                            VALUES (:company_name, :website_url)
-                        """), {
-                            "company_name": fallback_name,
-                            "website_url": website_url
-                        })
                 # -------------------------------------------------------------
         
         current_app.logger.info(f"Successfully added new contact: {email}")
@@ -2095,25 +2116,58 @@ def get_campaigns():
         
         # Load campaigns from database
         campaigns = Campaign.load_all()
-        campaigns_list = [campaign.to_dict() for campaign in campaigns]
+        campaigns_list = []
         
-        # Add stats for each campaign
-        for campaign_dict in campaigns_list:
+        for campaign in campaigns:
+            campaign_dict = campaign.to_dict()
+            
+            # Get campaign settings to include email_template, priority, etc.
+            try:
+                settings = Campaign.get_campaign_settings(campaign_dict['id'])
+                campaign_dict.update({
+                    'email_template': settings.get('email_template', 'deep_research'),
+                    'priority': settings.get('priority', 'medium'),
+                    'followup_days': settings.get('followup_days', 3),
+                    'type': 'cold_outreach'  # Default type since we don't store it separately yet
+                })
+            except Exception as settings_error:
+                current_app.logger.error(f"Error getting settings for campaign {campaign_dict['id']}: {settings_error}")
+                # Add default values
+                campaign_dict.update({
+                    'email_template': 'deep_research',
+                    'priority': 'medium', 
+                    'followup_days': 3,
+                    'type': 'cold_outreach'
+                })
+            
+            # Get and add campaign stats
             try:
                 stats = Campaign.get_campaign_stats(campaign_dict['id'])
                 campaign_dict.update(stats)
+                
+                # Add frontend-expected field names (map API names to frontend names)
+                campaign_dict['target_contacts_count'] = stats.get('total_contacts', 0)
+                campaign_dict['emails_sent'] = stats.get('sent_emails', 0)
+                campaign_dict['responses_received'] = 0  # Placeholder - we don't track responses yet
+                
             except Exception as stats_error:
                 current_app.logger.error(f"Error getting stats for campaign {campaign_dict['id']}: {stats_error}")
-                # Add default stats
-                campaign_dict.update({
+                # Add default stats with both API and frontend field names
+                default_stats = {
                     'total_emails': 0,
                     'sent_emails': 0,
                     'failed_emails': 0,
                     'total_contacts': 0,
                     'active_contacts': 0,
                     'completed_contacts': 0,
-                    'success_rate': 0
-                })
+                    'success_rate': 0,
+                    'target_contacts_count': 0,  # Frontend field name
+                    'emails_sent': 0,            # Frontend field name  
+                    'responses_received': 0      # Frontend field name
+                }
+                campaign_dict.update(default_stats)
+            
+            campaigns_list.append(campaign_dict)
         
         return jsonify({
             'success': True,

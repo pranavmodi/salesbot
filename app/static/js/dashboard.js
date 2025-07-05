@@ -26,6 +26,26 @@ function initializePage() {
     // Load global email accounts and setup global selector
     loadGlobalEmailAccounts();
     setupGlobalAccountSelector();
+    
+    // Setup GTM campaign tab event listener
+    setupCampaignTabListener();
+}
+
+function setupCampaignTabListener() {
+    const gtmCampaignTab = document.getElementById('gtm-campaign-tab');
+    if (gtmCampaignTab) {
+        // Load campaigns when GTM campaign tab is shown
+        gtmCampaignTab.addEventListener('shown.bs.tab', function (e) {
+            console.log('GTM Campaign tab shown, loading campaigns...');
+            loadCampaigns();
+        });
+        
+        // If GTM campaign tab is already active on page load, load campaigns immediately
+        if (gtmCampaignTab.classList.contains('active')) {
+            console.log('GTM Campaign tab is already active, loading campaigns...');
+            loadCampaigns();
+        }
+    }
 }
 
 // Pagination utility functions

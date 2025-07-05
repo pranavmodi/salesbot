@@ -188,6 +188,37 @@ class Company:
         return None
 
     @classmethod
+    def get_companies_by_name(cls, company_name: str) -> List['Company']:
+        """Get companies by name (case-insensitive search)."""
+        companies = []
+        engine = cls._get_db_engine()
+        if not engine:
+            return companies
+            
+        try:
+            with engine.connect() as conn:
+                result = conn.execute(text("""
+                    SELECT id, company_name, website_url, company_research, markdown_report,
+                           research_status, research_step_1_basic, research_step_2_strategic, 
+                           research_step_3_report, research_started_at, research_completed_at, 
+                           research_error, created_at, updated_at
+                    FROM companies 
+                    WHERE LOWER(company_name) = LOWER(:company_name)
+                    ORDER BY created_at DESC
+                """), {"company_name": company_name})
+                
+                for row in result:
+                    company_data = dict(row._mapping)
+                    companies.append(cls(company_data))
+                    
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Error getting companies by name: {e}")
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error getting companies by name: {e}")
+            
+        return companies
+
+    @classmethod
     def get_companies_with_reports(cls) -> List[Dict]:
         """Get all companies that have markdown reports for public consumption."""
         companies = []

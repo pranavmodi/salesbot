@@ -14,6 +14,7 @@ class Contact:
         self.full_name = data.get('full_name', '') or data.get('Full Name', '') or f"{self.first_name} {self.last_name}".strip()
         self.email = data.get('email', '') or data.get('Work Email', '')
         self.company = data.get('company_name', '') or data.get('Company Name', '')
+        self.company_id = data.get('company_id')  # Foreign key to companies table
         self.job_title = data.get('job_title', '') or data.get('Job Title', '')
         self.location = data.get('location', '') or data.get('Location', '')
         self.linkedin_profile = data.get('linkedin_profile', '') or data.get('LinkedIn Profile', '')
@@ -69,7 +70,7 @@ class Contact:
                 result = conn.execute(text("""
                     SELECT email, first_name, last_name, full_name, job_title, 
                            company_name, company_domain, linkedin_profile, location, 
-                           phone, linkedin_message, created_at, updated_at
+                           phone, linkedin_message, company_id, created_at, updated_at
                     FROM contacts 
                     ORDER BY created_at DESC
                 """))
@@ -112,7 +113,7 @@ class Contact:
                 result = conn.execute(text("""
                     SELECT email, first_name, last_name, full_name, job_title, 
                            company_name, company_domain, linkedin_profile, location, 
-                           phone, linkedin_message, created_at, updated_at
+                           phone, linkedin_message, company_id, created_at, updated_at
                     FROM contacts 
                     ORDER BY created_at DESC
                     LIMIT :limit OFFSET :offset
@@ -150,7 +151,7 @@ class Contact:
                 result = conn.execute(text("""
                     SELECT email, first_name, last_name, full_name, job_title, 
                            company_name, company_domain, linkedin_profile, location, 
-                           phone, linkedin_message, created_at, updated_at
+                           phone, linkedin_message, company_id, created_at, updated_at
                     FROM contacts 
                     WHERE first_name ILIKE :search OR last_name ILIKE :search 
                        OR full_name ILIKE :search OR company_name ILIKE :search 
@@ -211,9 +212,9 @@ class Contact:
         try:
             with engine.connect() as conn:
                 result = conn.execute(text("""
-                    SELECT id, email, first_name, last_name, full_name, job_title, 
+                    SELECT email, first_name, last_name, full_name, job_title, 
                            company_name, company_domain, linkedin_profile, location, 
-                           phone, linkedin_message, created_at, updated_at
+                           phone, linkedin_message, company_id, created_at, updated_at
                     FROM contacts 
                     WHERE LOWER(email) = LOWER(:email)
                     LIMIT 1
@@ -249,7 +250,7 @@ class Contact:
                 result = conn.execute(text("""
                     SELECT c.email, c.first_name, c.last_name, c.full_name, c.job_title, 
                            c.company_name, c.company_domain, c.linkedin_profile, c.location, 
-                           c.phone, c.linkedin_message, c.created_at, c.updated_at
+                           c.phone, c.linkedin_message, c.company_id, c.created_at, c.updated_at
                     FROM contacts c
                     LEFT JOIN campaign_contacts cc ON c.email = cc.contact_email AND cc.campaign_id = :campaign_id
                     WHERE cc.contact_email IS NULL
@@ -279,6 +280,7 @@ class Contact:
             'full_name': self.full_name,
             'email': self.email,
             'company': self.company,
+            'company_id': self.company_id,
             'job_title': self.job_title,
             'location': self.location,
             'linkedin_profile': self.linkedin_profile,

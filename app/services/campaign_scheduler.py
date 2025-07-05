@@ -35,107 +35,111 @@ def job_error_listener(event):
 def execute_campaign_job(campaign_id: int):
     """Static function to execute a campaign - used by scheduler."""
     from flask import current_app
+    from app import create_app
     
-    try:
-        current_app.logger.info(f"Starting execution of campaign {campaign_id}")
-        
-        # Get campaign details
-        campaign = Campaign.get_by_id(campaign_id)
-        if not campaign:
-            current_app.logger.error(f"Campaign {campaign_id} not found during execution")
-            return
-        
-        # Check if campaign is paused
-        if campaign.status == 'paused':
-            current_app.logger.info(f"Campaign {campaign_id} is paused, skipping execution")
-            return
-        
-        # Update status to active
-        Campaign.update_status(campaign_id, 'active')
-        
-        # Get campaign settings
-        settings = Campaign.get_campaign_settings(campaign_id)
-        email_frequency = settings.get('email_frequency', {'value': 30, 'unit': 'minutes'})
-        timezone_str = settings.get('timezone', 'America/Los_Angeles')
-        daily_limit = settings.get('daily_email_limit', 50)
-        respect_business_hours = settings.get('respect_business_hours', True)
-        business_hours = settings.get('business_hours', {})
-        
-        # Get contacts that need to be processed
-        pending_contacts = Campaign.get_campaign_contacts(campaign_id, status='active')
-        
-        if not pending_contacts:
-            current_app.logger.info(f"No pending contacts for campaign {campaign_id}")
-            Campaign.update_status(campaign_id, 'completed')
-            return
-        
-        # Process contacts with rate limiting
-        from app.models.email_history import EmailHistory
-        emails_sent_today = EmailHistory.get_daily_count_for_campaign(campaign_id, datetime.now().date())
-        
-        for contact in pending_contacts:
-            try:
-                # Check if campaign was paused during execution
-                current_campaign = Campaign.get_by_id(campaign_id)
-                if current_campaign.status == 'paused':
-                    current_app.logger.info(f"Campaign {campaign_id} paused during execution")
-                    break
-                
-                # Check daily limit
-                if emails_sent_today >= daily_limit:
-                    current_app.logger.info(f"Daily email limit reached for campaign {campaign_id}")
-                    # Would schedule for next day here
-                    break
-                
-                # Check business hours
-                if respect_business_hours and not _is_business_hours(timezone_str, business_hours):
-                    current_app.logger.info(f"Outside business hours for campaign {campaign_id}")
-                    # Would schedule for next business hour here
-                    break
-                
-                # Send email to contact
-                success = _send_campaign_email(campaign_id, contact, settings)
-                
-                if success:
-                    # Mark contact as completed
-                    Campaign.update_contact_status_in_campaign(
-                        campaign_id, contact['email'], 'completed'
-                    )
-                    emails_sent_today += 1
+    # Create application context for background job
+    app = create_app()
+    with app.app_context():
+        try:
+            current_app.logger.info(f"Starting execution of campaign {campaign_id}")
+            
+            # Get campaign details
+            campaign = Campaign.get_by_id(campaign_id)
+            if not campaign:
+                current_app.logger.error(f"Campaign {campaign_id} not found during execution")
+                return
+            
+            # Check if campaign is paused
+            if campaign.status == 'paused':
+                current_app.logger.info(f"Campaign {campaign_id} is paused, skipping execution")
+                return
+            
+            # Update status to active
+            Campaign.update_status(campaign_id, 'active')
+            
+            # Get campaign settings
+            settings = Campaign.get_campaign_settings(campaign_id)
+            email_frequency = settings.get('email_frequency', {'value': 30, 'unit': 'minutes'})
+            timezone_str = settings.get('timezone', 'America/Los_Angeles')
+            daily_limit = settings.get('daily_email_limit', 50)
+            respect_business_hours = settings.get('respect_business_hours', True)
+            business_hours = settings.get('business_hours', {})
+            
+            # Get contacts that need to be processed
+            pending_contacts = Campaign.get_campaign_contacts(campaign_id, status='active')
+            
+            if not pending_contacts:
+                current_app.logger.info(f"No pending contacts for campaign {campaign_id}")
+                Campaign.update_status(campaign_id, 'completed')
+                return
+            
+            # Process contacts with rate limiting
+            from app.models.email_history import EmailHistory
+            emails_sent_today = EmailHistory.get_daily_count_for_campaign(campaign_id, datetime.now().date())
+            
+            for contact in pending_contacts:
+                try:
+                    # Check if campaign was paused during execution
+                    current_campaign = Campaign.get_by_id(campaign_id)
+                    if current_campaign.status == 'paused':
+                        current_app.logger.info(f"Campaign {campaign_id} paused during execution")
+                        break
                     
-                    current_app.logger.info(f"Email sent to {contact['email']} for campaign {campaign_id}")
-                else:
-                    # Mark contact as failed
-                    Campaign.update_contact_status_in_campaign(
-                        campaign_id, contact['email'], 'failed'
-                    )
-                    current_app.logger.error(f"Failed to send email to {contact['email']} for campaign {campaign_id}")
+                    # Check daily limit
+                    if emails_sent_today >= daily_limit:
+                        current_app.logger.info(f"Daily email limit reached for campaign {campaign_id}")
+                        # Would schedule for next day here
+                        break
+                    
+                    # Check business hours
+                    if respect_business_hours and not _is_business_hours(timezone_str, business_hours):
+                        current_app.logger.info(f"Outside business hours for campaign {campaign_id}")
+                        # Would schedule for next business hour here
+                        break
+                    
+                    # Send email to contact
+                    success = _send_campaign_email(campaign_id, contact, settings)
+                    
+                    if success:
+                        # Mark contact as completed
+                        Campaign.update_contact_status_in_campaign(
+                            campaign_id, contact['email'], 'completed'
+                        )
+                        emails_sent_today += 1
+                        
+                        current_app.logger.info(f"Email sent to {contact['email']} for campaign {campaign_id}")
+                    else:
+                        # Mark contact as failed
+                        Campaign.update_contact_status_in_campaign(
+                            campaign_id, contact['email'], 'failed'
+                        )
+                        current_app.logger.error(f"Failed to send email to {contact['email']} for campaign {campaign_id}")
+                    
+                    # Apply frequency delay
+                    if email_frequency['unit'] == 'minutes':
+                        delay_seconds = email_frequency['value'] * 60
+                    else:  # hours
+                        delay_seconds = email_frequency['value'] * 3600
+                    
+                    # Don't delay on the last contact
+                    remaining_contacts = Campaign.get_campaign_contacts(campaign_id, status='active')
+                    if remaining_contacts:
+                        current_app.logger.info(f"Waiting {email_frequency['value']} {email_frequency['unit']} before next email")
+                        time.sleep(delay_seconds)
                 
-                # Apply frequency delay
-                if email_frequency['unit'] == 'minutes':
-                    delay_seconds = email_frequency['value'] * 60
-                else:  # hours
-                    delay_seconds = email_frequency['value'] * 3600
+                except Exception as contact_error:
+                    current_app.logger.error(f"Error processing contact {contact.get('email', 'unknown')}: {contact_error}")
+                    continue
+            
+            # Check if campaign is complete
+            remaining_contacts = Campaign.get_campaign_contacts(campaign_id, status='active')
+            if not remaining_contacts:
+                Campaign.update_status(campaign_id, 'completed')
+                current_app.logger.info(f"Campaign {campaign_id} completed successfully")
                 
-                # Don't delay on the last contact
-                remaining_contacts = Campaign.get_campaign_contacts(campaign_id, status='active')
-                if remaining_contacts:
-                    current_app.logger.info(f"Waiting {email_frequency['value']} {email_frequency['unit']} before next email")
-                    time.sleep(delay_seconds)
-            
-            except Exception as contact_error:
-                current_app.logger.error(f"Error processing contact {contact.get('email', 'unknown')}: {contact_error}")
-                continue
-        
-        # Check if campaign is complete
-        remaining_contacts = Campaign.get_campaign_contacts(campaign_id, status='active')
-        if not remaining_contacts:
-            Campaign.update_status(campaign_id, 'completed')
-            current_app.logger.info(f"Campaign {campaign_id} completed successfully")
-            
-    except Exception as e:
-        current_app.logger.error(f"Error executing campaign {campaign_id}: {e}")
-        Campaign.update_status(campaign_id, 'failed')
+        except Exception as e:
+            current_app.logger.error(f"Error executing campaign {campaign_id}: {e}")
+            Campaign.update_status(campaign_id, 'failed')
 
 def _send_campaign_email(campaign_id: int, contact: Dict, settings: Dict) -> bool:
     """Send email for a specific campaign contact."""
@@ -182,11 +186,14 @@ def _compose_fallback_email(campaign: Campaign, contact: Dict, settings: Dict) -
     try:
         from email_composers.email_composer_warm import WarmEmailComposer
         from email_composers.email_composer_alt_subject import AltSubjectEmailComposer
+        from email_composers.email_composer_deep_research import DeepResearchEmailComposer
         
-        template_type = settings.get('email_template', 'warm')
+        template_type = settings.get('email_template', 'deep_research')  # Changed default to deep_research
         
         if template_type == "alt_subject":
             composer = AltSubjectEmailComposer()
+        elif template_type == "deep_research":
+            composer = DeepResearchEmailComposer()
         else:
             composer = WarmEmailComposer()
         
@@ -351,10 +358,6 @@ class CampaignScheduler:
         except Exception as e:
             current_app.logger.error(f"Failed to schedule campaign {campaign_id}: {e}")
             return False
-    
-
-    
-
     
     def pause_campaign(self, campaign_id: int) -> bool:
         """Pause a running campaign."""
