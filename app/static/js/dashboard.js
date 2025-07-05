@@ -6,6 +6,7 @@ let emailHistory = window.emailHistoryData || [];
 let currentContactEmail = null; // For modal export functionality
 let selectedContacts = []; // For bulk email composition
 let currentGlobalAccount = null; // Currently selected global account
+let currentCompanyId = null; // For editing company details
 
 // Initialize application
 document.addEventListener('DOMContentLoaded', function() {
@@ -3349,6 +3350,8 @@ function loadCompanyDetails(companyId) {
     const modalContent = document.getElementById('company-details-content');
     const modalTitle = document.getElementById('companyDetailModalLabel');
     
+    currentCompanyId = companyId; // store for editing
+    
     modalContent.innerHTML = `
         <div class="text-center py-4">
             <div class="spinner-border text-primary" role="status">
@@ -3392,37 +3395,61 @@ function displayCompanyDetails(company) {
         company.company_research.replace(/\n/g, '<br>') : 
         '<em class="text-muted">No research available yet. Click the Research button to generate AI-powered insights.</em>';
     
-    // Create the company details HTML
+    // Create the company details HTML with editable fields
     modalContent.innerHTML = `
         <div class="row">
             <div class="col-md-4">
                 <div class="card">
-                    <div class="card-header">
+                    <div class="card-header d-flex justify-content-between align-items-center">
                         <h6 class="card-title mb-0">
                             <i class="fas fa-building me-2"></i>Company Information
                         </h6>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="toggleEditMode" onclick="toggleCompanyEditMode()">
+                            <i class="fas fa-edit me-1"></i>Edit
+                        </button>
                     </div>
                     <div class="card-body">
-                        <dl class="row">
-                            <dt class="col-4">Name:</dt>
-                            <dd class="col-8">${company.company_name || 'N/A'}</dd>
-                            
-                            <dt class="col-4">Website:</dt>
-                            <dd class="col-8">
-                                ${company.website_url ? 
-                                    `<a href="${company.website_url}" target="_blank" class="text-decoration-none">
-                                        ${company.website_url} <i class="fas fa-external-link-alt ms-1"></i>
-                                    </a>` : 
-                                    'N/A'
-                                }
-                            </dd>
-                            
-                            <dt class="col-4">Created:</dt>
-                            <dd class="col-8">${company.created_at ? new Date(company.created_at).toLocaleDateString() : 'N/A'}</dd>
-                            
-                            <dt class="col-4">Updated:</dt>
-                            <dd class="col-8">${company.updated_at ? new Date(company.updated_at).toLocaleDateString() : 'N/A'}</dd>
-                        </dl>
+                        <div id="companyViewMode">
+                            <dl class="row">
+                                <dt class="col-4">Name:</dt>
+                                <dd class="col-8" id="displayCompanyName">${company.company_name || 'N/A'}</dd>
+                                
+                                <dt class="col-4">Website:</dt>
+                                <dd class="col-8" id="displayWebsiteUrl">
+                                    ${company.website_url ? 
+                                        `<a href="${company.website_url}" target="_blank" class="text-decoration-none">
+                                            ${company.website_url} <i class="fas fa-external-link-alt ms-1"></i>
+                                        </a>` : 
+                                        'N/A'
+                                    }
+                                </dd>
+                                
+                                <dt class="col-4">Created:</dt>
+                                <dd class="col-8">${company.created_at ? new Date(company.created_at).toLocaleDateString() : 'N/A'}</dd>
+                                
+                                <dt class="col-4">Updated:</dt>
+                                <dd class="col-8">${company.updated_at ? new Date(company.updated_at).toLocaleDateString() : 'N/A'}</dd>
+                            </dl>
+                        </div>
+                        
+                        <div id="companyEditMode" style="display: none;">
+                            <div class="mb-3">
+                                <label class="form-label">Company Name:</label>
+                                <input type="text" class="form-control" id="editCompanyName" value="${company.company_name || ''}">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Website URL:</label>
+                                <input type="url" class="form-control" id="editWebsiteUrl" value="${company.website_url || ''}">
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-success btn-sm" onclick="saveCompanyInModal()">
+                                    <i class="fas fa-save me-1"></i>Save
+                                </button>
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="cancelCompanyEdit()">
+                                    <i class="fas fa-times me-1"></i>Cancel
+                                </button>
+                            </div>
+                        </div>
                         
                         ${company.needs_research ? 
                             `<div class="alert alert-warning mt-3">
@@ -3440,14 +3467,28 @@ function displayCompanyDetails(company) {
             
             <div class="col-md-8">
                 <div class="card">
-                    <div class="card-header">
+                    <div class="card-header d-flex justify-content-between align-items-center">
                         <h6 class="card-title mb-0">
                             <i class="fas fa-chart-line me-2"></i>Company Research & Insights
                         </h6>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="toggleResearchEdit" onclick="toggleResearchEditMode()">
+                            <i class="fas fa-edit me-1"></i>Edit Research
+                        </button>
                     </div>
                     <div class="card-body">
-                        <div style="max-height: 400px; overflow-y: auto;">
+                        <div id="researchViewMode" style="max-height: 400px; overflow-y: auto;">
                             ${researchContent}
+                        </div>
+                        <div id="researchEditMode" style="display: none;">
+                            <textarea class="form-control" id="editCompanyResearch" rows="15" style="max-height: 400px;">${company.company_research || ''}</textarea>
+                            <div class="d-flex gap-2 mt-2">
+                                <button type="button" class="btn btn-success btn-sm" onclick="saveResearchInModal()">
+                                    <i class="fas fa-save me-1"></i>Save Research
+                                </button>
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="cancelResearchEdit()">
+                                    <i class="fas fa-times me-1"></i>Cancel
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -4757,5 +4798,236 @@ function editContact(email) {
         .catch(error => {
             console.error('Error loading contact:', error);
             showToast('errorToast', 'Failed to load contact data');
+        });
+}
+
+// -------------------------------------------------------------
+// Company editing functions
+// -------------------------------------------------------------
+
+// Attach click handler for saveCompanyBtn
+document.addEventListener('DOMContentLoaded', function() {
+    const saveCompanyBtn = document.getElementById('saveCompanyBtn');
+    if (saveCompanyBtn) {
+        saveCompanyBtn.addEventListener('click', saveCompany);
+    }
+});
+
+// Toggle between view and edit mode for company information
+function toggleCompanyEditMode() {
+    const viewMode = document.getElementById('companyViewMode');
+    const editMode = document.getElementById('companyEditMode');
+    const toggleBtn = document.getElementById('toggleEditMode');
+    
+    if (editMode.style.display === 'none') {
+        viewMode.style.display = 'none';
+        editMode.style.display = 'block';
+        toggleBtn.innerHTML = '<i class="fas fa-eye me-1"></i>View';
+    } else {
+        viewMode.style.display = 'block';
+        editMode.style.display = 'none';
+        toggleBtn.innerHTML = '<i class="fas fa-edit me-1"></i>Edit';
+    }
+}
+
+// Toggle between view and edit mode for research
+function toggleResearchEditMode() {
+    const viewMode = document.getElementById('researchViewMode');
+    const editMode = document.getElementById('researchEditMode');
+    const toggleBtn = document.getElementById('toggleResearchEdit');
+    
+    if (editMode.style.display === 'none') {
+        viewMode.style.display = 'none';
+        editMode.style.display = 'block';
+        toggleBtn.innerHTML = '<i class="fas fa-eye me-1"></i>View';
+    } else {
+        viewMode.style.display = 'block';
+        editMode.style.display = 'none';
+        toggleBtn.innerHTML = '<i class="fas fa-edit me-1"></i>Edit Research';
+    }
+}
+
+// Save company information in the modal
+function saveCompanyInModal() {
+    const companyName = document.getElementById('editCompanyName').value.trim();
+    const websiteUrl = document.getElementById('editWebsiteUrl').value.trim();
+    
+    if (!companyName) {
+        showToast('errorToast', 'Company name is required');
+        return;
+    }
+    
+    const companyData = {
+        company_name: companyName,
+        website_url: websiteUrl,
+        company_research: document.getElementById('editCompanyResearch')?.value || ''
+    };
+    
+    // Show loading state
+    const saveBtn = document.querySelector('#companyEditMode .btn-success');
+    const originalHTML = saveBtn.innerHTML;
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Saving...';
+    
+    fetch(`/api/companies/${currentCompanyId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(companyData)
+    })
+    .then(resp => resp.json())
+    .then(data => {
+        if (data.success) {
+            showToast('successToast', data.message);
+            // Update the display without reloading
+            document.getElementById('displayCompanyName').textContent = companyName;
+            document.getElementById('displayWebsiteUrl').innerHTML = websiteUrl ? 
+                `<a href="${websiteUrl}" target="_blank" class="text-decoration-none">
+                    ${websiteUrl} <i class="fas fa-external-link-alt ms-1"></i>
+                </a>` : 'N/A';
+            
+            // Switch back to view mode
+            toggleCompanyEditMode();
+        } else {
+            showToast('errorToast', data.message || 'Failed to save company');
+        }
+    })
+    .catch(err => {
+        console.error('Error saving company:', err);
+        showToast('errorToast', 'Error saving company');
+    })
+    .finally(() => {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalHTML;
+    });
+}
+
+// Save research in the modal
+function saveResearchInModal() {
+    const research = document.getElementById('editCompanyResearch').value.trim();
+    
+    const companyData = {
+        company_name: document.getElementById('editCompanyName')?.value || document.getElementById('displayCompanyName').textContent,
+        website_url: document.getElementById('editWebsiteUrl')?.value || '',
+        company_research: research
+    };
+    
+    // Show loading state
+    const saveBtn = document.querySelector('#researchEditMode .btn-success');
+    const originalHTML = saveBtn.innerHTML;
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Saving...';
+    
+    fetch(`/api/companies/${currentCompanyId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(companyData)
+    })
+    .then(resp => resp.json())
+    .then(data => {
+        if (data.success) {
+            showToast('successToast', data.message);
+            // Update the display
+            document.getElementById('researchViewMode').innerHTML = research ? 
+                research.replace(/\n/g, '<br>') : 
+                '<em class="text-muted">No research available yet. Click the Research button to generate AI-powered insights.</em>';
+            
+            // Switch back to view mode
+            toggleResearchEditMode();
+        } else {
+            showToast('errorToast', data.message || 'Failed to save research');
+        }
+    })
+    .catch(err => {
+        console.error('Error saving research:', err);
+        showToast('errorToast', 'Error saving research');
+    })
+    .finally(() => {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalHTML;
+    });
+}
+
+// Cancel company edit
+function cancelCompanyEdit() {
+    // Reset form values to original
+    const originalName = document.getElementById('displayCompanyName').textContent;
+    const originalUrl = document.getElementById('displayWebsiteUrl').querySelector('a')?.href || '';
+    
+    document.getElementById('editCompanyName').value = originalName === 'N/A' ? '' : originalName;
+    document.getElementById('editWebsiteUrl').value = originalUrl;
+    
+    toggleCompanyEditMode();
+}
+
+// Cancel research edit
+function cancelResearchEdit() {
+    toggleResearchEditMode();
+}
+
+// Legacy function for compatibility (now unused)
+function editCompany(companyId) {
+    // This function is now replaced by the in-modal editing
+    console.log('editCompany called - now using in-modal editing');
+}
+
+function saveCompany() {
+    const form = document.getElementById('addCompanyForm');
+    const saveBtn = document.getElementById('saveCompanyBtn');
+
+    const companyData = {
+        company_name: document.getElementById('companyName').value.trim(),
+        website_url: document.getElementById('websiteUrl').value.trim(),
+        company_research: document.getElementById('companyResearch').value.trim()
+    };
+
+    if (!companyData.company_name) {
+        showToast('errorToast', 'Company name is required');
+        return;
+    }
+
+    // Show loading state
+    const originalHTML = saveBtn.innerHTML;
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+
+    const editingId = saveBtn.dataset.editingCompanyId;
+    const endpoint = editingId ? `/api/companies/${editingId}` : '/api/companies/add';
+    const method = editingId ? 'PUT' : 'POST';
+
+    fetch(endpoint, {
+        method: method,
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(companyData)
+    })
+        .then(resp => resp.json())
+        .then(data => {
+            if (data.success) {
+                showToast('successToast', data.message);
+                const modal = bootstrap.Modal.getInstance(document.getElementById('addCompanyModal'));
+                if (modal) modal.hide();
+
+                // Reset form and state
+                form.reset();
+                delete saveBtn.dataset.editingCompanyId;
+                document.getElementById('addCompanyModalLabel').textContent = 'Add New Company';
+
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showToast('errorToast', data.message || 'Failed to save company');
+            }
+        })
+        .catch(err => {
+            console.error('Error saving company:', err);
+            showToast('errorToast', 'Error saving company');
+        })
+        .finally(() => {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalHTML;
         });
 }

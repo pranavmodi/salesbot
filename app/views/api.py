@@ -2436,3 +2436,56 @@ def list_public_reports():
             'success': False,
             'message': f'Failed to list public reports: {str(e)}'
         }), 500
+
+@bp.route('/companies/add', methods=['POST'])
+def add_company():
+    """Add a new company manually."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+ 
+        company_name = data.get('company_name', '').strip()
+        if not company_name:
+            return jsonify({'success': False, 'message': 'Company name is required'}), 400
+ 
+        company_data = {
+            'company_name': company_name,
+            'website_url': data.get('website_url', '').strip(),
+            'company_research': data.get('company_research', '').strip()
+        }
+ 
+        if Company.save(company_data):
+            return jsonify({'success': True, 'message': f'Company {company_name} added successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Failed to save company'}), 500
+    except Exception as e:
+        current_app.logger.error(f"Error adding company: {e}")
+        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+ 
+@bp.route('/companies/<int:company_id>', methods=['PUT'])
+def update_company(company_id):
+    """Update an existing company's details."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+ 
+        # Allow partial updates
+        company = Company.get_by_id(company_id)
+        if not company:
+            return jsonify({'success': False, 'message': 'Company not found'}), 404
+ 
+        company_data = {
+            'company_name': data.get('company_name', company.company_name).strip(),
+            'website_url': data.get('website_url', company.website_url or '').strip(),
+            'company_research': data.get('company_research', company.company_research or '').strip()
+        }
+ 
+        if Company.update(company_id, company_data):
+            return jsonify({'success': True, 'message': f'Company {company_data["company_name"]} updated successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Failed to update company'}), 500
+    except Exception as e:
+        current_app.logger.error(f"Error updating company: {e}")
+        return jsonify({'success': False, 'message': 'Internal server error'}), 500
