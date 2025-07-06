@@ -218,7 +218,7 @@ class Campaign:
             
         try:
             with engine.connect() as conn:
-                # Get email stats
+                # Get email stats with standardized status values
                 email_result = conn.execute(text("""
                     SELECT 
                         COUNT(*) as total_emails,

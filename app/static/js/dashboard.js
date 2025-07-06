@@ -4910,9 +4910,9 @@ function updateCampaignControlButtons(status) {
         editBtn.style.display = 'inline-block';
     }
     
-    // Execute Now button for ready, scheduled, and paused campaigns (testing)
-    if (status === 'ready' || status === 'scheduled' || status === 'paused' || status === 'draft') {
-        if (executeNowBtn) executeNowBtn.style.display = 'inline-block';
+    // Execute Now button for all campaigns (testing) - always show for testing purposes
+    if (executeNowBtn) {
+        executeNowBtn.style.display = 'inline-block';
     }
 }
 

@@ -60,14 +60,17 @@ class EmailService:
             # Send using the specific account
             success = EmailService._send_with_account(account, recipient_email, subject, body)
             
-            # Save to history
+            # Save to history with standardized status
             email_data = {
                 'date': datetime.now(),
                 'to': recipient_email,
                 'subject': subject,
                 'body': body,
-                'status': f'Success (via {account.email})' if success else f'Failed (via {account.email})',
-                'campaign_id': campaign_id
+                'status': 'sent' if success else 'failed',
+                'campaign_id': campaign_id,
+                'sent_via': account.email,
+                'email_type': 'campaign' if campaign_id else 'manual',
+                'error_details': None  # Could be populated with specific error info if needed
             }
             
             EmailHistory.save(email_data)
@@ -219,14 +222,17 @@ class EmailService:
             from send_emails import send_email as global_send_email
             success = global_send_email(recipient_email, subject, body)
             
-            # Save to history
+            # Save to history with standardized status
             email_data = {
                 'date': datetime.now(),
                 'to': recipient_email,
                 'subject': subject,
                 'body': body,
-                'status': 'Success' if success else 'Failed',
-                'campaign_id': campaign_id
+                'status': 'sent' if success else 'failed',
+                'campaign_id': campaign_id,
+                'sent_via': None,  # Will be populated by default email service
+                'email_type': 'campaign' if campaign_id else 'manual',
+                'error_details': None
             }
             
             EmailHistory.save(email_data)
@@ -370,13 +376,17 @@ class EmailService:
                 from send_emails import send_email as global_send_email
                 success = global_send_email(recipient_email=email_address, subject=subject, body_markdown=body)
                 
-                # Save to history - reusing existing EmailHistory logic
+                # Save to history with standardized status
                 email_data = {
                     'date': datetime.now(),
                     'to': email_address,
                     'subject': subject,
                     'body': body,
-                    'status': 'Success - Test Email' if success else 'Failed - Test Email'
+                    'status': 'sent' if success else 'failed',
+                    'campaign_id': None,
+                    'sent_via': None,  # Could be populated with account info
+                    'email_type': 'test',
+                    'error_details': None
                 }
                 EmailHistory.save(email_data)
 

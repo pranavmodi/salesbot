@@ -14,8 +14,11 @@ class EmailHistory:
         self.to = data.get('to', '')
         self.subject = data.get('subject', '')
         self.body = data.get('body', '')
-        self.status = data.get('status', 'Unknown')
+        self.status = data.get('status', 'pending')  # Standardized: sent, failed, pending, retry
         self.campaign_id = data.get('campaign_id')
+        self.sent_via = data.get('sent_via')  # Email account used
+        self.email_type = data.get('email_type', 'campaign')  # campaign, test, bulk, manual
+        self.error_details = data.get('error_details')  # Specific error messages
 
     @classmethod
     def get_db_engine(cls):
@@ -41,7 +44,7 @@ class EmailHistory:
         try:
             with engine.connect() as connection:
                 result = connection.execute(
-                    text('SELECT id, date, "to", subject, body, status, campaign_id FROM email_history ORDER BY date DESC')
+                    text('SELECT id, date, "to", subject, body, status, campaign_id, sent_via, email_type, error_details FROM email_history ORDER BY date DESC')
                 )
                 for row in result:
                     history.append(cls(dict(row._mapping)))
@@ -68,8 +71,8 @@ class EmailHistory:
             with engine.connect() as connection:
                 with connection.begin():
                     insert_query = text(
-                        'INSERT INTO email_history (date, "to", subject, body, status, campaign_id) '
-                        'VALUES (:date, :to, :subject, :body, :status, :campaign_id)'
+                        'INSERT INTO email_history (date, "to", subject, body, status, campaign_id, sent_via, email_type, error_details) '
+                        'VALUES (:date, :to, :subject, :body, :status, :campaign_id, :sent_via, :email_type, :error_details)'
                     )
                     connection.execute(insert_query, {
                         'date': email_data['date'],
@@ -77,7 +80,10 @@ class EmailHistory:
                         'subject': email_data['subject'],
                         'body': email_data['body'],
                         'status': email_data['status'],
-                        'campaign_id': email_data.get('campaign_id')
+                        'campaign_id': email_data.get('campaign_id'),
+                        'sent_via': email_data.get('sent_via'),
+                        'email_type': email_data.get('email_type', 'campaign'),
+                        'error_details': email_data.get('error_details')
                     })
             current_app.logger.info(f"Successfully saved email to {email_data['to']} to history database.")
             return True
@@ -105,7 +111,7 @@ class EmailHistory:
         try:
             with engine.connect() as connection:
                 result = connection.execute(
-                    text('SELECT id, date, "to", subject, body, status, campaign_id FROM email_history WHERE campaign_id = :campaign_id ORDER BY date DESC'),
+                    text('SELECT id, date, "to", subject, body, status, campaign_id, sent_via, email_type, error_details FROM email_history WHERE campaign_id = :campaign_id ORDER BY date DESC'),
                     {"campaign_id": campaign_id}
                 )
                 for row in result:
@@ -138,7 +144,7 @@ class EmailHistory:
                         FROM email_history 
                         WHERE campaign_id = :campaign_id 
                         AND DATE(date) = :date
-                        AND status = 'Success'
+                        AND status = 'sent'
                     """),
                     {"campaign_id": campaign_id, "date": date}
                 )
@@ -160,5 +166,8 @@ class EmailHistory:
             'subject': self.subject,
             'body': self.body,
             'status': self.status,
-            'campaign_id': self.campaign_id
+            'campaign_id': self.campaign_id,
+            'sent_via': self.sent_via,
+            'email_type': self.email_type,
+            'error_details': self.error_details
         } 
