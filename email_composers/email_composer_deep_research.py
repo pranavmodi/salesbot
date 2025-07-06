@@ -1,6 +1,6 @@
 # email_composer_deep_research.py  ── v1 (research-backed, personalized outreach)
 
-import os, random, textwrap, json, pathlib
+import os, random, textwrap, json, pathlib, time, urllib.parse
 from typing import Dict, Tuple, Any
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -14,6 +14,7 @@ PROOF_POINTS_PATH = str(_current_dir / "proofpoints.txt")
 DEFAULT_CALENDAR  = os.getenv("CALENDAR_URL", "https://calendly.com/pranav-modi/15-minute-meeting")
 OPENAI_MODEL      = os.getenv("OPENAI_MODEL", "gpt-4o")
 AUTO_RESEARCH     = os.getenv("AUTO_RESEARCH_ENABLED", "true").lower() == "true"
+BASE_URL          = os.getenv("BASE_URL", "https://salesbot.possibleminds.in")
 
 # ---- Context about the sender and product ----
 SENDER_INFO = """
@@ -64,15 +65,17 @@ class DeepResearchEmailComposer:
             9. Fourth paragraph: Direct, specific call to action with calendar link. Reference exploring their specific challenge/opportunity.
             10. Add a blank line
             11. Sign-off on its own line (e.g., "Best," - DO NOT include name here, it will be added later)
-            12. Add a blank line, then include: "P.S. Happy to share how we helped Precise Imaging reduce appointment no-shows by 40% - similar healthcare operational challenges."
+            12. Add a blank line, then include: "P.S. I put together a strategic analysis for [Company] that covers these opportunities in detail. You can review it here: [REPORT_LINK_PLACEHOLDER]"
 
             IMPORTANT: 
             - If company research is provided, MUST use specific insights from it
             - If no research available, focus on general industry pain points but still be specific
-            - Keep total words ≤ 180
+            - Keep total words ≤ 200 (increased to accommodate report link)
             - Subject MUST start with "Subject:" as the first line
             - Use specific, actionable language
             - Reference real business metrics when possible
+            - ALWAYS include the [REPORT_LINK_PLACEHOLDER] in the P.S. section exactly as shown
+            - The report link will showcase your deep understanding of their business
 
             Here is context about the sender and their product:
             """ + SENDER_INFO)
@@ -91,7 +94,10 @@ class DeepResearchEmailComposer:
             auto_research = AUTO_RESEARCH
 
         # Try to get company research data (with optional auto-triggering)
-        company_research = self._get_company_research(company_name, auto_trigger=auto_research)
+        company_research, company_id = self._get_company_research_with_full_report(company_name, auto_trigger=auto_research)
+        
+        # Generate public report URL with tracking parameters
+        report_url = self._generate_report_url_with_tracking(company_id, company_name, lead.get("email", "")) if company_id else None
 
         user_prompt = f"""
         === Lead ===
@@ -140,6 +146,16 @@ class DeepResearchEmailComposer:
         print("Parsed subject:", subject)  # Debug log
         print("Parsed body (before signature):", body)  # Debug log
         
+        # Replace report link placeholder with actual URL
+        if report_url and "[REPORT_LINK_PLACEHOLDER]" in body:
+            body = body.replace("[REPORT_LINK_PLACEHOLDER]", report_url)
+            print(f"Replaced report link placeholder with: {report_url}")  # Debug log
+        elif "[REPORT_LINK_PLACEHOLDER]" in body:
+            # If no report URL available, fall back to generic message
+            fallback_msg = "Happy to share how we helped Precise Imaging reduce appointment no-shows by 40% - similar healthcare operational challenges."
+            body = body.replace("P.S. I put together a strategic analysis for [Company] that covers these opportunities in detail. You can review it here: [REPORT_LINK_PLACEHOLDER]", f"P.S. {fallback_msg}")
+            print("No report URL available, using fallback P.S.")  # Debug log
+        
         body = body.strip() # Ensure no trailing newlines before adding signature
         body += '\n\n' + self._signature()
         
@@ -147,10 +163,10 @@ class DeepResearchEmailComposer:
         print("Final result (with signature):", result)  # Debug log
         return result
 
-    def _get_company_research(self, company_name: str, auto_trigger: bool = True) -> str:
-        """Get company research data from the database if available. Optionally trigger research if missing."""
+    def _get_company_research_with_full_report(self, company_name: str, auto_trigger: bool = True) -> tuple[str, int]:
+        """Get company research data and ensure full report is available. Returns (research_text, company_id)."""
         if not company_name:
-            return ""
+            return "", None
             
         try:
             # Import here to avoid circular imports
@@ -161,33 +177,51 @@ class DeepResearchEmailComposer:
             
             # If company not found and auto-trigger enabled, create company and start research
             if not companies and auto_trigger:
-                print(f"🔍 Company '{company_name}' not found. Auto-triggering research...")
-                return self._trigger_company_research(company_name)
+                print(f"🔍 Company '{company_name}' not found. Auto-triggering full research...")
+                return self._trigger_full_deep_research(company_name)
             elif not companies:
                 print(f"No research found for company: {company_name}")
-                return ""
+                return "", None
             
             company = companies[0]  # Take first match
             
-            # Check if we have research data
-            if hasattr(company, 'company_research') and company.company_research:
-                print(f"Found research for {company_name}: {len(company.company_research)} characters")
-                return company.company_research
+            # Check if we have a published markdown report (full research completed)
+            if hasattr(company, 'markdown_report') and company.markdown_report:
+                print(f"Found full report for {company_name}: {len(company.markdown_report)} characters")
+                # Use basic research for email context, but we have the full report published
+                research_text = company.research_step_1_basic or company.company_research or company.markdown_report[:500] + "..."
+                return research_text, company.id
+            
+            # Check if we have basic research but need full report
             elif hasattr(company, 'research_step_1_basic') and company.research_step_1_basic:
-                print(f"Found basic research for {company_name}: {len(company.research_step_1_basic)} characters")
-                return company.research_step_1_basic
+                if auto_trigger:
+                    print(f"🔍 Company '{company_name}' has basic research but no full report. Auto-triggering full research...")
+                    return self._trigger_full_deep_research(company_name, company.id)
+                else:
+                    print(f"Found basic research for {company_name}: {len(company.research_step_1_basic)} characters")
+                    return company.research_step_1_basic, company.id
+            
+            # Check if we have old-style company research but need full report
+            elif hasattr(company, 'company_research') and company.company_research:
+                if auto_trigger:
+                    print(f"🔍 Company '{company_name}' has old research but no full report. Auto-triggering full research...")
+                    return self._trigger_full_deep_research(company_name, company.id)
+                else:
+                    print(f"Found old research for {company_name}: {len(company.company_research)} characters")
+                    return company.company_research, company.id
+            
             else:
                 # Company exists but no research data - trigger if auto_trigger enabled
                 if auto_trigger:
-                    print(f"🔍 Company '{company_name}' exists but has no research. Auto-triggering research...")
-                    return self._trigger_company_research(company_name, company.id)
+                    print(f"🔍 Company '{company_name}' exists but has no research. Auto-triggering full research...")
+                    return self._trigger_full_deep_research(company_name, company.id)
                 else:
                     print(f"No research data available for company: {company_name}")
-                    return ""
+                    return "", company.id
                 
         except Exception as e:
             print(f"Error fetching company research for {company_name}: {e}")
-            return ""
+            return "", None
 
     def _trigger_company_research(self, company_name: str, company_id: int = None) -> str:
         """Trigger deep research for a company and return basic research if successful."""
@@ -238,6 +272,117 @@ class DeepResearchEmailComposer:
         except Exception as e:
             print(f"❌ Error during auto-research for {company_name}: {e}")
             return ""
+
+    def _trigger_full_deep_research(self, company_name: str, company_id: int = None) -> tuple[str, int]:
+        """Trigger full step-by-step deep research and return (research_text, company_id)."""
+        try:
+            # Import research services
+            from deepresearch.step_by_step_researcher import StepByStepResearcher
+            from app.models.company import Company
+            
+            print(f"🚀 Starting full deep research for: {company_name}")
+            
+            # If no company_id provided, we need to create the company first
+            if company_id is None:
+                # Create basic company record
+                company_data = {
+                    'company_name': company_name,
+                    'website_url': '',  # Will be filled if domain info available
+                    'company_research': ''
+                }
+                
+                if Company.save(company_data):
+                    # Get the newly created company
+                    companies = Company.get_companies_by_name(company_name)
+                    if companies:
+                        company_id = companies[0].id
+                        print(f"✅ Created company record for {company_name} with ID: {company_id}")
+                    else:
+                        print(f"❌ Failed to retrieve created company: {company_name}")
+                        return "", None
+                else:
+                    print(f"❌ Failed to create company record for: {company_name}")
+                    return "", None
+            
+            # Trigger step-by-step deep research
+            researcher = StepByStepResearcher()
+            result = researcher.start_deep_research(company_id, force_refresh=False)
+            
+            if result.get('success'):
+                print(f"✅ Full deep research initiated for {company_name}")
+                
+                # Wait for research to complete with polling (max 60 seconds)
+                max_wait_time = 60
+                poll_interval = 3
+                elapsed_time = 0
+                
+                while elapsed_time < max_wait_time:
+                    time.sleep(poll_interval)
+                    elapsed_time += poll_interval
+                    
+                    # Check if research is completed
+                    company = Company.get_by_id(company_id)
+                    if company and company.research_status == 'completed' and company.markdown_report:
+                        print(f"📊 Full research completed! Report available: {len(company.markdown_report)} characters")
+                        # Use basic research for email context
+                        research_text = company.research_step_1_basic or company.company_research or "Research completed - see full report for details."
+                        return research_text, company_id
+                    elif company and company.research_step_1_basic:
+                        print(f"📊 Basic research available: {len(company.research_step_1_basic)} characters")
+                        return company.research_step_1_basic, company_id
+                    elif company and company.research_status == 'failed':
+                        print(f"❌ Research failed for: {company_name}")
+                        break
+                    
+                    print(f"⏳ Waiting for research completion... ({elapsed_time}s elapsed)")
+                
+                # Timeout or failure - try to get whatever research is available
+                company = Company.get_by_id(company_id)
+                if company and (company.research_step_1_basic or company.company_research):
+                    research_text = company.research_step_1_basic or company.company_research
+                    print(f"⚠️ Research timeout - using available data: {len(research_text)} characters")
+                    return research_text, company_id
+                else:
+                    print(f"❌ Research timeout with no data available for: {company_name}")
+                    return "", company_id
+            else:
+                print(f"❌ Failed to initiate deep research for: {company_name}")
+                return "", company_id
+                
+        except Exception as e:
+            print(f"❌ Error during full deep research for {company_name}: {e}")
+            return "", company_id
+
+    def _generate_report_url_with_tracking(self, company_id: int, company_name: str, recipient_email: str) -> str:
+        """Generate a public report URL with tracking parameters."""
+        if not company_id:
+            return ""
+        
+        try:
+            # Base public report URL
+            base_url = f"{BASE_URL}/api/public/reports/{company_id}"
+            
+            # Tracking parameters
+            tracking_params = {
+                'utm_source': 'email',
+                'utm_medium': 'outreach',
+                'utm_campaign': 'deep_research',
+                'utm_content': 'strategic_analysis',
+                'company': company_name.lower().replace(' ', '_'),
+                'recipient': recipient_email.split('@')[0] if recipient_email else 'unknown'
+            }
+            
+            # Build URL with tracking parameters
+            url_params = urllib.parse.urlencode(tracking_params)
+            tracked_url = f"{base_url}?{url_params}"
+            
+            print(f"Generated tracked report URL: {tracked_url}")
+            return tracked_url
+            
+        except Exception as e:
+            print(f"Error generating report URL: {e}")
+            # Return basic URL without tracking as fallback
+            return f"{BASE_URL}/api/public/reports/{company_id}"
 
     @staticmethod
     def _load_text(path: str) -> str:

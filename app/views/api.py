@@ -787,6 +787,47 @@ def add_contact():
         if not full_name and (first_name or last_name):
             full_name = f"{first_name} {last_name}".strip()
         
+        # Handle company selection/creation
+        company_id = None
+        company_name = ''
+        company_domain = ''
+        
+        # Check if user selected existing company or wants to create new one
+        selected_company_id = data.get('company_id')
+        create_new_company = data.get('create_new_company', False)
+        
+        if selected_company_id and not create_new_company:
+            # User selected existing company
+            company_id = selected_company_id
+            # Get company details for contact record
+            existing_company = Company.get_by_id(company_id)
+            if existing_company:
+                company_name = existing_company.company_name
+                company_domain = existing_company.website_url
+        elif create_new_company:
+            # User wants to create new company - validate mandatory fields
+            new_company_name = data.get('new_company_name', '').strip()
+            new_company_website = data.get('new_company_website', '').strip()
+            
+            if not new_company_name:
+                return jsonify({
+                    'success': False,
+                    'message': 'Company name is required when creating a new company'
+                }), 400
+            
+            if not new_company_website:
+                return jsonify({
+                    'success': False,
+                    'message': 'Company website is required when creating a new company'
+                }), 400
+            
+            company_name = new_company_name
+            company_domain = new_company_website
+        else:
+            # Backward compatibility - check for old company_name field
+            company_name = data.get('company_name', '').strip()
+            company_domain = data.get('company_domain', '').strip()
+        
         # Create contact data dictionary
         contact_data = {
             'email': email,
@@ -794,8 +835,8 @@ def add_contact():
             'last_name': last_name,
             'full_name': full_name,
             'job_title': data.get('job_title', '').strip(),
-            'company_name': data.get('company_name', '').strip(),
-            'company_domain': data.get('company_domain', '').strip(),
+            'company_name': company_name,
+            'company_domain': company_domain,
             'linkedin_profile': data.get('linkedin_profile', '').strip(),
             'location': data.get('location', '').strip(),
             'phone': data.get('phone', '').strip(),
@@ -822,25 +863,26 @@ def add_contact():
                 # -------------------------------------------------------------
                 # First, ensure the associated company exists and get its ID
                 # -------------------------------------------------------------
-                company_id = None
-                company_name = contact_data.get('company_name')
-                company_domain = contact_data.get('company_domain')
+                final_company_id = company_id  # Use pre-selected company_id if available
+                contact_company_name = contact_data.get('company_name')
+                contact_company_domain = contact_data.get('company_domain')
 
-                if company_name or company_domain:
+                # Only search/create company if we don't already have a company_id
+                if not final_company_id and (contact_company_name or contact_company_domain):
                     # Check by company name (case-insensitive)
-                    if company_name:
+                    if contact_company_name:
                         result = conn.execute(text("""
                             SELECT id FROM companies
                             WHERE LOWER(company_name) = LOWER(:company_name)
                             LIMIT 1
-                        """), {"company_name": company_name})
+                        """), {"company_name": contact_company_name})
                         row = result.fetchone()
                         if row:
-                            company_id = row.id
+                            final_company_id = row.id
 
                     # If not found by name, check by website_url/domain
-                    if not company_id and company_domain:
-                        domain_pattern = f"%{company_domain.lower()}%"
+                    if not final_company_id and contact_company_domain:
+                        domain_pattern = f"%{contact_company_domain.lower()}%"
                         result = conn.execute(text("""
                             SELECT id FROM companies
                             WHERE LOWER(website_url) LIKE :domain_pattern
@@ -848,15 +890,15 @@ def add_contact():
                         """), {"domain_pattern": domain_pattern})
                         row = result.fetchone()
                         if row:
-                            company_id = row.id
+                            final_company_id = row.id
 
                     # Insert new company if it doesn't exist
-                    if not company_id:
+                    if not final_company_id:
                         website_url = ''
-                        if company_domain:
-                            website_url = company_domain if company_domain.startswith(('http://', 'https://')) else f"https://{company_domain}"
+                        if contact_company_domain:
+                            website_url = contact_company_domain if contact_company_domain.startswith(('http://', 'https://')) else f"https://{contact_company_domain}"
                         # Use company_name if available, otherwise fallback to domain
-                        fallback_name = company_name or company_domain or 'Unknown'
+                        fallback_name = contact_company_name or contact_company_domain or 'Unknown'
                         result = conn.execute(text("""
                             INSERT INTO companies (company_name, website_url)
                             VALUES (:company_name, :website_url)
@@ -865,7 +907,7 @@ def add_contact():
                             "company_name": fallback_name,
                             "website_url": website_url
                         })
-                        company_id = result.fetchone().id
+                        final_company_id = result.fetchone().id
 
                 # Insert new contact with company_id foreign key
                 conn.execute(text("""
@@ -880,7 +922,7 @@ def add_contact():
                     )
                 """), {
                     **contact_data,
-                    'company_id': company_id,
+                    'company_id': final_company_id,
                     'source_files': json.dumps(["manual_entry"]),
                     'all_data': json.dumps({
                         'source': 'manual_entry',
@@ -2592,6 +2634,53 @@ def execute_campaign_now(campaign_id):
             'message': f'Error executing campaign immediately: {str(e)}'
         }), 500
 
+@bp.route('/campaigns/<int:campaign_id>/reset-for-testing', methods=['POST'])
+def reset_campaign_for_testing(campaign_id):
+    """Reset a campaign's contact statuses to 'active' for testing purposes."""
+    try:
+        from app.models.campaign import Campaign
+        
+        # Get campaign to verify it exists
+        campaign = Campaign.get_by_id(campaign_id)
+        if not campaign:
+            return jsonify({
+                'success': False,
+                'message': f'Campaign {campaign_id} not found'
+            }), 404
+        
+        current_app.logger.info(f"🔄 TEST MODE: Resetting campaign {campaign_id} for testing")
+        
+        # Get all contacts in the campaign
+        contacts = Campaign.get_campaign_contacts(campaign_id)
+        reset_count = 0
+        
+        # Reset all contacts to 'active' status
+        for contact in contacts:
+            if contact.get('campaign_status') != 'active':
+                success = Campaign.update_contact_status_in_campaign(
+                    campaign_id, contact['email'], 'active'
+                )
+                if success:
+                    reset_count += 1
+                    current_app.logger.info(f"  ✅ Reset {contact['email']} to active")
+        
+        # Reset campaign status to 'ready'
+        Campaign.update_status(campaign_id, 'ready')
+        
+        return jsonify({
+            'success': True,
+            'message': f'Campaign "{campaign.name}" reset successfully! {reset_count} contacts reactivated.',
+            'reset_count': reset_count,
+            'total_contacts': len(contacts)
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error resetting campaign {campaign_id} for testing: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error resetting campaign: {str(e)}'
+        }), 500
+
 @bp.route('/campaigns/<int:campaign_id>/activity', methods=['GET'])
 def get_campaign_activity(campaign_id):
     """Get comprehensive campaign activity including emails, logs, and next actions."""
@@ -2734,4 +2823,29 @@ def get_campaign_activity(campaign_id):
         return jsonify({
             'success': False,
             'message': f'Error getting campaign activity: {str(e)}'
+        }), 500
+
+@bp.route('/companies/list', methods=['GET'])
+def get_companies_list():
+    """Get a simple list of all companies for dropdown selection."""
+    try:
+        companies = Company.load_all()
+        companies_data = []
+        for company in companies:
+            companies_data.append({
+                'id': company.id,
+                'company_name': company.company_name,
+                'website_url': company.website_url or ''
+            })
+        
+        return jsonify({
+            'success': True,
+            'companies': companies_data
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting companies list: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Failed to load companies'
         }), 500

@@ -102,12 +102,21 @@ function setupEventListeners() {
         saveContactBtn.addEventListener('click', saveNewContact);
     }
 
-    // Add Contact modal reset
+    // Add Contact modal reset and setup
     const addContactModal = document.getElementById('addContactModal');
     if (addContactModal) {
         addContactModal.addEventListener('hidden.bs.modal', function() {
             resetAddContactForm();
         });
+        addContactModal.addEventListener('show.bs.modal', function() {
+            loadCompaniesForDropdown();
+        });
+    }
+    
+    // Create new company checkbox handler
+    const createNewCompanyCheckbox = document.getElementById('createNewCompany');
+    if (createNewCompanyCheckbox) {
+        createNewCompanyCheckbox.addEventListener('change', toggleNewCompanyFields);
     }
 
     const sendTestEmailForm = document.getElementById('sendTestEmailForm');
@@ -2765,6 +2774,33 @@ function saveNewContact() {
         return;
     }
     
+    // Validate company fields if creating new company
+    const createNewCompanyCheckbox = document.getElementById('createNewCompany');
+    if (createNewCompanyCheckbox && createNewCompanyCheckbox.checked) {
+        const newCompanyName = contactData.new_company_name;
+        const newCompanyWebsite = contactData.new_company_website;
+        
+        if (!newCompanyName) {
+            showToast('errorToast', 'Company name is required when creating a new company');
+            return;
+        }
+        
+        if (!newCompanyWebsite) {
+            showToast('errorToast', 'Company website is required when creating a new company');
+            return;
+        }
+        
+        // Basic URL validation
+        const urlPattern = /^https?:\/\/.+/;
+        if (!urlPattern.test(newCompanyWebsite)) {
+            showToast('errorToast', 'Please enter a valid website URL (must start with http:// or https://)');
+            return;
+        }
+        
+        // Set the flag for new company creation
+        contactData.create_new_company = true;
+    }
+    
     // Show loading state
     const saveBtn = document.getElementById('saveContactBtn');
     const originalText = saveBtn.innerHTML;
@@ -2830,6 +2866,69 @@ function resetAddContactForm() {
         inputs.forEach(input => {
             input.classList.remove('is-valid', 'is-invalid');
         });
+        
+        // Reset company selection fields
+        const companySelect = document.getElementById('companySelect');
+        if (companySelect) companySelect.value = '';
+        
+        const createNewCompanyCheckbox = document.getElementById('createNewCompany');
+        if (createNewCompanyCheckbox) {
+            createNewCompanyCheckbox.checked = false;
+            toggleNewCompanyFields(); // Hide new company fields
+        }
+    }
+}
+
+function loadCompaniesForDropdown() {
+    const companySelect = document.getElementById('companySelect');
+    if (!companySelect) return;
+    
+    fetch('/api/companies/list')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Clear existing options except the first one
+                companySelect.innerHTML = '<option value="">Select existing company...</option>';
+                
+                // Add companies to dropdown
+                data.companies.forEach(company => {
+                    const option = document.createElement('option');
+                    option.value = company.id;
+                    option.textContent = company.company_name;
+                    option.title = company.website_url; // Show website on hover
+                    companySelect.appendChild(option);
+                });
+            } else {
+                console.error('Failed to load companies:', data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading companies:', error);
+        });
+}
+
+function toggleNewCompanyFields() {
+    const createNewCompanyCheckbox = document.getElementById('createNewCompany');
+    const newCompanyFields = document.getElementById('newCompanyFields');
+    const companySelect = document.getElementById('companySelect');
+    
+    if (!createNewCompanyCheckbox || !newCompanyFields || !companySelect) return;
+    
+    if (createNewCompanyCheckbox.checked) {
+        // Show new company fields and disable company select
+        newCompanyFields.style.display = 'block';
+        companySelect.disabled = true;
+        companySelect.value = '';
+    } else {
+        // Hide new company fields and enable company select
+        newCompanyFields.style.display = 'none';
+        companySelect.disabled = false;
+        
+        // Clear new company inputs
+        const newCompanyName = document.getElementById('newCompanyName');
+        const newCompanyWebsite = document.getElementById('newCompanyWebsite');
+        if (newCompanyName) newCompanyName.value = '';
+        if (newCompanyWebsite) newCompanyWebsite.value = '';
     }
 }
 
@@ -4737,6 +4836,7 @@ function setCampaignDetailsId(campaignId) {
     const pauseBtn = document.getElementById('pauseCampaignBtn');
     const resumeBtn = document.getElementById('resumeCampaignBtn');
     const executeNowBtn = document.getElementById('executeNowBtn');
+    const resetBtn = document.getElementById('resetCampaignBtn');
     const refreshBtn = document.getElementById('refreshCampaignBtn');
     
     if (pauseBtn) {
@@ -4747,6 +4847,9 @@ function setCampaignDetailsId(campaignId) {
     }
     if (executeNowBtn) {
         executeNowBtn.onclick = () => executeCampaignNow(campaignId);
+    }
+    if (resetBtn) {
+        resetBtn.onclick = () => resetCampaignForTesting(campaignId);
     }
     if (refreshBtn) {
         refreshBtn.onclick = () => viewCampaignDetails(campaignId);
@@ -4892,9 +4995,10 @@ function updateCampaignControlButtons(status) {
     const resumeBtn = document.getElementById('resumeCampaignBtn');
     const editBtn = document.getElementById('editCampaignBtn');
     const executeNowBtn = document.getElementById('executeNowBtn');
+    const resetBtn = document.getElementById('resetCampaignBtn');
     
     // Hide all first
-    [pauseBtn, resumeBtn, editBtn, executeNowBtn].forEach(btn => {
+    [pauseBtn, resumeBtn, editBtn, executeNowBtn, resetBtn].forEach(btn => {
         if (btn) btn.style.display = 'none';
     });
     
@@ -4913,6 +5017,11 @@ function updateCampaignControlButtons(status) {
     // Execute Now button for all campaigns (testing) - always show for testing purposes
     if (executeNowBtn) {
         executeNowBtn.style.display = 'inline-block';
+    }
+    
+    // Reset button for testing - always show for testing purposes
+    if (resetBtn) {
+        resetBtn.style.display = 'inline-block';
     }
 }
 
@@ -4968,6 +5077,62 @@ function executeCampaignNow(campaignId) {
         if (executeBtn && originalText) {
             executeBtn.disabled = false;
             executeBtn.innerHTML = originalText;
+        }
+    });
+}
+
+function resetCampaignForTesting(campaignId) {
+    if (!confirm('🔄 TEST MODE: This will reset all contacts in this campaign back to "active" status so you can re-test the execution.\n\nAre you sure you want to proceed?')) {
+        return;
+    }
+    
+    console.log('🔄 TEST MODE: Resetting campaign for testing:', campaignId);
+    
+    // Show loading state
+    const resetBtn = document.getElementById('resetCampaignBtn');
+    const originalText = resetBtn?.innerHTML;
+    if (resetBtn) {
+        resetBtn.disabled = true;
+        resetBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Resetting...';
+    }
+    
+    fetch(`/api/campaigns/${campaignId}/reset-for-testing`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('successToast', `🔄 ${data.message}`);
+            
+            // Show additional info toast
+            setTimeout(() => {
+                showToast('successToast', `📋 ${data.reset_count} out of ${data.total_contacts} contacts reactivated for testing!`);
+            }, 1500);
+            
+            // Refresh campaign data after a short delay to see the results
+            setTimeout(() => {
+                loadCampaigns();
+                if (currentCampaignDetailsId == campaignId) {
+                    viewCampaignDetails(campaignId);
+                }
+            }, 2500);
+            
+        } else {
+            showToast('errorToast', data.message || 'Failed to reset campaign for testing');
+        }
+    })
+    .catch(error => {
+        console.error('Error resetting campaign for testing:', error);
+        showToast('errorToast', 'An error occurred while resetting the campaign');
+    })
+    .finally(() => {
+        // Restore button state
+        if (resetBtn && originalText) {
+            resetBtn.disabled = false;
+            resetBtn.innerHTML = originalText;
         }
     });
 }
@@ -5094,10 +5259,19 @@ function editContact(email) {
             form.last_name.value = data.last_name || '';
             form.email.value = data.email || '';
             form.job_title.value = data.job_title || '';
-            form.company_name.value = data.company_name || '';
             form.linkedin_profile.value = data.linkedin_profile || '';
             form.location.value = data.location || '';
             form.phone.value = data.phone || '';
+            
+            // Handle company selection for editing
+            const companySelect = document.getElementById('companySelect');
+            if (companySelect && data.company_id) {
+                // If contact has a company_id, select it in the dropdown
+                companySelect.value = data.company_id;
+            } else if (companySelect) {
+                // If no company_id but has company name, leave dropdown unselected 
+                companySelect.value = '';
+            }
 
             // Make email read-only during edit
             form.email.readOnly = true;
