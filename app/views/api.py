@@ -2638,7 +2638,7 @@ def get_campaign_activity(campaign_id):
             'timestamp': campaign.created_at.isoformat(),
             'level': 'INFO',
             'message': f'Campaign "{campaign.name}" created with {len(campaign_contacts)} contacts',
-            'details': f'Type: {campaign.campaign_type}, Template: {campaign.email_template}'
+            'details': f'Template: {settings.get("email_template", "deep_research")}, Status: {campaign.status}'
         })
         
         # Contact processing logs
@@ -2661,11 +2661,14 @@ def get_campaign_activity(campaign_id):
         
         # Business hours restriction log (if applicable)
         if campaign.status in ['ready', 'scheduled'] and settings.get('respect_business_hours', True):
+            bh = settings.get('business_hours', {})
+            start_time = bh.get('start_time', '09:00')
+            end_time = bh.get('end_time', '17:00')
             logs.append({
                 'timestamp': datetime.now().isoformat(),
                 'level': 'WARNING',
                 'message': 'Campaign execution paused - outside business hours',
-                'details': f'Business hours: {settings.get("business_hours", "9 AM - 5 PM")} in {settings.get("timezone", "America/Los_Angeles")}'
+                'details': f'Business hours: {start_time} - {end_time} in {settings.get("timezone", "America/Los_Angeles")}'
             })
         
         # Generate next actions
@@ -2674,13 +2677,13 @@ def get_campaign_activity(campaign_id):
         if campaign.status == 'ready' or campaign.status == 'scheduled':
             # Calculate when next email would be sent
             email_frequency = settings.get('email_frequency', {'value': 30, 'unit': 'minutes'})
-            business_hours = settings.get('business_hours', {})
+            business_hours = settings.get('business_hours', {'start': '9:00', 'end': '17:00'})
             timezone_str = settings.get('timezone', 'America/Los_Angeles')
             
             next_actions.append({
                 'action': 'Resume Email Sending',
                 'scheduled_time': 'Next business hours',
-                'description': f'Campaign will resume sending emails during business hours ({business_hours.get("start", "9:00")} - {business_hours.get("end", "17:00")} {timezone_str})',
+                'description': f'Campaign will resume sending emails during business hours ({business_hours.get("start_time", "9:00")} - {business_hours.get("end_time", "17:00")} {timezone_str})',
                 'type': 'scheduled'
             })
             
