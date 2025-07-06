@@ -123,10 +123,9 @@ class DeepResearchEmailComposer:
 
         {extra_context or ''}
         """
-        print("User prompt:", user_prompt)  # Debug log
 
         try:
-            print("Sending request to OpenAI...")  # Debug log
+            print(f"🤖 Generating email for {company_name}...")
             rsp = self.client.chat.completions.create(
                 model=OPENAI_MODEL,
                 temperature=0.7,
@@ -136,32 +135,24 @@ class DeepResearchEmailComposer:
                     {"role": "user", "content": user_prompt},
                 ],
             )
-            print("Raw OpenAI response:", rsp)  # Debug log
-            print("Response content:", rsp.choices[0].message.content)  # Debug log
         except Exception as e:
             print("🔴 OpenAI error:", e)
             return None
 
         subject, body = self._parse(rsp.choices[0].message.content)
-        print("Parsed subject:", subject)  # Debug log
-        print("Parsed body (before signature):", body)  # Debug log
         
         # Replace report link placeholder with actual URL
         if report_url and "[REPORT_LINK_PLACEHOLDER]" in body:
             body = body.replace("[REPORT_LINK_PLACEHOLDER]", report_url)
-            print(f"Replaced report link placeholder with: {report_url}")  # Debug log
         elif "[REPORT_LINK_PLACEHOLDER]" in body:
             # If no report URL available, fall back to generic message
             fallback_msg = "Happy to share how we helped Precise Imaging reduce appointment no-shows by 40% - similar healthcare operational challenges."
             body = body.replace("P.S. I put together a strategic analysis for [Company] that covers these opportunities in detail. You can review it here: [REPORT_LINK_PLACEHOLDER]", f"P.S. {fallback_msg}")
-            print("No report URL available, using fallback P.S.")  # Debug log
         
         body = body.strip() # Ensure no trailing newlines before adding signature
         body += '\n\n' + self._signature()
         
-        result = {"subject": subject, "body": body}
-        print("Final result (with signature):", result)  # Debug log
-        return result
+        return {"subject": subject, "body": body}
 
     def _get_company_research_with_full_report(self, company_name: str, auto_trigger: bool = True) -> tuple[str, int]:
         """Get company research data and ensure full report is available. Returns (research_text, company_id)."""
@@ -177,17 +168,16 @@ class DeepResearchEmailComposer:
             
             # If company not found and auto-trigger enabled, create company and start research
             if not companies and auto_trigger:
-                print(f"🔍 Company '{company_name}' not found. Auto-triggering full research...")
+                print(f"🔍 Starting auto-research for {company_name}...")
                 return self._trigger_full_deep_research(company_name)
             elif not companies:
-                print(f"No research found for company: {company_name}")
                 return "", None
             
             company = companies[0]  # Take first match
             
             # Check if we have a published markdown report (full research completed)
             if hasattr(company, 'markdown_report') and company.markdown_report:
-                print(f"Found full report for {company_name}: {len(company.markdown_report)} characters")
+                print(f"📊 Using full research report for {company_name}")
                 # Use basic research for email context, but we have the full report published
                 research_text = company.research_step_1_basic or company.company_research or company.markdown_report[:500] + "..."
                 return research_text, company.id
@@ -195,32 +185,31 @@ class DeepResearchEmailComposer:
             # Check if we have basic research but need full report
             elif hasattr(company, 'research_step_1_basic') and company.research_step_1_basic:
                 if auto_trigger:
-                    print(f"🔍 Company '{company_name}' has basic research but no full report. Auto-triggering full research...")
+                    print(f"🔍 Upgrading to full research for {company_name}...")
                     return self._trigger_full_deep_research(company_name, company.id)
                 else:
-                    print(f"Found basic research for {company_name}: {len(company.research_step_1_basic)} characters")
+                    print(f"📊 Using basic research for {company_name}")
                     return company.research_step_1_basic, company.id
             
             # Check if we have old-style company research but need full report
             elif hasattr(company, 'company_research') and company.company_research:
                 if auto_trigger:
-                    print(f"🔍 Company '{company_name}' has old research but no full report. Auto-triggering full research...")
+                    print(f"🔍 Upgrading to full research for {company_name}...")
                     return self._trigger_full_deep_research(company_name, company.id)
                 else:
-                    print(f"Found old research for {company_name}: {len(company.company_research)} characters")
+                    print(f"📊 Using existing research for {company_name}")
                     return company.company_research, company.id
             
             else:
                 # Company exists but no research data - trigger if auto_trigger enabled
                 if auto_trigger:
-                    print(f"🔍 Company '{company_name}' exists but has no research. Auto-triggering full research...")
+                    print(f"🔍 Starting research for {company_name}...")
                     return self._trigger_full_deep_research(company_name, company.id)
                 else:
-                    print(f"No research data available for company: {company_name}")
                     return "", company.id
                 
         except Exception as e:
-            print(f"Error fetching company research for {company_name}: {e}")
+            print(f"❌ Error fetching research for {company_name}: {e}")
             return "", None
 
     def _trigger_company_research(self, company_name: str, company_id: int = None) -> str:
@@ -230,7 +219,7 @@ class DeepResearchEmailComposer:
             from deepresearch.ai_research_service import AIResearchService
             from app.models.company import Company
             
-            print(f"🚀 Starting automatic research for: {company_name}")
+            print(f"🚀 Researching {company_name}...")
             
             # If no company_id provided, we need to create the company first
             if company_id is None:
@@ -246,7 +235,7 @@ class DeepResearchEmailComposer:
                     companies = Company.get_companies_by_name(company_name)
                     if companies:
                         company_id = companies[0].id
-                        print(f"✅ Created company record for {company_name} with ID: {company_id}")
+                        print(f"✅ Created company record for {company_name}")
                     else:
                         print(f"❌ Failed to retrieve created company: {company_name}")
                         return ""
@@ -263,14 +252,14 @@ class DeepResearchEmailComposer:
                 Company.update_research_step(company_id, 1, research_result)
                 Company.update_research_status(company_id, 'completed')
                 
-                print(f"✅ Auto-research completed for {company_name}: {len(research_result)} characters")
+                print(f"✅ Research completed for {company_name}")
                 return research_result
             else:
-                print(f"❌ Auto-research failed for: {company_name}")
+                print(f"❌ Research failed for {company_name}")
                 return ""
                 
         except Exception as e:
-            print(f"❌ Error during auto-research for {company_name}: {e}")
+            print(f"❌ Research error for {company_name}: {e}")
             return ""
 
     def _trigger_full_deep_research(self, company_name: str, company_id: int = None) -> tuple[str, int]:
@@ -280,7 +269,7 @@ class DeepResearchEmailComposer:
             from deepresearch.step_by_step_researcher import StepByStepResearcher
             from app.models.company import Company
             
-            print(f"🚀 Starting full deep research for: {company_name}")
+            print(f"🚀 Starting deep research for {company_name}...")
             
             # If no company_id provided, we need to create the company first
             if company_id is None:
@@ -296,12 +285,10 @@ class DeepResearchEmailComposer:
                     companies = Company.get_companies_by_name(company_name)
                     if companies:
                         company_id = companies[0].id
-                        print(f"✅ Created company record for {company_name} with ID: {company_id}")
+                        print(f"✅ Created company record for {company_name}")
                     else:
-                        print(f"❌ Failed to retrieve created company: {company_name}")
                         return "", None
                 else:
-                    print(f"❌ Failed to create company record for: {company_name}")
                     return "", None
             
             # Trigger step-by-step deep research
@@ -309,7 +296,7 @@ class DeepResearchEmailComposer:
             result = researcher.start_deep_research(company_id, force_refresh=False)
             
             if result.get('success'):
-                print(f"✅ Full deep research initiated for {company_name}")
+                print(f"⏳ Waiting for research completion...")
                 
                 # Wait for research to complete with polling (max 60 seconds)
                 max_wait_time = 60
@@ -323,34 +310,32 @@ class DeepResearchEmailComposer:
                     # Check if research is completed
                     company = Company.get_by_id(company_id)
                     if company and company.research_status == 'completed' and company.markdown_report:
-                        print(f"📊 Full research completed! Report available: {len(company.markdown_report)} characters")
+                        print(f"✅ Full research completed for {company_name}")
                         # Use basic research for email context
                         research_text = company.research_step_1_basic or company.company_research or "Research completed - see full report for details."
                         return research_text, company_id
                     elif company and company.research_step_1_basic:
-                        print(f"📊 Basic research available: {len(company.research_step_1_basic)} characters")
+                        print(f"📊 Basic research available for {company_name}")
                         return company.research_step_1_basic, company_id
                     elif company and company.research_status == 'failed':
-                        print(f"❌ Research failed for: {company_name}")
+                        print(f"❌ Research failed for {company_name}")
                         break
-                    
-                    print(f"⏳ Waiting for research completion... ({elapsed_time}s elapsed)")
                 
                 # Timeout or failure - try to get whatever research is available
                 company = Company.get_by_id(company_id)
                 if company and (company.research_step_1_basic or company.company_research):
                     research_text = company.research_step_1_basic or company.company_research
-                    print(f"⚠️ Research timeout - using available data: {len(research_text)} characters")
+                    print(f"⚠️ Using partial research for {company_name}")
                     return research_text, company_id
                 else:
-                    print(f"❌ Research timeout with no data available for: {company_name}")
+                    print(f"❌ No research data available for {company_name}")
                     return "", company_id
             else:
-                print(f"❌ Failed to initiate deep research for: {company_name}")
+                print(f"❌ Failed to start research for {company_name}")
                 return "", company_id
                 
         except Exception as e:
-            print(f"❌ Error during full deep research for {company_name}: {e}")
+            print(f"❌ Research error for {company_name}: {e}")
             return "", company_id
 
     def _generate_report_url_with_tracking(self, company_id: int, company_name: str, recipient_email: str) -> str:
@@ -376,11 +361,10 @@ class DeepResearchEmailComposer:
             url_params = urllib.parse.urlencode(tracking_params)
             tracked_url = f"{base_url}?{url_params}"
             
-            print(f"Generated tracked report URL: {tracked_url}")
             return tracked_url
             
         except Exception as e:
-            print(f"Error generating report URL: {e}")
+            print(f"❌ Error generating report URL: {e}")
             # Return basic URL without tracking as fallback
             return f"{BASE_URL}/api/public/reports/{company_id}"
 
@@ -399,40 +383,37 @@ class DeepResearchEmailComposer:
         """Split the model's response into subject & body, stripping rogue sigs."""
         subj = body = ""
         lines = [l for l in raw.strip().splitlines()]
-        print("Split lines:", lines)  # Debug log
         
         # Find subject line
         body_start_index = 0
         for i, line in enumerate(lines):
-            print(f"Processing line {i}: {line}")  # Debug log
             if line.lower().startswith("subject:"):
                 subj = line.split(":", 1)[1].strip()
-                print(f"Found subject: {subj}")  # Debug log
                 body_start_index = i + 1
                 break
         
         # If no subject line found, use default format
         if not subj:
             subj = "[Company] → AI Transformation?"
-            print(f"No subject found, using default: {subj}")
             body_start_index = 0  # Use all lines for body when no subject found
 
         # Get all lines after subject as body, preserving empty lines for paragraph spacing
         body_lines = []
         if body_start_index < len(lines):
-            stop_phrases = ("warm regards,", "best regards,", "sincerely,", "cheers,", "regards,", "best,", "thanks,", "yours,", "kind regards,")
+            stop_phrases = ("warm regards,", "best regards,", "sincerely,", "cheers,", "regards,", "thanks,", "yours,", "kind regards,")
+            # Note: "best," is removed from stop_phrases to allow P.S. sections after "Best,"
             
             for line_content in lines[body_start_index:]:
                 line_lower = line_content.lower().strip()
                 
                 # Only check for stop phrases as standalone sign-offs (not within paragraphs)
+                # Skip "best," alone as it's often followed by P.S. sections
                 if any(line_lower == phrase for phrase in stop_phrases):
                     break
                 
                 body_lines.append(line_content)
             
             body = '\n'.join(body_lines).strip()
-            print(f"Parsed body: {body}")
         
         return subj, body
 

@@ -2825,6 +2825,104 @@ def get_campaign_activity(campaign_id):
             'message': f'Error getting campaign activity: {str(e)}'
         }), 500
 
+@bp.route('/campaigns/<int:campaign_id>/update-template', methods=['POST'])
+def update_campaign_template(campaign_id):
+    """Update a campaign's email template in the JSON file."""
+    try:
+        from app.models.campaign import Campaign
+        import json
+        import os
+        
+        # Get campaign to verify it exists in database
+        campaign = Campaign.get_by_id(campaign_id)
+        if not campaign:
+            return jsonify({
+                'success': False,
+                'message': f'Campaign {campaign_id} not found'
+            }), 404
+        
+        # Get new template from request
+        data = request.get_json() or {}
+        new_template = data.get('email_template', 'deep_research')
+        
+        if new_template not in ['deep_research', 'warm', 'alt_subject']:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid email template. Must be one of: deep_research, warm, alt_subject'
+            }), 400
+        
+        current_app.logger.info(f"Updating campaign {campaign_id} template to: {new_template}")
+        
+        # Load campaigns.json file
+        campaigns_file = 'campaigns.json'
+        campaigns_data = []
+        old_template = 'not set'
+        campaign_updated = False
+        
+        if os.path.exists(campaigns_file):
+            try:
+                with open(campaigns_file, 'r') as f:
+                    campaigns_data = json.load(f)
+            except json.JSONDecodeError:
+                current_app.logger.warning("campaigns.json file is corrupted, creating new one")
+                campaigns_data = []
+        
+        # Find and update the campaign
+        for camp in campaigns_data:
+            if str(camp.get('id', '')).endswith(str(campaign_id)) or str(camp.get('id', '')) == str(campaign_id):
+                old_template = camp.get('email_template', 'not set')
+                camp['email_template'] = new_template
+                campaign_updated = True
+                current_app.logger.info(f"Updated campaign {camp.get('id')} template from {old_template} to {new_template}")
+                break
+        
+        # If campaign not found in JSON, create a new entry
+        if not campaign_updated:
+            new_campaign_entry = {
+                'id': f"camp_{campaign_id}",
+                'name': campaign.name,
+                'type': 'cold_outreach',
+                'description': campaign.description or '',
+                'email_template': new_template,
+                'priority': 'medium',
+                'status': campaign.status,
+                'created_at': campaign.created_at.isoformat() if hasattr(campaign.created_at, 'isoformat') else str(campaign.created_at),
+                'emails_sent': 0,
+                'emails_opened': 0,
+                'emails_clicked': 0,
+                'responses_received': 0
+            }
+            campaigns_data.append(new_campaign_entry)
+            current_app.logger.info(f"Created new JSON entry for campaign {campaign_id}")
+            campaign_updated = True
+        
+        # Save back to file
+        if campaign_updated:
+            try:
+                with open(campaigns_file, 'w') as f:
+                    json.dump(campaigns_data, f, indent=2)
+                current_app.logger.info(f"Successfully saved campaigns.json with updated template")
+            except Exception as file_error:
+                current_app.logger.error(f"Error saving campaigns.json: {file_error}")
+                return jsonify({
+                    'success': False,
+                    'message': f'Failed to save campaign settings: {str(file_error)}'
+                }), 500
+        
+        return jsonify({
+            'success': True,
+            'message': f'Campaign "{campaign.name}" template updated from "{old_template}" to "{new_template}"',
+            'old_template': old_template,
+            'new_template': new_template
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error updating campaign {campaign_id} template: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error updating campaign template: {str(e)}'
+        }), 500
+
 @bp.route('/companies/list', methods=['GET'])
 def get_companies_list():
     """Get a simple list of all companies for dropdown selection."""

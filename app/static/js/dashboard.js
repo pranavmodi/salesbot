@@ -4837,6 +4837,7 @@ function setCampaignDetailsId(campaignId) {
     const resumeBtn = document.getElementById('resumeCampaignBtn');
     const executeNowBtn = document.getElementById('executeNowBtn');
     const resetBtn = document.getElementById('resetCampaignBtn');
+    const updateToDeepResearchBtn = document.getElementById('updateToDeepResearchBtn');
     const refreshBtn = document.getElementById('refreshCampaignBtn');
     
     if (pauseBtn) {
@@ -4850,6 +4851,9 @@ function setCampaignDetailsId(campaignId) {
     }
     if (resetBtn) {
         resetBtn.onclick = () => resetCampaignForTesting(campaignId);
+    }
+    if (updateToDeepResearchBtn) {
+        updateToDeepResearchBtn.onclick = () => updateCampaignToDeepResearch(campaignId);
     }
     if (refreshBtn) {
         refreshBtn.onclick = () => viewCampaignDetails(campaignId);
@@ -4996,9 +5000,10 @@ function updateCampaignControlButtons(status) {
     const editBtn = document.getElementById('editCampaignBtn');
     const executeNowBtn = document.getElementById('executeNowBtn');
     const resetBtn = document.getElementById('resetCampaignBtn');
+    const updateToDeepResearchBtn = document.getElementById('updateToDeepResearchBtn');
     
     // Hide all first
-    [pauseBtn, resumeBtn, editBtn, executeNowBtn, resetBtn].forEach(btn => {
+    [pauseBtn, resumeBtn, editBtn, executeNowBtn, resetBtn, updateToDeepResearchBtn].forEach(btn => {
         if (btn) btn.style.display = 'none';
     });
     
@@ -5022,6 +5027,11 @@ function updateCampaignControlButtons(status) {
     // Reset button for testing - always show for testing purposes
     if (resetBtn) {
         resetBtn.style.display = 'inline-block';
+    }
+    
+    // Update to Deep Research button - show if not already using deep research
+    if (updateToDeepResearchBtn) {
+        updateToDeepResearchBtn.style.display = 'inline-block';
     }
 }
 
@@ -5133,6 +5143,65 @@ function resetCampaignForTesting(campaignId) {
         if (resetBtn && originalText) {
             resetBtn.disabled = false;
             resetBtn.innerHTML = originalText;
+        }
+    });
+}
+
+function updateCampaignToDeepResearch(campaignId) {
+    if (!confirm('🔬 This will update the campaign to use the Deep Research email template.\n\nFuture emails will automatically:\n• Trigger company research\n• Generate strategic reports\n• Include tracking-enabled report links\n\nAre you sure you want to proceed?')) {
+        return;
+    }
+    
+    console.log('🔬 Updating campaign to Deep Research template:', campaignId);
+    
+    // Show loading state
+    const updateBtn = document.getElementById('updateToDeepResearchBtn');
+    const originalText = updateBtn?.innerHTML;
+    if (updateBtn) {
+        updateBtn.disabled = true;
+        updateBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Updating...';
+    }
+    
+    fetch(`/api/campaigns/${campaignId}/update-template`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            email_template: 'deep_research'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('successToast', `🔬 ${data.message}`);
+            
+            // Show additional info toast
+            setTimeout(() => {
+                showToast('successToast', '📊 Future emails will now include company research and report links!');
+            }, 1500);
+            
+            // Refresh campaign data after a short delay to see the results
+            setTimeout(() => {
+                loadCampaigns();
+                if (currentCampaignDetailsId == campaignId) {
+                    viewCampaignDetails(campaignId);
+                }
+            }, 2500);
+            
+        } else {
+            showToast('errorToast', data.message || 'Failed to update campaign template');
+        }
+    })
+    .catch(error => {
+        console.error('Error updating campaign template:', error);
+        showToast('errorToast', 'An error occurred while updating the campaign');
+    })
+    .finally(() => {
+        // Restore button state
+        if (updateBtn && originalText) {
+            updateBtn.disabled = false;
+            updateBtn.innerHTML = originalText;
         }
     });
 }
