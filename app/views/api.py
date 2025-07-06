@@ -2543,3 +2543,192 @@ def update_company(company_id):
     except Exception as e:
         current_app.logger.error(f"Error updating company: {e}")
         return jsonify({'success': False, 'message': 'Internal server error'}), 500
+
+@bp.route('/campaigns/<int:campaign_id>/execute-now', methods=['POST'])
+def execute_campaign_now(campaign_id):
+    """Execute a campaign immediately for testing - bypasses all time constraints."""
+    try:
+        from app.services.campaign_scheduler import execute_campaign_job_test_mode
+        import threading
+        
+        # Get campaign to verify it exists
+        from app.models.campaign import Campaign
+        campaign = Campaign.get_by_id(campaign_id)
+        
+        if not campaign:
+            return jsonify({
+                'success': False,
+                'message': f'Campaign {campaign_id} not found'
+            }), 404
+        
+        # Update campaign status to active
+        Campaign.update_status(campaign_id, 'active')
+        current_app.logger.info(f"Starting immediate execution of campaign {campaign_id} for testing")
+        
+        # Execute campaign in background thread with test mode
+        def execute_with_test_mode():
+            try:
+                from app import create_app
+                app = create_app()
+                with app.app_context():
+                    # Call modified execution function that bypasses delays
+                    execute_campaign_job_test_mode(campaign_id)
+            except Exception as e:
+                app.logger.error(f"Error in immediate campaign execution: {e}")
+        
+        thread = threading.Thread(target=execute_with_test_mode)
+        thread.daemon = True
+        thread.start()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Campaign {campaign_id} is now executing immediately (test mode)'
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error executing campaign {campaign_id} immediately: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error executing campaign immediately: {str(e)}'
+        }), 500
+
+@bp.route('/campaigns/<int:campaign_id>/activity', methods=['GET'])
+def get_campaign_activity(campaign_id):
+    """Get comprehensive campaign activity including emails, logs, and next actions."""
+    try:
+        from app.models.campaign import Campaign
+        from app.models.email_history import EmailHistory
+        from datetime import datetime, timedelta
+        
+        # Get campaign to verify it exists
+        campaign = Campaign.get_by_id(campaign_id)
+        if not campaign:
+            return jsonify({
+                'success': False,
+                'message': f'Campaign {campaign_id} not found'
+            }), 404
+        
+        # Get email history for this campaign
+        email_history = EmailHistory.get_by_campaign(campaign_id)
+        
+        # Get campaign contacts and their status
+        campaign_contacts = Campaign.get_campaign_contacts(campaign_id)
+        
+        # Get campaign settings for next actions prediction
+        settings = Campaign.get_campaign_settings(campaign_id)
+        
+        # Format email history
+        emails = []
+        for email in email_history:
+            emails.append({
+                'id': email.id,
+                'recipient_email': email.to,
+                'subject': email.subject,
+                'status': email.status,
+                'sent_at': email.date.isoformat() if email.date else None,
+                'error_message': None,  # Not stored in current model
+                'contact_name': email.to  # Could enhance with contact name lookup
+            })
+        
+        # Generate execution logs based on campaign status and contacts
+        logs = []
+        
+        # Campaign creation log
+        logs.append({
+            'timestamp': campaign.created_at.isoformat(),
+            'level': 'INFO',
+            'message': f'Campaign "{campaign.name}" created with {len(campaign_contacts)} contacts',
+            'details': f'Type: {campaign.campaign_type}, Template: {campaign.email_template}'
+        })
+        
+        # Contact processing logs
+        for contact in campaign_contacts:
+            status = contact.get('status', 'active')
+            if status == 'completed':
+                logs.append({
+                    'timestamp': datetime.now().isoformat(),  # This would be actual completion time in real system
+                    'level': 'SUCCESS',
+                    'message': f'Email sent successfully to {contact["email"]}',
+                    'details': f'Contact: {contact.get("full_name", contact["email"])}'
+                })
+            elif status == 'failed':
+                logs.append({
+                    'timestamp': datetime.now().isoformat(),
+                    'level': 'ERROR',
+                    'message': f'Failed to send email to {contact["email"]}',
+                    'details': 'Check email configuration and contact details'
+                })
+        
+        # Business hours restriction log (if applicable)
+        if campaign.status in ['ready', 'scheduled'] and settings.get('respect_business_hours', True):
+            logs.append({
+                'timestamp': datetime.now().isoformat(),
+                'level': 'WARNING',
+                'message': 'Campaign execution paused - outside business hours',
+                'details': f'Business hours: {settings.get("business_hours", "9 AM - 5 PM")} in {settings.get("timezone", "America/Los_Angeles")}'
+            })
+        
+        # Generate next actions
+        next_actions = []
+        
+        if campaign.status == 'ready' or campaign.status == 'scheduled':
+            # Calculate when next email would be sent
+            email_frequency = settings.get('email_frequency', {'value': 30, 'unit': 'minutes'})
+            business_hours = settings.get('business_hours', {})
+            timezone_str = settings.get('timezone', 'America/Los_Angeles')
+            
+            next_actions.append({
+                'action': 'Resume Email Sending',
+                'scheduled_time': 'Next business hours',
+                'description': f'Campaign will resume sending emails during business hours ({business_hours.get("start", "9:00")} - {business_hours.get("end", "17:00")} {timezone_str})',
+                'type': 'scheduled'
+            })
+            
+            next_actions.append({
+                'action': 'Process Next Contact',
+                'scheduled_time': f'Every {email_frequency["value"]} {email_frequency["unit"]}',
+                'description': f'Emails will be sent with {email_frequency["value"]} {email_frequency["unit"]} intervals between contacts',
+                'type': 'recurring'
+            })
+        
+        elif campaign.status == 'paused':
+            next_actions.append({
+                'action': 'Waiting for Resume',
+                'scheduled_time': 'Manual action required',
+                'description': 'Campaign is paused. Click "Resume Campaign" to continue email sending.',
+                'type': 'manual'
+            })
+        
+        elif campaign.status == 'completed':
+            next_actions.append({
+                'action': 'Campaign Completed',
+                'scheduled_time': 'No further actions',
+                'description': 'All emails have been sent. Consider creating follow-up campaigns for non-responders.',
+                'type': 'completed'
+            })
+        
+        # Count contacts by status
+        contact_stats = {
+            'total': len(campaign_contacts),
+            'pending': len([c for c in campaign_contacts if c.get('status') == 'active']),
+            'completed': len([c for c in campaign_contacts if c.get('status') == 'completed']),
+            'failed': len([c for c in campaign_contacts if c.get('status') == 'failed'])
+        }
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'emails': sorted(emails, key=lambda x: x['sent_at'] or '', reverse=True),
+                'logs': sorted(logs, key=lambda x: x['timestamp'], reverse=True),
+                'next_actions': next_actions,
+                'contact_stats': contact_stats,
+                'last_updated': datetime.now().isoformat()
+            }
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting campaign activity for {campaign_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error getting campaign activity: {str(e)}'
+        }), 500

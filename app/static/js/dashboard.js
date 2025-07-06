@@ -4697,6 +4697,9 @@ function viewCampaignDetails(campaignId) {
     // Set campaign ID for controls
     setCampaignDetailsId(campaignId);
     
+    // Load campaign activity data
+    loadCampaignActivity(campaignId);
+    
     // Fetch campaign data from campaigns list first (immediate display)
     const campaignsData = getCurrentCampaignData(campaignId);
     if (campaignsData) {
@@ -4733,6 +4736,7 @@ function setCampaignDetailsId(campaignId) {
     // Set up control button event handlers
     const pauseBtn = document.getElementById('pauseCampaignBtn');
     const resumeBtn = document.getElementById('resumeCampaignBtn');
+    const executeNowBtn = document.getElementById('executeNowBtn');
     const refreshBtn = document.getElementById('refreshCampaignBtn');
     
     if (pauseBtn) {
@@ -4740,6 +4744,9 @@ function setCampaignDetailsId(campaignId) {
     }
     if (resumeBtn) {
         resumeBtn.onclick = () => resumeCampaign(campaignId);
+    }
+    if (executeNowBtn) {
+        executeNowBtn.onclick = () => executeCampaignNow(campaignId);
     }
     if (refreshBtn) {
         refreshBtn.onclick = () => viewCampaignDetails(campaignId);
@@ -4884,9 +4891,10 @@ function updateCampaignControlButtons(status) {
     const pauseBtn = document.getElementById('pauseCampaignBtn');
     const resumeBtn = document.getElementById('resumeCampaignBtn');
     const editBtn = document.getElementById('editCampaignBtn');
+    const executeNowBtn = document.getElementById('executeNowBtn');
     
     // Hide all first
-    [pauseBtn, resumeBtn, editBtn].forEach(btn => {
+    [pauseBtn, resumeBtn, editBtn, executeNowBtn].forEach(btn => {
         if (btn) btn.style.display = 'none';
     });
     
@@ -4901,6 +4909,67 @@ function updateCampaignControlButtons(status) {
     if (status === 'draft' && editBtn) {
         editBtn.style.display = 'inline-block';
     }
+    
+    // Execute Now button for ready, scheduled, and paused campaigns (testing)
+    if (status === 'ready' || status === 'scheduled' || status === 'paused' || status === 'draft') {
+        if (executeNowBtn) executeNowBtn.style.display = 'inline-block';
+    }
+}
+
+function executeCampaignNow(campaignId) {
+    if (!confirm('⚠️ TEST MODE: This will execute the campaign IMMEDIATELY bypassing all time delays and business hour restrictions.\n\nAre you sure you want to proceed?')) {
+        return;
+    }
+    
+    console.log('🚀 TEST MODE: Executing campaign immediately:', campaignId);
+    
+    // Show loading state
+    const executeBtn = document.getElementById('executeNowBtn');
+    const originalText = executeBtn?.innerHTML;
+    if (executeBtn) {
+        executeBtn.disabled = true;
+        executeBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Executing...';
+    }
+    
+    fetch(`/api/campaigns/${campaignId}/execute-now`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('successToast', `🚀 ${data.message}`);
+            
+            // Show additional info toast
+            setTimeout(() => {
+                showToast('successToast', '📧 Check the logs and email history for execution progress!');
+            }, 2000);
+            
+            // Refresh campaign data after a short delay to see the results
+            setTimeout(() => {
+                loadCampaigns();
+                if (currentCampaignDetailsId == campaignId) {
+                    viewCampaignDetails(campaignId);
+                }
+            }, 3000);
+            
+        } else {
+            showToast('errorToast', data.message || 'Failed to execute campaign immediately');
+        }
+    })
+    .catch(error => {
+        console.error('Error executing campaign immediately:', error);
+        showToast('errorToast', 'An error occurred while executing the campaign');
+    })
+    .finally(() => {
+        // Restore button state
+        if (executeBtn && originalText) {
+            executeBtn.disabled = false;
+            executeBtn.innerHTML = originalText;
+        }
+    });
 }
 
 function launchCampaign(campaignId) {
@@ -5276,4 +5345,228 @@ function saveCompany() {
             saveBtn.disabled = false;
             saveBtn.innerHTML = originalHTML;
         });
+}
+
+// Load campaign activity data (emails, logs, next actions)
+function loadCampaignActivity(campaignId) {
+    console.log('Loading campaign activity for:', campaignId);
+    
+    fetch(`/api/campaigns/${campaignId}/activity`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                populateEmailHistory(data.data.emails);
+                populateExecutionLogs(data.data.logs);
+                populateNextActions(data.data.next_actions);
+            } else {
+                console.error('Failed to load campaign activity:', data.message);
+                showActivityError(data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading campaign activity:', error);
+            showActivityError('Failed to load campaign activity');
+        });
+}
+
+function populateEmailHistory(emails) {
+    const container = document.getElementById('campaignEmailHistory');
+    
+    if (!emails || emails.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-envelope-open-text fa-2x mb-2"></i>
+                <p class="mb-0">No emails sent yet</p>
+                <small>Use "Execute Now (Test)" to send emails immediately</small>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '<div class="list-group list-group-flush">';
+    
+    emails.forEach(email => {
+        const statusIcon = getEmailStatusIcon(email.status);
+        const statusClass = getEmailStatusClass(email.status);
+        const sentDate = email.sent_at ? new Date(email.sent_at).toLocaleString() : 'Not sent';
+        
+        html += `
+            <div class="list-group-item border-0">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center mb-1">
+                            <span class="badge ${statusClass} me-2">${statusIcon} ${email.status}</span>
+                            <strong>${email.recipient_email}</strong>
+                        </div>
+                        <p class="mb-1 text-muted">${email.subject || 'No subject'}</p>
+                        <small class="text-muted">
+                            <i class="fas fa-clock me-1"></i>${sentDate}
+                        </small>
+                        ${email.error_message ? `<div class="mt-1"><small class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>${email.error_message}</small></div>` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function populateExecutionLogs(logs) {
+    const container = document.getElementById('campaignExecutionLogs');
+    
+    if (!logs || logs.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-file-alt fa-2x mb-2"></i>
+                <p class="mb-0">No execution logs yet</p>
+                <small>Logs will appear as the campaign runs</small>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '<div class="list-group list-group-flush">';
+    
+    logs.forEach(log => {
+        const levelIcon = getLogLevelIcon(log.level);
+        const levelClass = getLogLevelClass(log.level);
+        const logTime = new Date(log.timestamp).toLocaleString();
+        
+        html += `
+            <div class="list-group-item border-0">
+                <div class="d-flex align-items-start">
+                    <span class="badge ${levelClass} me-2">${levelIcon}</span>
+                    <div class="flex-grow-1">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <strong class="mb-1">${log.message}</strong>
+                            <small class="text-muted">${logTime}</small>
+                        </div>
+                        ${log.details ? `<p class="mb-0 text-muted small">${log.details}</p>` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function populateNextActions(actions) {
+    const container = document.getElementById('campaignNextActions');
+    
+    if (!actions || actions.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-check-circle fa-2x mb-2"></i>
+                <p class="mb-0">No pending actions</p>
+                <small>Campaign is up to date</small>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '<div class="list-group list-group-flush">';
+    
+    actions.forEach(action => {
+        const typeIcon = getActionTypeIcon(action.type);
+        const typeClass = getActionTypeClass(action.type);
+        
+        html += `
+            <div class="list-group-item border-0">
+                <div class="d-flex align-items-start">
+                    <span class="badge ${typeClass} me-2">${typeIcon}</span>
+                    <div class="flex-grow-1">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <strong class="mb-1">${action.action}</strong>
+                            <small class="text-muted">${action.scheduled_time}</small>
+                        </div>
+                        <p class="mb-0 text-muted small">${action.description}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function showActivityError(message) {
+    const containers = ['campaignEmailHistory', 'campaignExecutionLogs', 'campaignNextActions'];
+    containers.forEach(containerId => {
+        const container = document.getElementById(containerId);
+        if (container) {
+            container.innerHTML = `
+                <div class="text-center text-danger py-4">
+                    <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                    <p class="mb-0">Failed to load data</p>
+                    <small>${message}</small>
+                </div>
+            `;
+        }
+    });
+}
+
+// Helper functions for status/level styling
+function getEmailStatusIcon(status) {
+    const icons = {
+        'Success': '<i class="fas fa-check"></i>',
+        'Failed': '<i class="fas fa-times"></i>',
+        'Pending': '<i class="fas fa-clock"></i>',
+        'Sent': '<i class="fas fa-paper-plane"></i>'
+    };
+    return icons[status] || '<i class="fas fa-question"></i>';
+}
+
+function getEmailStatusClass(status) {
+    const classes = {
+        'Success': 'bg-success',
+        'Failed': 'bg-danger',
+        'Pending': 'bg-warning',
+        'Sent': 'bg-primary'
+    };
+    return classes[status] || 'bg-secondary';
+}
+
+function getLogLevelIcon(level) {
+    const icons = {
+        'INFO': '<i class="fas fa-info"></i>',
+        'SUCCESS': '<i class="fas fa-check"></i>',
+        'WARNING': '<i class="fas fa-exclamation-triangle"></i>',
+        'ERROR': '<i class="fas fa-times"></i>'
+    };
+    return icons[level] || '<i class="fas fa-circle"></i>';
+}
+
+function getLogLevelClass(level) {
+    const classes = {
+        'INFO': 'bg-info',
+        'SUCCESS': 'bg-success',
+        'WARNING': 'bg-warning',
+        'ERROR': 'bg-danger'
+    };
+    return classes[level] || 'bg-secondary';
+}
+
+function getActionTypeIcon(type) {
+    const icons = {
+        'scheduled': '<i class="fas fa-calendar-alt"></i>',
+        'recurring': '<i class="fas fa-sync-alt"></i>',
+        'manual': '<i class="fas fa-hand-paper"></i>',
+        'completed': '<i class="fas fa-check-circle"></i>'
+    };
+    return icons[type] || '<i class="fas fa-cog"></i>';
+}
+
+function getActionTypeClass(type) {
+    const classes = {
+        'scheduled': 'bg-primary',
+        'recurring': 'bg-info',
+        'manual': 'bg-warning',
+        'completed': 'bg-success'
+    };
+    return classes[type] || 'bg-secondary';
 }

@@ -66,7 +66,8 @@ class EmailService:
                 'to': recipient_email,
                 'subject': subject,
                 'body': body,
-                'status': f'Success (via {account.email})' if success else f'Failed (via {account.email})'
+                'status': f'Success (via {account.email})' if success else f'Failed (via {account.email})',
+                'campaign_id': campaign_id
             }
             
             EmailHistory.save(email_data)
@@ -200,7 +201,7 @@ class EmailService:
             return None
                 
     @staticmethod
-    def send_email(recipient_email: str, recipient_name: str, subject: str, body: str) -> bool:
+    def send_email(recipient_email: str, recipient_name: str, subject: str, body: str, campaign_id: int = None) -> bool:
         """
         Send an email and save to history.
         
@@ -214,8 +215,9 @@ class EmailService:
             True if email was sent successfully, False otherwise
         """
         try:
-            # Send the email
-            success = send_email(recipient_email, subject, body)
+            # Send the email using the global send_email function from send_emails.py
+            from send_emails import send_email as global_send_email
+            success = global_send_email(recipient_email, subject, body)
             
             # Save to history
             email_data = {
@@ -365,7 +367,8 @@ class EmailService:
             try:
                 # We can reuse the existing send_email from send_emails.py for the actual sending
                 # Assuming a generic name for the recipient for test emails
-                success = send_email(recipient_email=email_address, subject=subject, body_markdown=body)
+                from send_emails import send_email as global_send_email
+                success = global_send_email(recipient_email=email_address, subject=subject, body_markdown=body)
                 
                 # Save to history - reusing existing EmailHistory logic
                 email_data = {
