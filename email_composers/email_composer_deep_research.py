@@ -1,6 +1,6 @@
 # email_composer_deep_research.py  ── v1 (research-backed, personalized outreach)
 
-import os, random, textwrap, json, pathlib, time, urllib.parse
+import os, random, textwrap, json, pathlib, time, urllib.parse, requests
 from typing import Dict, Tuple, Any
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -15,6 +15,7 @@ DEFAULT_CALENDAR  = os.getenv("CALENDAR_URL", "https://calendly.com/pranav-modi/
 OPENAI_MODEL      = os.getenv("OPENAI_MODEL", "gpt-4o")
 AUTO_RESEARCH     = os.getenv("AUTO_RESEARCH_ENABLED", "true").lower() == "true"
 BASE_URL          = os.getenv("BASE_URL", "https://salesbot.possibleminds.in")
+NETLIFY_PUBLISH_URL = "https://possibleminds.in/.netlify/functions/publish-report-persistent"
 
 # ---- Context about the sender and product ----
 SENDER_INFO = """
@@ -106,7 +107,7 @@ class DeepResearchEmailComposer:
         # Generate public report URL with tracking parameters
         report_url = None
         if company_id:
-            report_url = self._generate_report_url_with_tracking(company_id, company_name, lead.get("email", ""))
+            report_url = self._get_or_publish_report_url(company_id, company_name, lead.get("email", ""))
             print(f"🔍 DEBUG: Generated report URL: {report_url}")
         else:
             print(f"🔍 DEBUG: No company ID available, skipping report URL generation")
@@ -177,6 +178,95 @@ class DeepResearchEmailComposer:
         final_result = {"subject": subject, "body": body}
         print(f"🔍 DEBUG: Final email composition complete")
         return final_result
+
+    def _get_or_publish_report_url(self, company_id: int, company_name: str, recipient_email: str) -> str:
+        """Get or publish report and return the public URL with tracking."""
+        print(f"🔍 DEBUG: Getting/publishing report for company_id: {company_id}")
+        
+        try:
+            # Import here to avoid circular imports
+            from app.models.company import Company
+            
+            # Get the company data
+            company = Company.get_by_id(company_id)
+            if not company or not company.markdown_report:
+                print(f"🔍 DEBUG: No markdown report available for company_id: {company_id}")
+                return ""
+            
+            print(f"🔍 DEBUG: Found markdown report, attempting to publish...")
+            
+            # Publish the report to Netlify
+            published_url = self._publish_report_to_netlify(company, recipient_email)
+            
+            if published_url:
+                print(f"🔍 DEBUG: Successfully published report, URL: {published_url}")
+                return published_url
+            else:
+                print(f"🔍 DEBUG: Failed to publish report, using fallback")
+                return ""
+                
+        except Exception as e:
+            print(f"❌ Error getting/publishing report: {e}")
+            return ""
+
+    def _publish_report_to_netlify(self, company, recipient_email: str) -> str:
+        """Publish report to Netlify function and return public URL."""
+        try:
+            from datetime import datetime
+            
+            # Prepare payload for Netlify function
+            payload = {
+                "company_id": f"comp_{company.id}",
+                "company_name": company.company_name,
+                "company_website": company.website_url or "",
+                "contact_id": f"contact_{recipient_email.split('@')[0]}",
+                "generated_date": datetime.now().strftime("%Y-%m-%d"),
+                "markdown_report": company.markdown_report
+            }
+            
+            headers = {"Content-Type": "application/json"}
+            print(f"🔍 DEBUG: Publishing to: {NETLIFY_PUBLISH_URL}")
+            
+            # Make the request to publish
+            response = requests.post(
+                NETLIFY_PUBLISH_URL,
+                headers=headers,
+                json=payload,
+                timeout=30
+            )
+            
+            print(f"🔍 DEBUG: Netlify response status: {response.status_code}")
+            
+            if response.status_code == 200:
+                result = response.json()
+                public_url = result.get('public_url')
+                
+                if public_url:
+                    # Add tracking parameters to the public URL
+                    tracking_params = {
+                        'utm_source': 'email',
+                        'utm_medium': 'outreach',
+                        'utm_campaign': 'deep_research',
+                        'utm_content': 'strategic_analysis',
+                        'company': company.company_name.lower().replace(' ', '_'),
+                        'recipient': recipient_email.split('@')[0] if recipient_email else 'unknown'
+                    }
+                    
+                    url_params = urllib.parse.urlencode(tracking_params)
+                    tracked_url = f"{public_url}?{url_params}"
+                    
+                    print(f"🔍 DEBUG: Final tracked URL: {tracked_url}")
+                    return tracked_url
+                else:
+                    print(f"❌ No public_url in response: {result}")
+                    return ""
+            else:
+                print(f"❌ Failed to publish report. Status: {response.status_code}, Response: {response.text}")
+                return ""
+                
+        except Exception as e:
+            print(f"❌ Error publishing to Netlify: {e}")
+            return ""
 
     def _get_company_research_with_full_report(self, company_name: str, auto_trigger: bool = True) -> tuple[str, int]:
         """Get company research data and ensure full report is available. Returns (research_text, company_id)."""

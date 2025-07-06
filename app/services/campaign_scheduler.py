@@ -262,10 +262,18 @@ def _compose_fallback_email(campaign: Campaign, contact: Dict, settings: Dict) -
         else:
             composer = WarmEmailComposer()
         
+        # Extract company name with smart fallback from website domain
+        company_name = contact.get('company_name') or contact.get('company')
+        if not company_name and contact.get('company_domain'):
+            # Extract company name from domain (e.g., "chocolatetherapy.us" -> "Chocolate Therapy")
+            domain = contact.get('company_domain').replace('https://', '').replace('http://', '').replace('www.', '').split('/')[0]
+            domain_parts = domain.split('.')[0]  # Remove TLD
+            company_name = ' '.join(word.capitalize() for word in domain_parts.replace('-', ' ').replace('_', ' ').split())
+        
         lead_data = {
             "name": contact.get('display_name') or contact.get('full_name') or f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip(),
             "email": contact.get('email'),
-            "company": contact.get('company'),
+            "company": company_name,  # Now uses smart extraction
             "position": contact.get('job_title'),
             "website": contact.get('company_domain'),
             "notes": f"Campaign: {campaign.name}",
