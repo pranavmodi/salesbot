@@ -89,15 +89,27 @@ class DeepResearchEmailComposer:
         company_name = lead.get("company", "")
         proof = random.choice(self.proof_points) if self.proof_points else ""
 
+        print(f"\n🔍 DEBUG: Starting email composition for {company_name}")
+        print(f"🔍 DEBUG: Lead data: {lead}")
+
         # Use global setting if auto_research not specified
         if auto_research is None:
             auto_research = AUTO_RESEARCH
 
+        print(f"🔍 DEBUG: Auto-research enabled: {auto_research}")
+
         # Try to get company research data (with optional auto-triggering)
         company_research, company_id = self._get_company_research_with_full_report(company_name, auto_trigger=auto_research)
         
+        print(f"🔍 DEBUG: Research result - Company ID: {company_id}, Research length: {len(company_research) if company_research else 0}")
+        
         # Generate public report URL with tracking parameters
-        report_url = self._generate_report_url_with_tracking(company_id, company_name, lead.get("email", "")) if company_id else None
+        report_url = None
+        if company_id:
+            report_url = self._generate_report_url_with_tracking(company_id, company_name, lead.get("email", ""))
+            print(f"🔍 DEBUG: Generated report URL: {report_url}")
+        else:
+            print(f"🔍 DEBUG: No company ID available, skipping report URL generation")
 
         user_prompt = f"""
         === Lead ===
@@ -141,39 +153,59 @@ class DeepResearchEmailComposer:
 
         subject, body = self._parse(rsp.choices[0].message.content)
         
+        print(f"🔍 DEBUG: Email body before placeholder replacement:")
+        print(f"🔍 DEBUG: Contains placeholder: {'[REPORT_LINK_PLACEHOLDER]' in body}")
+        print(f"🔍 DEBUG: Report URL available: {report_url is not None}")
+        
         # Replace report link placeholder with actual URL
         if report_url and "[REPORT_LINK_PLACEHOLDER]" in body:
+            print(f"🔍 DEBUG: Replacing placeholder with report URL")
             body = body.replace("[REPORT_LINK_PLACEHOLDER]", report_url)
+            print(f"🔍 DEBUG: Placeholder replacement successful")
         elif "[REPORT_LINK_PLACEHOLDER]" in body:
+            print(f"🔍 DEBUG: Placeholder found but no report URL - using fallback")
             # If no report URL available, fall back to generic message
             fallback_msg = "Happy to share how we helped Precise Imaging reduce appointment no-shows by 40% - similar healthcare operational challenges."
             body = body.replace("P.S. I put together a strategic analysis for [Company] that covers these opportunities in detail. You can review it here: [REPORT_LINK_PLACEHOLDER]", f"P.S. {fallback_msg}")
+            print(f"🔍 DEBUG: Fallback replacement completed")
+        else:
+            print(f"🔍 DEBUG: No placeholder found in email body")
         
         body = body.strip() # Ensure no trailing newlines before adding signature
         body += '\n\n' + self._signature()
         
-        return {"subject": subject, "body": body}
+        final_result = {"subject": subject, "body": body}
+        print(f"🔍 DEBUG: Final email composition complete")
+        return final_result
 
     def _get_company_research_with_full_report(self, company_name: str, auto_trigger: bool = True) -> tuple[str, int]:
         """Get company research data and ensure full report is available. Returns (research_text, company_id)."""
         if not company_name:
+            print(f"🔍 DEBUG: No company name provided")
             return "", None
             
+        print(f"🔍 DEBUG: Looking up company: {company_name}")
+        
         try:
             # Import here to avoid circular imports
             from app.models.company import Company
             
             # Try to find company by name
             companies = Company.get_companies_by_name(company_name)
+            print(f"🔍 DEBUG: Found {len(companies)} companies matching '{company_name}'")
             
             # If company not found and auto-trigger enabled, create company and start research
             if not companies and auto_trigger:
                 print(f"🔍 Starting auto-research for {company_name}...")
                 return self._trigger_full_deep_research(company_name)
             elif not companies:
+                print(f"🔍 DEBUG: No companies found and auto-trigger disabled")
                 return "", None
             
             company = companies[0]  # Take first match
+            print(f"🔍 DEBUG: Using company ID: {company.id}")
+            print(f"🔍 DEBUG: Company has markdown_report: {hasattr(company, 'markdown_report') and bool(company.markdown_report)}")
+            print(f"🔍 DEBUG: Company research_status: {getattr(company, 'research_status', 'unknown')}")
             
             # Check if we have a published markdown report (full research completed)
             if hasattr(company, 'markdown_report') and company.markdown_report:
@@ -184,6 +216,7 @@ class DeepResearchEmailComposer:
             
             # Check if we have basic research but need full report
             elif hasattr(company, 'research_step_1_basic') and company.research_step_1_basic:
+                print(f"🔍 DEBUG: Company has basic research: {len(company.research_step_1_basic)} chars")
                 if auto_trigger:
                     print(f"🔍 Upgrading to full research for {company_name}...")
                     return self._trigger_full_deep_research(company_name, company.id)
@@ -193,6 +226,7 @@ class DeepResearchEmailComposer:
             
             # Check if we have old-style company research but need full report
             elif hasattr(company, 'company_research') and company.company_research:
+                print(f"🔍 DEBUG: Company has old-style research: {len(company.company_research)} chars")
                 if auto_trigger:
                     print(f"🔍 Upgrading to full research for {company_name}...")
                     return self._trigger_full_deep_research(company_name, company.id)
@@ -202,6 +236,7 @@ class DeepResearchEmailComposer:
             
             else:
                 # Company exists but no research data - trigger if auto_trigger enabled
+                print(f"🔍 DEBUG: Company exists but no research data found")
                 if auto_trigger:
                     print(f"🔍 Starting research for {company_name}...")
                     return self._trigger_full_deep_research(company_name, company.id)
@@ -340,12 +375,16 @@ class DeepResearchEmailComposer:
 
     def _generate_report_url_with_tracking(self, company_id: int, company_name: str, recipient_email: str) -> str:
         """Generate a public report URL with tracking parameters."""
+        print(f"🔍 DEBUG: Generating report URL for company_id: {company_id}")
+        
         if not company_id:
+            print(f"🔍 DEBUG: No company_id provided, returning empty URL")
             return ""
         
         try:
             # Base public report URL
             base_url = f"{BASE_URL}/api/public/reports/{company_id}"
+            print(f"🔍 DEBUG: Base URL: {base_url}")
             
             # Tracking parameters
             tracking_params = {
@@ -361,12 +400,15 @@ class DeepResearchEmailComposer:
             url_params = urllib.parse.urlencode(tracking_params)
             tracked_url = f"{base_url}?{url_params}"
             
+            print(f"🔍 DEBUG: Final tracked URL: {tracked_url}")
             return tracked_url
             
         except Exception as e:
             print(f"❌ Error generating report URL: {e}")
             # Return basic URL without tracking as fallback
-            return f"{BASE_URL}/api/public/reports/{company_id}"
+            fallback_url = f"{BASE_URL}/api/public/reports/{company_id}"
+            print(f"🔍 DEBUG: Using fallback URL: {fallback_url}")
+            return fallback_url
 
     @staticmethod
     def _load_text(path: str) -> str:
