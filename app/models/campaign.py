@@ -604,3 +604,56 @@ class Campaign:
             'created_at': self.created_at.isoformat() if isinstance(self.created_at, datetime) else str(self.created_at),
             'updated_at': self.updated_at.isoformat() if isinstance(self.updated_at, datetime) else str(self.updated_at)
         } 
+
+    @classmethod
+    def delete_all_campaigns(cls) -> Dict[str, int]:
+        """Delete all campaigns and their associated data (campaign_contacts and email_history).
+        
+        Returns:
+            Dict with counts of deleted records: {'campaigns': X, 'campaign_contacts': Y, 'email_history': Z}
+        """
+        engine = cls._get_db_engine()
+        if not engine:
+            current_app.logger.error("Failed to delete all campaigns: Database engine not available.")
+            return {'campaigns': 0, 'campaign_contacts': 0, 'email_history': 0}
+
+        try:
+            with engine.connect() as conn:
+                with conn.begin():
+                    # Delete associated email_history records first
+                    email_history_result = conn.execute(text("""
+                        DELETE FROM email_history 
+                        WHERE campaign_id IS NOT NULL
+                    """))
+                    email_history_count = email_history_result.rowcount
+                    
+                    # Delete campaign_contacts records (should cascade, but let's be explicit)
+                    campaign_contacts_result = conn.execute(text("""
+                        DELETE FROM campaign_contacts
+                    """))
+                    campaign_contacts_count = campaign_contacts_result.rowcount
+                    
+                    # Delete campaigns
+                    campaigns_result = conn.execute(text("""
+                        DELETE FROM campaigns
+                    """))
+                    campaigns_count = campaigns_result.rowcount
+                    
+                    current_app.logger.info(
+                        f"Successfully deleted all campaigns and associated data: "
+                        f"{campaigns_count} campaigns, {campaign_contacts_count} campaign_contacts, "
+                        f"{email_history_count} email_history records"
+                    )
+                    
+                    return {
+                        'campaigns': campaigns_count,
+                        'campaign_contacts': campaign_contacts_count,
+                        'email_history': email_history_count
+                    }
+                    
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Database error deleting all campaigns: {e}")
+            return {'campaigns': 0, 'campaign_contacts': 0, 'email_history': 0}
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error deleting all campaigns: {e}")
+            return {'campaigns': 0, 'campaign_contacts': 0, 'email_history': 0} 

@@ -1,6 +1,6 @@
 # email_composer_deep_research.py  ── v1 (research-backed, personalized outreach)
 
-import os, random, textwrap, json, pathlib, time, urllib.parse, requests
+import os, random, textwrap, json, pathlib, time, urllib.parse, requests, hashlib, hmac
 from typing import Dict, Tuple, Any
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -16,6 +16,7 @@ OPENAI_MODEL      = os.getenv("OPENAI_MODEL", "gpt-4o")
 AUTO_RESEARCH     = os.getenv("AUTO_RESEARCH_ENABLED", "true").lower() == "true"
 BASE_URL          = os.getenv("BASE_URL", "https://salesbot.possibleminds.in")
 NETLIFY_PUBLISH_URL = "https://possibleminds.in/.netlify/functions/publish-report-persistent"
+NETLIFY_SECRET    = os.getenv("NETLIFY_WEBHOOK_SECRET", "")  # Add this to your .env file
 
 # ---- Context about the sender and product ----
 SENDER_INFO = """
@@ -90,7 +91,7 @@ class DeepResearchEmailComposer:
         company_name = lead.get("company", "")
         proof = random.choice(self.proof_points) if self.proof_points else ""
 
-        print(f"\n🔍 DEBUG: Starting email composition for {company_name}")
+        print(f"\n📧 CAMPAIGN: Starting email composition for {company_name}")
         print(f"🔍 DEBUG: Lead data: {lead}")
 
         # Use global setting if auto_research not specified
@@ -98,17 +99,34 @@ class DeepResearchEmailComposer:
             auto_research = AUTO_RESEARCH
 
         print(f"🔍 DEBUG: Auto-research enabled: {auto_research}")
+        
+        # Progress logging for UI
+        if company_name:
+            print(f"📊 PROGRESS: Looking up company research for {company_name}")
+        else:
+            print(f"⚠️ PROGRESS: No company name provided, using generic template")
 
         # Try to get company research data (with optional auto-triggering)
         company_research, company_id = self._get_company_research_with_full_report(company_name, auto_trigger=auto_research)
         
         print(f"🔍 DEBUG: Research result - Company ID: {company_id}, Research length: {len(company_research) if company_research else 0}")
         
+        # Progress logging for research result
+        if company_research:
+            print(f"✅ PROGRESS: Found company research data for {company_name}")
+        else:
+            print(f"⚠️ PROGRESS: No research data found, using generic insights")
+        
         # Generate public report URL with tracking parameters
         report_url = None
         if company_id:
+            print(f"📊 PROGRESS: Attempting to publish strategic report for {company_name}")
             report_url = self._get_or_publish_report_url(company_id, company_name, lead.get("email", ""))
-            print(f"🔍 DEBUG: Generated report URL: {report_url}")
+            if report_url:
+                print(f"✅ PROGRESS: Strategic report published successfully")
+                print(f"🔍 DEBUG: Generated report URL: {report_url}")
+            else:
+                print(f"⚠️ PROGRESS: Report publishing failed, using fallback message")
         else:
             print(f"🔍 DEBUG: No company ID available, skipping report URL generation")
 
@@ -138,7 +156,8 @@ class DeepResearchEmailComposer:
         """
 
         try:
-            print(f"🤖 Generating email for {company_name}...")
+            print(f"🤖 PROGRESS: Generating personalized email content for {company_name}")
+            print(f"🔍 DEBUG: Using OpenAI model: {OPENAI_MODEL}")
             rsp = self.client.chat.completions.create(
                 model=OPENAI_MODEL,
                 temperature=0.7,
@@ -148,8 +167,9 @@ class DeepResearchEmailComposer:
                     {"role": "user", "content": user_prompt},
                 ],
             )
+            print(f"✅ PROGRESS: Email content generated successfully")
         except Exception as e:
-            print("🔴 OpenAI error:", e)
+            print(f"🔴 PROGRESS: OpenAI email generation failed: {e}")
             return None
 
         subject, body = self._parse(rsp.choices[0].message.content)
@@ -160,15 +180,15 @@ class DeepResearchEmailComposer:
         
         # Replace report link placeholder with actual URL
         if report_url and "[REPORT_LINK_PLACEHOLDER]" in body:
-            print(f"🔍 DEBUG: Replacing placeholder with report URL")
+            print(f"🔗 PROGRESS: Embedding strategic report link in email")
             body = body.replace("[REPORT_LINK_PLACEHOLDER]", report_url)
-            print(f"🔍 DEBUG: Placeholder replacement successful")
+            print(f"✅ PROGRESS: Strategic report link embedded successfully")
         elif "[REPORT_LINK_PLACEHOLDER]" in body:
-            print(f"🔍 DEBUG: Placeholder found but no report URL - using fallback")
+            print(f"⚠️ PROGRESS: No report URL available, using proof point fallback")
             # If no report URL available, fall back to generic message
             fallback_msg = "Happy to share how we helped Precise Imaging reduce appointment no-shows by 40% - similar healthcare operational challenges."
             body = body.replace("P.S. I put together a strategic analysis for [Company] that covers these opportunities in detail. You can review it here: [REPORT_LINK_PLACEHOLDER]", f"P.S. {fallback_msg}")
-            print(f"🔍 DEBUG: Fallback replacement completed")
+            print(f"✅ PROGRESS: Fallback message applied successfully")
         else:
             print(f"🔍 DEBUG: No placeholder found in email body")
         
@@ -176,7 +196,8 @@ class DeepResearchEmailComposer:
         body += '\n\n' + self._signature()
         
         final_result = {"subject": subject, "body": body}
-        print(f"🔍 DEBUG: Final email composition complete")
+        print(f"🎉 PROGRESS: Email composition completed for {company_name}")
+        print(f"📧 PROGRESS: Final email ready for delivery")
         return final_result
 
     def _get_or_publish_report_url(self, company_id: int, company_name: str, recipient_email: str) -> str:
@@ -214,6 +235,8 @@ class DeepResearchEmailComposer:
         try:
             from datetime import datetime
             
+            print(f"📊 PROGRESS: Preparing strategic report for publication")
+            
             # Prepare payload for Netlify function
             payload = {
                 "company_id": f"comp_{company.id}",
@@ -224,14 +247,31 @@ class DeepResearchEmailComposer:
                 "markdown_report": company.markdown_report
             }
             
+            # Convert payload to JSON string (raw body for signature)
+            raw_body = json.dumps(payload, separators=(',', ':'))
+            
             headers = {"Content-Type": "application/json"}
+            
+            # Calculate HMAC-SHA256 signature if secret is available
+            if NETLIFY_SECRET:
+                signature = hmac.new(
+                    NETLIFY_SECRET.encode('utf-8'),
+                    raw_body.encode('utf-8'),
+                    hashlib.sha256
+                ).hexdigest()
+                headers["X-Hub-Signature-256"] = f"sha256={signature}"
+                print(f"🔐 PROGRESS: Added webhook signature for secure publishing")
+            else:
+                print(f"⚠️ PROGRESS: No NETLIFY_WEBHOOK_SECRET found, publishing without signature")
+            
+            print(f"🌐 PROGRESS: Publishing report to possibleminds.in...")
             print(f"🔍 DEBUG: Publishing to: {NETLIFY_PUBLISH_URL}")
             
-            # Make the request to publish
+            # Make the request to publish (using raw JSON string)
             response = requests.post(
                 NETLIFY_PUBLISH_URL,
                 headers=headers,
-                json=payload,
+                data=raw_body,  # Use raw JSON string for signature validation
                 timeout=30
             )
             
@@ -239,9 +279,16 @@ class DeepResearchEmailComposer:
             
             if response.status_code == 200:
                 result = response.json()
-                public_url = result.get('public_url')
+                # Extract publishUrl from the nested data structure
+                public_url = result.get('data', {}).get('publishUrl') or result.get('public_url')
+                
+                print(f"🔍 DEBUG: Netlify response data: {result}")
+                print(f"🔍 DEBUG: Extracted publishUrl: {public_url}")
                 
                 if public_url:
+                    print(f"✅ PROGRESS: Report published successfully to possibleminds.in")
+                    print(f"🔗 PROGRESS: Adding tracking parameters to report URL")
+                    
                     # Add tracking parameters to the public URL
                     tracking_params = {
                         'utm_source': 'email',
@@ -255,17 +302,20 @@ class DeepResearchEmailComposer:
                     url_params = urllib.parse.urlencode(tracking_params)
                     tracked_url = f"{public_url}?{url_params}"
                     
+                    print(f"✅ PROGRESS: Tracking-enabled report URL ready")
                     print(f"🔍 DEBUG: Final tracked URL: {tracked_url}")
                     return tracked_url
                 else:
-                    print(f"❌ No public_url in response: {result}")
+                    print(f"❌ PROGRESS: Failed to extract public URL from response")
+                    print(f"🔍 DEBUG: Response data: {result}")
                     return ""
             else:
-                print(f"❌ Failed to publish report. Status: {response.status_code}, Response: {response.text}")
+                print(f"❌ PROGRESS: Report publishing failed (HTTP {response.status_code})")
+                print(f"🔍 DEBUG: Response: {response.text}")
                 return ""
                 
         except Exception as e:
-            print(f"❌ Error publishing to Netlify: {e}")
+            print(f"❌ PROGRESS: Report publishing error: {e}")
             return ""
 
     def _get_company_research_with_full_report(self, company_name: str, auto_trigger: bool = True) -> tuple[str, int]:

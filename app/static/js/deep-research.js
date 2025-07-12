@@ -492,7 +492,15 @@
             logContent.innerHTML += logEntry;
             logContent.scrollTop = logContent.scrollHeight;
         }
+        
+        // Also show in console for debugging
+        console.log(`[Deep Research] ${message}`);
     }
+
+    // Global function to add log messages from external sources
+    window.addDeepResearchLog = function(message) {
+        addLogMessage(message);
+    };
 
     // Global functions that need to be accessible from HTML
     window.toggleResearchLog = function() {

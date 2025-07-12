@@ -2923,6 +2923,59 @@ def update_campaign_template(campaign_id):
             'message': f'Error updating campaign template: {str(e)}'
         }), 500
 
+@bp.route('/campaigns/delete-all', methods=['DELETE'])
+def delete_all_campaigns():
+    """Delete all campaigns and their associated data (campaign_contacts and email_history)."""
+    try:
+        from app.models.campaign import Campaign
+        import os
+        
+        current_app.logger.info("🗑️  Starting deletion of all campaigns and associated data")
+        
+        # Delete all campaigns and associated data from database
+        delete_counts = Campaign.delete_all_campaigns()
+        
+        if delete_counts['campaigns'] == 0 and delete_counts['campaign_contacts'] == 0 and delete_counts['email_history'] == 0:
+            return jsonify({
+                'success': False,
+                'message': 'No campaigns found to delete'
+            }), 404
+        
+        # Also clear the campaigns.json file if it exists
+        campaigns_file = 'campaigns.json'
+        json_cleared = False
+        if os.path.exists(campaigns_file):
+            try:
+                with open(campaigns_file, 'w') as f:
+                    f.write('[]')
+                json_cleared = True
+                current_app.logger.info("Cleared campaigns.json file")
+            except Exception as json_error:
+                current_app.logger.warning(f"Could not clear campaigns.json: {json_error}")
+        
+        message = (
+            f"Successfully deleted all campaigns and associated data! "
+            f"Deleted: {delete_counts['campaigns']} campaigns, "
+            f"{delete_counts['campaign_contacts']} campaign-contact links, "
+            f"{delete_counts['email_history']} email history records"
+        )
+        
+        if json_cleared:
+            message += ", and cleared campaigns.json file"
+        
+        return jsonify({
+            'success': True,
+            'message': message,
+            'deleted_counts': delete_counts
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error deleting all campaigns: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error deleting campaigns: {str(e)}'
+        }), 500
+
 @bp.route('/companies/list', methods=['GET'])
 def get_companies_list():
     """Get a simple list of all companies for dropdown selection."""

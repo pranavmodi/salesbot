@@ -3722,6 +3722,41 @@ let currentSearchResults = [];
 let currentCampaignStep = 1;
 let campaignData = {};
 
+// Campaign execution logging
+function addCampaignLog(message, type = 'info') {
+    const logContainer = document.getElementById('campaignExecutionLogs');
+    if (logContainer) {
+        const timestamp = new Date().toLocaleTimeString();
+        const iconMap = {
+            'info': 'fas fa-info-circle text-info',
+            'success': 'fas fa-check-circle text-success', 
+            'warning': 'fas fa-exclamation-triangle text-warning',
+            'error': 'fas fa-times-circle text-danger',
+            'research': 'fas fa-microscope text-primary',
+            'email': 'fas fa-envelope text-primary',
+            'publish': 'fas fa-cloud-upload-alt text-info'
+        };
+        
+        const icon = iconMap[type] || iconMap['info'];
+        const logEntry = `
+            <div class="log-entry mb-2">
+                <small class="text-muted">[${timestamp}]</small>
+                <i class="${icon} me-2"></i>
+                <span>${message}</span>
+            </div>
+        `;
+        
+        logContainer.innerHTML += logEntry;
+        logContainer.scrollTop = logContainer.scrollHeight;
+        
+        // Also show in console for debugging
+        console.log(`[Campaign] ${message}`);
+    }
+}
+
+// Global function for external access
+window.addCampaignLog = addCampaignLog;
+
 // Initialize campaign modal when opened
 document.addEventListener('DOMContentLoaded', function() {
     const createCampaignModal = document.getElementById('createCampaignModal');
@@ -5812,4 +5847,88 @@ function getActionTypeClass(type) {
         'completed': 'bg-success'
     };
     return classes[type] || 'bg-secondary';
+}
+
+function deleteAllCampaigns() {
+    // Show detailed confirmation dialog
+    const confirmationMessage = `🗑️ DELETE ALL CAMPAIGNS
+    
+⚠️ WARNING: This action cannot be undone!
+
+This will permanently delete:
+• ALL campaigns from the database
+• ALL campaign-contact relationships
+• ALL email history records associated with campaigns
+• The campaigns.json file
+
+Contacts and Companies will NOT be deleted.
+
+Are you absolutely sure you want to proceed?`;
+
+    if (!confirm(confirmationMessage)) {
+        return;
+    }
+    
+    // Second confirmation with text input
+    const confirmText = prompt('🚨 FINAL WARNING: This will delete ALL campaigns and associated data permanently.\n\nType "DELETE" (in all caps) to confirm:');
+    if (confirmText !== 'DELETE') {
+        showToast('errorToast', 'Deletion cancelled. You must type "DELETE" exactly to confirm.');
+        return;
+    }
+    
+    console.log('🗑️ Starting deletion of all campaigns...');
+    
+    // Show loading state on the button
+    const deleteBtn = document.querySelector('button[onclick="deleteAllCampaigns()"]');
+    const originalText = deleteBtn?.innerHTML;
+    if (deleteBtn) {
+        deleteBtn.disabled = true;
+        deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Deleting...';
+    }
+    
+    // Show progress toast
+    showToast('successToast', '🗑️ Deleting all campaigns and associated data...');
+    
+    fetch('/api/campaigns/delete-all', {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('successToast', `✅ ${data.message}`);
+            
+            // Show detailed results if available
+            if (data.deleted_counts) {
+                const counts = data.deleted_counts;
+                setTimeout(() => {
+                    showToast('successToast', 
+                        `📊 Deletion Summary: ${counts.campaigns} campaigns, ${counts.campaign_contacts} contact links, ${counts.email_history} email records`
+                    );
+                }, 2000);
+            }
+            
+            // Refresh the campaign view to show empty state
+            setTimeout(() => {
+                loadCampaigns();
+                updateCampaignStats([]); // Reset stats to zero
+            }, 3000);
+            
+        } else {
+            showToast('errorToast', data.message || 'Failed to delete campaigns');
+        }
+    })
+    .catch(error => {
+        console.error('Error deleting all campaigns:', error);
+        showToast('errorToast', 'An error occurred while deleting campaigns');
+    })
+    .finally(() => {
+        // Reset button state
+        if (deleteBtn && originalText) {
+            deleteBtn.disabled = false;
+            deleteBtn.innerHTML = originalText;
+        }
+    });
 }
