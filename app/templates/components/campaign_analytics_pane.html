@@ -554,51 +554,117 @@ function updateDeviceChart() {
 }
 
 function updateTopCompanies() {
+    console.log('=== ANALYTICS FRONTEND === Updating top companies with real data');
     const container = $('#topCompanies');
     
-    // Mock top companies data
-    const topCompanies = [
-        { name: 'Tech Corp', clicks: 12 },
-        { name: 'Innovation Ltd', clicks: 8 },
-        { name: 'Future Systems', clicks: 6 },
-        { name: 'Digital Solutions', clicks: 4 }
-    ];
+    if (!currentCampaignId) {
+        container.html('<div class="text-muted text-center py-3">No campaign selected</div>');
+        return;
+    }
     
-    const html = topCompanies.map(company => `
-        <div class="list-group-item d-flex justify-content-between align-items-center">
-            <div>
-                <div class="fw-bold">${company.name}</div>
-                <small class="text-muted">${company.clicks} clicks</small>
-            </div>
-            <span class="badge bg-primary rounded-pill">${company.clicks}</span>
-        </div>
-    `).join('');
-    
-    container.html(html);
+    // Fetch individual clicks to get company breakdown
+    fetch(`/api/campaigns/${currentCampaignId}/clicks`)
+        .then(response => response.json())
+        .then(data => {
+            console.log('=== ANALYTICS FRONTEND === Clicks data for companies:', data);
+            
+            if (!data.success || !data.clicks || data.clicks.length === 0) {
+                container.html('<div class="text-muted text-center py-3">No company engagement data available</div>');
+                return;
+            }
+            
+            // Group clicks by company
+            const companyClicks = {};
+            data.clicks.forEach(click => {
+                const companyName = click.company_name || 'Unknown Company';
+                companyClicks[companyName] = (companyClicks[companyName] || 0) + 1;
+            });
+            
+            // Convert to array and sort by clicks
+            const topCompanies = Object.entries(companyClicks)
+                .map(([name, clicks]) => ({ name, clicks }))
+                .sort((a, b) => b.clicks - a.clicks);
+            
+            console.log('=== ANALYTICS FRONTEND === Top companies processed:', topCompanies);
+            
+            if (topCompanies.length === 0) {
+                container.html('<div class="text-muted text-center py-3">No company engagement data available</div>');
+                return;
+            }
+            
+            const html = topCompanies.slice(0, 5).map(company => `
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="fw-bold">${company.name}</div>
+                        <small class="text-muted">${company.clicks} click${company.clicks !== 1 ? 's' : ''}</small>
+                    </div>
+                    <span class="badge bg-primary rounded-pill">${company.clicks}</span>
+                </div>
+            `).join('');
+            
+            container.html(html);
+        })
+        .catch(error => {
+            console.error('=== ANALYTICS FRONTEND === Error loading company data:', error);
+            container.html('<div class="text-muted text-center py-3">Error loading company data</div>');
+        });
 }
 
 function updateGeographicDistribution() {
+    console.log('=== ANALYTICS FRONTEND === Updating geographic distribution with real data');
     const container = $('#geoBreakdown');
     
-    // Mock geographic data
-    const geoData = [
-        { country: 'United States', clicks: 45 },
-        { country: 'Canada', clicks: 12 },
-        { country: 'United Kingdom', clicks: 8 },
-        { country: 'Australia', clicks: 5 }
-    ];
+    if (!currentCampaignId) {
+        container.html('<div class="text-muted text-center py-3">No campaign selected</div>');
+        return;
+    }
     
-    const html = geoData.map(geo => `
-        <div class="list-group-item d-flex justify-content-between align-items-center">
-            <div>
-                <div class="fw-bold">${geo.country}</div>
-                <small class="text-muted">${geo.clicks} clicks</small>
-            </div>
-            <span class="badge bg-info rounded-pill">${geo.clicks}</span>
-        </div>
-    `).join('');
-    
-    container.html(html);
+    // Fetch individual clicks to get geographic breakdown
+    fetch(`/api/campaigns/${currentCampaignId}/clicks`)
+        .then(response => response.json())
+        .then(data => {
+            console.log('=== ANALYTICS FRONTEND === Clicks data for geography:', data);
+            
+            if (!data.success || !data.clicks || data.clicks.length === 0) {
+                container.html('<div class="text-muted text-center py-3">No geographic data available</div>');
+                return;
+            }
+            
+            // Group clicks by country
+            const countryClicks = {};
+            data.clicks.forEach(click => {
+                const country = click.country || 'Unknown Location';
+                countryClicks[country] = (countryClicks[country] || 0) + 1;
+            });
+            
+            // Convert to array and sort by clicks
+            const geoData = Object.entries(countryClicks)
+                .map(([country, clicks]) => ({ country, clicks }))
+                .sort((a, b) => b.clicks - a.clicks);
+            
+            console.log('=== ANALYTICS FRONTEND === Geographic data processed:', geoData);
+            
+            if (geoData.length === 0) {
+                container.html('<div class="text-muted text-center py-3">No geographic data available</div>');
+                return;
+            }
+            
+            const html = geoData.slice(0, 5).map(geo => `
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="fw-bold">${geo.country}</div>
+                        <small class="text-muted">${geo.clicks} click${geo.clicks !== 1 ? 's' : ''}</small>
+                    </div>
+                    <span class="badge bg-info rounded-pill">${geo.clicks}</span>
+                </div>
+            `).join('');
+            
+            container.html(html);
+        })
+        .catch(error => {
+            console.error('=== ANALYTICS FRONTEND === Error loading geographic data:', error);
+            container.html('<div class="text-muted text-center py-3">Error loading geographic data</div>');
+        });
 }
 
 function updatePerformanceMetrics() {
