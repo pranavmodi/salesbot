@@ -4772,6 +4772,9 @@ function displayCampaignList(campaigns, containerId, type) {
                             <button type="button" class="btn btn-outline-primary btn-sm" onclick="viewCampaignDetails('${campaign.id}')">
                                 <i class="fas fa-eye me-1"></i>View
                             </button>
+                            <button type="button" class="btn btn-outline-info btn-sm" onclick="viewCampaignAnalytics('${campaign.id}', '${campaign.name.replace(/'/g, '&apos;')}')">
+                                <i class="fas fa-chart-line me-1"></i>Analytics
+                            </button>
                             ${campaign.status === 'draft' ? 
                                 `<button type="button" class="btn btn-outline-success btn-sm" onclick="launchCampaign('${campaign.id}')">
                                     <i class="fas fa-rocket me-1"></i>Launch
@@ -5931,4 +5934,23 @@ Are you absolutely sure you want to proceed?`;
             deleteBtn.innerHTML = originalText;
         }
     });
+}
+
+function viewCampaignAnalytics(campaignId, campaignName) {
+    console.log('Loading campaign analytics for:', campaignId, campaignName);
+    
+    // Show the analytics modal immediately with loading state
+    const modal = new bootstrap.Modal(document.getElementById('campaignAnalyticsModal'));
+    modal.show();
+    
+    // Set modal title
+    document.getElementById('campaignAnalyticsTitle').textContent = `${campaignName} - Analytics`;
+    
+    // Initialize analytics component
+    if (typeof initializeCampaignAnalytics === 'function') {
+        initializeCampaignAnalytics(campaignId);
+    } else {
+        console.error('Campaign analytics component not loaded');
+        showToast('errorToast', 'Analytics component not available');
+    }
 }
