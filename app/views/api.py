@@ -3157,9 +3157,9 @@ def get_campaign_clicks(campaign_id):
                 'days_back': days
             })
             
-        except FileNotFoundError:
+        except FileNotFoundError as e:
             # Fallback to local database if GA4 credentials not found
-            current_app.logger.warning("GA4 credentials not found, falling back to local database")
+            current_app.logger.warning(f"GA4 credentials not found: {str(e)}, falling back to local database")
             from app.models.report_click import ReportClick
             
             clicks = ReportClick.get_campaign_clicks(campaign_id)
@@ -3172,6 +3172,22 @@ def get_campaign_clicks(campaign_id):
                 'clicks': clicks,
                 'analytics': analytics,
                 'data_source': 'Local Database'
+            })
+        except Exception as e:
+            # Fallback to local database for any GA4 errors (permissions, invalid dimensions, etc.)
+            current_app.logger.warning(f"GA4 error: {str(e)}, falling back to local database")
+            from app.models.report_click import ReportClick
+            
+            clicks = ReportClick.get_campaign_clicks(campaign_id)
+            analytics = ReportClick.get_click_analytics(campaign_id)
+            
+            return jsonify({
+                'success': True,
+                'campaign_id': campaign_id,
+                'campaign_name': campaign.name,
+                'clicks': clicks,
+                'analytics': analytics,
+                'data_source': 'Local Database (GA4 Error)'
             })
         
     except Exception as e:

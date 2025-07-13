@@ -516,41 +516,90 @@ function updateClicksTimeChart() {
 }
 
 function updateDeviceChart() {
+    console.log('=== ANALYTICS FRONTEND === Updating device chart with real data');
     const ctx = document.getElementById('deviceChart').getContext('2d');
     
-    // Mock device data - you would get this from your analytics
-    const deviceData = [
-        { device: 'Desktop', count: 45 },
-        { device: 'Mobile', count: 35 },
-        { device: 'Tablet', count: 20 }
-    ];
-    
-    if (charts.deviceChart) {
-        charts.deviceChart.destroy();
+    if (!currentCampaignId) {
+        console.log('=== ANALYTICS FRONTEND === No campaign selected for device chart');
+        return;
     }
     
-    charts.deviceChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: deviceData.map(d => d.device),
-            datasets: [{
-                data: deviceData.map(d => d.count),
-                backgroundColor: [
-                    'rgba(54, 162, 235, 0.8)',
-                    'rgba(255, 99, 132, 0.8)',
-                    'rgba(255, 206, 86, 0.8)'
-                ]
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: {
-                    position: 'bottom'
+    // Fetch individual clicks to get device breakdown
+    fetch(`/api/campaigns/${currentCampaignId}/clicks`)
+        .then(response => response.json())
+        .then(data => {
+            console.log('=== ANALYTICS FRONTEND === Clicks data for devices:', data);
+            
+            if (!data.success || !data.clicks || data.clicks.length === 0) {
+                console.log('=== ANALYTICS FRONTEND === No clicks data for device chart');
+                // Show empty chart or message
+                if (charts.deviceChart) {
+                    charts.deviceChart.destroy();
                 }
+                return;
             }
-        }
-    });
+            
+            // Group clicks by device type
+            const deviceClicks = {};
+            data.clicks.forEach(click => {
+                const device = click.device_type || 'Unknown Device';
+                deviceClicks[device] = (deviceClicks[device] || 0) + 1;
+            });
+            
+            // Convert to array
+            const deviceData = Object.entries(deviceClicks)
+                .map(([device, count]) => ({ device, count }))
+                .sort((a, b) => b.count - a.count);
+            
+            console.log('=== ANALYTICS FRONTEND === Device data processed:', deviceData);
+            
+            if (deviceData.length === 0) {
+                console.log('=== ANALYTICS FRONTEND === No device data available');
+                if (charts.deviceChart) {
+                    charts.deviceChart.destroy();
+                }
+                return;
+            }
+            
+            if (charts.deviceChart) {
+                charts.deviceChart.destroy();
+            }
+            
+            // Use different colors for different number of devices
+            const colors = [
+                'rgba(54, 162, 235, 0.8)',   // Blue
+                'rgba(255, 99, 132, 0.8)',   // Red  
+                'rgba(255, 206, 86, 0.8)',   // Yellow
+                'rgba(75, 192, 192, 0.8)',   // Green
+                'rgba(153, 102, 255, 0.8)',  // Purple
+                'rgba(255, 159, 64, 0.8)'    // Orange
+            ];
+            
+            charts.deviceChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: deviceData.map(d => d.device),
+                    datasets: [{
+                        data: deviceData.map(d => d.count),
+                        backgroundColor: colors.slice(0, deviceData.length)
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        })
+        .catch(error => {
+            console.error('=== ANALYTICS FRONTEND === Error loading device data:', error);
+            if (charts.deviceChart) {
+                charts.deviceChart.destroy();
+            }
+        });
 }
 
 function updateTopCompanies() {
