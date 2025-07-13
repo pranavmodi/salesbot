@@ -7,6 +7,9 @@ python-dotenv
 openai
 APScheduler
 
+# Google Analytics 4 Integration
+google-analytics-data
+
 # HTML/PDF Report Generation
 markdown==3.6
 pdfkit==1.0.0

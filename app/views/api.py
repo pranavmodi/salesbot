@@ -5,6 +5,7 @@ from app.models.contact import Contact
 from app.models.company import Company
 from app.services.email_service import EmailService
 from app.services.email_reader_service import email_reader, configure_email_reader
+from app.services.ga4_analytics_service import create_ga4_service
 from app.utils.email_config import email_config, EmailAccount
 import os
 import tempfile
@@ -3121,9 +3122,8 @@ def receive_report_click():
 
 @bp.route('/campaigns/<int:campaign_id>/clicks', methods=['GET'])
 def get_campaign_clicks(campaign_id):
-    """Get click tracking data for a specific campaign."""
+    """Get click tracking data for a specific campaign from GA4."""
     try:
-        from app.models.report_click import ReportClick
         from app.models.campaign import Campaign
         
         # Verify campaign exists
@@ -3134,19 +3134,45 @@ def get_campaign_clicks(campaign_id):
                 'message': f'Campaign {campaign_id} not found'
             }), 404
         
-        # Get clicks for this campaign
-        clicks = ReportClick.get_campaign_clicks(campaign_id)
+        # Get number of days to look back (default: 30)
+        days = int(request.args.get('days', 30))
         
-        # Get click analytics
-        analytics = ReportClick.get_click_analytics(campaign_id)
-        
-        return jsonify({
-            'success': True,
-            'campaign_id': campaign_id,
-            'campaign_name': campaign.name,
-            'clicks': clicks,
-            'analytics': analytics
-        })
+        # Create GA4 service and get click data
+        try:
+            ga4_service = create_ga4_service()
+            
+            # Get detailed clicks from GA4
+            clicks = ga4_service.get_detailed_clicks(str(campaign_id), days)
+            
+            # Get campaign analytics for summary
+            analytics = ga4_service.get_campaign_analytics(str(campaign_id), days)
+            
+            return jsonify({
+                'success': True,
+                'campaign_id': campaign_id,
+                'campaign_name': campaign.name,
+                'clicks': clicks,
+                'analytics': analytics,
+                'data_source': 'GA4',
+                'days_back': days
+            })
+            
+        except FileNotFoundError:
+            # Fallback to local database if GA4 credentials not found
+            current_app.logger.warning("GA4 credentials not found, falling back to local database")
+            from app.models.report_click import ReportClick
+            
+            clicks = ReportClick.get_campaign_clicks(campaign_id)
+            analytics = ReportClick.get_click_analytics(campaign_id)
+            
+            return jsonify({
+                'success': True,
+                'campaign_id': campaign_id,
+                'campaign_name': campaign.name,
+                'clicks': clicks,
+                'analytics': analytics,
+                'data_source': 'Local Database'
+            })
         
     except Exception as e:
         current_app.logger.error(f"Error getting campaign clicks for {campaign_id}: {str(e)}")
@@ -3157,11 +3183,10 @@ def get_campaign_clicks(campaign_id):
 
 @bp.route('/campaigns/<int:campaign_id>/analytics', methods=['GET'])
 def get_campaign_analytics(campaign_id):
-    """Get comprehensive analytics for a campaign including emails and clicks."""
+    """Get comprehensive analytics for a campaign including emails and clicks from GA4."""
     try:
         from app.models.campaign import Campaign
         from app.models.email_history import EmailHistory
-        from app.models.report_click import ReportClick
         
         # Verify campaign exists
         campaign = Campaign.get_by_id(campaign_id)
@@ -3171,24 +3196,49 @@ def get_campaign_analytics(campaign_id):
                 'message': f'Campaign {campaign_id} not found'
             }), 404
         
-        # Get date range from query parameters
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
-        date_range = {}
-        if start_date:
-            date_range['start_date'] = start_date
-        if end_date:
-            date_range['end_date'] = end_date
+        # Get number of days to look back (default: 30)
+        days = int(request.args.get('days', 30))
         
-        # Get email analytics
+        # Get email analytics (still from local database)
         email_stats = EmailHistory.get_campaign_stats(campaign_id)
         
-        # Get click analytics
-        click_analytics = ReportClick.get_click_analytics(campaign_id, date_range)
+        # Try to get click analytics from GA4
+        try:
+            ga4_service = create_ga4_service()
+            click_analytics = ga4_service.get_campaign_analytics(str(campaign_id), days)
+            data_source = 'GA4'
+            
+            # Transform GA4 data to match expected format
+            ga4_click_analytics = {
+                'total_clicks': click_analytics.get('total_clicks', 0),
+                'unique_recipients': click_analytics.get('unique_recipients', 0),
+                'unique_companies': click_analytics.get('unique_companies', 0),
+                'clicks_by_date': click_analytics.get('clicks_by_date', {}),
+                'device_breakdown': click_analytics.get('device_breakdown', {}),
+                'location_data': click_analytics.get('location_data', []),
+                'click_rate': click_analytics.get('click_rate', '0%')
+            }
+            
+        except FileNotFoundError:
+            # Fallback to local database if GA4 credentials not found
+            current_app.logger.warning("GA4 credentials not found, falling back to local database")
+            from app.models.report_click import ReportClick
+            
+            # Get date range from query parameters for local fallback
+            start_date = request.args.get('start_date')
+            end_date = request.args.get('end_date')
+            date_range = {}
+            if start_date:
+                date_range['start_date'] = start_date
+            if end_date:
+                date_range['end_date'] = end_date
+                
+            ga4_click_analytics = ReportClick.get_click_analytics(campaign_id, date_range)
+            data_source = 'Local Database'
         
         # Calculate additional metrics
         total_emails = email_stats.get('total_emails', 0)
-        total_clicks = click_analytics.get('total_clicks', 0)
+        total_clicks = ga4_click_analytics.get('total_clicks', 0)
         click_rate = (total_clicks / total_emails * 100) if total_emails > 0 else 0
         
         # Get campaign contacts for funnel analysis
@@ -3199,16 +3249,18 @@ def get_campaign_analytics(campaign_id):
             'campaign_id': campaign_id,
             'campaign_name': campaign.name,
             'campaign_status': campaign.status,
+            'data_source': data_source,
+            'days_back': days,
             'analytics': {
                 'email_stats': email_stats,
-                'click_analytics': click_analytics,
+                'click_analytics': ga4_click_analytics,
                 'performance_metrics': {
                     'total_contacts': len(campaign_contacts),
                     'total_emails': total_emails,
                     'total_clicks': total_clicks,
                     'click_rate': round(click_rate, 2),
-                    'unique_clickers': click_analytics.get('unique_recipients', 0),
-                    'companies_engaged': click_analytics.get('unique_companies', 0)
+                    'unique_clickers': ga4_click_analytics.get('unique_recipients', 0),
+                    'companies_engaged': ga4_click_analytics.get('unique_companies', 0)
                 }
             }
         })
@@ -3218,4 +3270,57 @@ def get_campaign_analytics(campaign_id):
         return jsonify({
             'success': False,
             'message': f'Error getting campaign analytics: {str(e)}'
+        }), 500
+
+@bp.route('/campaigns/analytics/all', methods=['GET'])
+def get_all_campaigns_analytics():
+    """Get analytics for all campaigns from GA4."""
+    try:
+        # Get number of days to look back (default: 30)
+        days = int(request.args.get('days', 30))
+        
+        # Try to get analytics from GA4
+        try:
+            ga4_service = create_ga4_service()
+            all_campaigns_data = ga4_service.get_all_campaigns_analytics(days)
+            data_source = 'GA4'
+            
+            # Enhance with campaign names from database
+            from app.models.campaign import Campaign
+            for campaign_data in all_campaigns_data:
+                campaign_id = campaign_data.get('campaign_id')
+                if campaign_id and str(campaign_id).isdigit():
+                    campaign = Campaign.get_by_id(int(campaign_id))
+                    if campaign:
+                        campaign_data['campaign_name'] = campaign.name
+                        campaign_data['campaign_status'] = campaign.status
+                    else:
+                        campaign_data['campaign_name'] = f'Campaign {campaign_id}'
+                        campaign_data['campaign_status'] = 'unknown'
+                else:
+                    campaign_data['campaign_name'] = f'Campaign {campaign_id}'
+                    campaign_data['campaign_status'] = 'unknown'
+            
+            return jsonify({
+                'success': True,
+                'data_source': data_source,
+                'days_back': days,
+                'campaigns': all_campaigns_data,
+                'total_campaigns': len(all_campaigns_data)
+            })
+            
+        except FileNotFoundError:
+            # Fallback message if GA4 credentials not found
+            current_app.logger.warning("GA4 credentials not found, cannot provide global analytics")
+            return jsonify({
+                'success': False,
+                'message': 'GA4 credentials not found. Please ensure the service account file is properly configured.',
+                'data_source': 'GA4 (unavailable)'
+            }), 503
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting all campaigns analytics: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error getting campaigns analytics: {str(e)}'
         }), 500

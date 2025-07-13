@@ -1,0 +1,26 @@
+[
+  {
+    "name": "primary",
+    "email": "pranav@possiblemindshq.com",
+    "password": "Et6r5zQkB5nj",
+    "smtp_host": "smtppro.zoho.in",
+    "smtp_port": 465,
+    "smtp_use_ssl": true,
+    "imap_host": "imap.zoho.in",
+    "imap_port": 993,
+    "imap_use_ssl": true,
+    "is_default": true
+  },
+  {
+    "name": "secondary",
+    "email": "priya.sureka@possiblemindshq.com",
+    "password": "secondary_password",
+    "smtp_host": "smtppro.zoho.in",
+    "smtp_port": 465,
+    "smtp_use_ssl": true,
+    "imap_host": "imap.zoho.com",
+    "imap_port": 993,
+    "imap_use_ssl": true,
+    "is_default": false
+  }
+]

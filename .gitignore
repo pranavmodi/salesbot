@@ -47,6 +47,11 @@ config.py
 email_accounts_config.json
 email_accounts_config.json.backup
 
+# Google Cloud credentials
+*.json
+!campaigns.json
+!email_accounts_config.json
+
 # Ignore OS specific files
 .DS_Store
 Thumbs.db 

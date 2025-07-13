@@ -59,55 +59,59 @@ class ReportClick:
 
         try:
             with engine.connect() as conn:
-                # Convert custom_data to JSON string if it exists
-                custom_data_json = json.dumps(click_data.get('custom_data')) if click_data.get('custom_data') else None
-                
-                query = text("""
-                    INSERT INTO report_clicks (
-                        company_id, campaign_id, email_history_id, recipient_email, 
-                        company_slug, tracking_id, click_timestamp, ip_address, user_agent, 
-                        referer, utm_source, utm_medium, utm_campaign, utm_content, utm_term,
-                        device_type, browser, operating_system, country, city, session_id, 
-                        custom_data
-                    ) VALUES (
-                        :company_id, :campaign_id, :email_history_id, :recipient_email,
-                        :company_slug, :tracking_id, :click_timestamp, :ip_address, :user_agent,
-                        :referer, :utm_source, :utm_medium, :utm_campaign, :utm_content, :utm_term,
-                        :device_type, :browser, :operating_system, :country, :city, :session_id,
-                        :custom_data
-                    ) RETURNING id
-                """)
-                
-                result = conn.execute(query, {
-                    'company_id': click_data.get('company_id'),
-                    'campaign_id': click_data.get('campaign_id'),
-                    'email_history_id': click_data.get('email_history_id'),
-                    'recipient_email': click_data.get('recipient_email'),
-                    'company_slug': click_data.get('company_slug'),
-                    'tracking_id': click_data.get('tracking_id'),
-                    'click_timestamp': click_data.get('click_timestamp', datetime.now()),
-                    'ip_address': click_data.get('ip_address'),
-                    'user_agent': click_data.get('user_agent'),
-                    'referer': click_data.get('referer'),
-                    'utm_source': click_data.get('utm_source'),
-                    'utm_medium': click_data.get('utm_medium'),
-                    'utm_campaign': click_data.get('utm_campaign'),
-                    'utm_content': click_data.get('utm_content'),
-                    'utm_term': click_data.get('utm_term'),
-                    'device_type': click_data.get('device_type'),
-                    'browser': click_data.get('browser'),
-                    'operating_system': click_data.get('operating_system'),
-                    'country': click_data.get('country'),
-                    'city': click_data.get('city'),
-                    'session_id': click_data.get('session_id'),
-                    'custom_data': custom_data_json
-                })
-                
-                click_id = result.fetchone()[0]
-                conn.commit()
-                
-                current_app.logger.info(f"Successfully saved click with ID: {click_id}")
-                return click_id
+                with conn.begin():  # Use transaction
+                    # Convert custom_data to JSON string if it exists
+                    custom_data_json = json.dumps(click_data.get('custom_data')) if click_data.get('custom_data') else None
+                    
+                    now = datetime.now()
+                    
+                    query = text("""
+                        INSERT INTO report_clicks (
+                            company_id, campaign_id, email_history_id, recipient_email, 
+                            company_slug, tracking_id, click_timestamp, ip_address, user_agent, 
+                            referer, utm_source, utm_medium, utm_campaign, utm_content, utm_term,
+                            device_type, browser, operating_system, country, city, session_id, 
+                            custom_data, created_at, updated_at
+                        ) VALUES (
+                            :company_id, :campaign_id, :email_history_id, :recipient_email,
+                            :company_slug, :tracking_id, :click_timestamp, :ip_address, :user_agent,
+                            :referer, :utm_source, :utm_medium, :utm_campaign, :utm_content, :utm_term,
+                            :device_type, :browser, :operating_system, :country, :city, :session_id,
+                            :custom_data, :created_at, :updated_at
+                        ) RETURNING id
+                    """)
+                    
+                    result = conn.execute(query, {
+                        'company_id': click_data.get('company_id'),
+                        'campaign_id': click_data.get('campaign_id'),
+                        'email_history_id': click_data.get('email_history_id'),
+                        'recipient_email': click_data.get('recipient_email'),
+                        'company_slug': click_data.get('company_slug'),
+                        'tracking_id': click_data.get('tracking_id'),
+                        'click_timestamp': click_data.get('click_timestamp', now),
+                        'ip_address': click_data.get('ip_address'),
+                        'user_agent': click_data.get('user_agent'),
+                        'referer': click_data.get('referer'),
+                        'utm_source': click_data.get('utm_source'),
+                        'utm_medium': click_data.get('utm_medium'),
+                        'utm_campaign': click_data.get('utm_campaign'),
+                        'utm_content': click_data.get('utm_content'),
+                        'utm_term': click_data.get('utm_term'),
+                        'device_type': click_data.get('device_type'),
+                        'browser': click_data.get('browser'),
+                        'operating_system': click_data.get('operating_system'),
+                        'country': click_data.get('country'),
+                        'city': click_data.get('city'),
+                        'session_id': click_data.get('session_id'),
+                        'custom_data': custom_data_json,
+                        'created_at': now,
+                        'updated_at': now
+                    })
+                    
+                    click_id = result.fetchone()[0]
+                    
+                    current_app.logger.info(f"Successfully saved click with ID: {click_id}")
+                    return click_id
                 
         except SQLAlchemyError as e:
             current_app.logger.error(f"Error saving click: {e}")
@@ -164,16 +168,7 @@ class ReportClick:
 
         try:
             with engine.connect() as conn:
-                base_query = """
-                    SELECT 
-                        COUNT(*) as total_clicks,
-                        COUNT(DISTINCT recipient_email) as unique_recipients,
-                        COUNT(DISTINCT company_id) as unique_companies,
-                        COUNT(DISTINCT utm_campaign) as unique_campaigns,
-                        DATE(click_timestamp) as click_date
-                    FROM report_clicks
-                """
-                
+                # Build WHERE conditions
                 where_conditions = []
                 params = {}
                 
@@ -189,37 +184,50 @@ class ReportClick:
                         where_conditions.append("click_timestamp <= :end_date")
                         params['end_date'] = date_range['end_date']
                 
+                where_clause = ""
                 if where_conditions:
-                    base_query += " WHERE " + " AND ".join(where_conditions)
+                    where_clause = " WHERE " + " AND ".join(where_conditions)
                 
-                base_query += " GROUP BY DATE(click_timestamp) ORDER BY click_date DESC"
+                # Get overall analytics (no GROUP BY)
+                overall_query = f"""
+                    SELECT 
+                        COUNT(*) as total_clicks,
+                        COUNT(DISTINCT recipient_email) as unique_recipients,
+                        COUNT(DISTINCT company_id) as unique_companies,
+                        COUNT(DISTINCT utm_campaign) as unique_campaigns
+                    FROM report_clicks
+                    {where_clause}
+                """
                 
-                result = conn.execute(text(base_query), params)
+                overall_result = conn.execute(text(overall_query), params)
+                overall_row = overall_result.fetchone()
                 
                 analytics = {
-                    'total_clicks': 0,
-                    'unique_recipients': 0,
-                    'unique_companies': 0,
-                    'unique_campaigns': 0,
+                    'total_clicks': overall_row.total_clicks if overall_row else 0,
+                    'unique_recipients': overall_row.unique_recipients if overall_row else 0,
+                    'unique_companies': overall_row.unique_companies if overall_row else 0,
+                    'unique_campaigns': overall_row.unique_campaigns if overall_row else 0,
                     'clicks_by_date': []
                 }
                 
-                for row in result:
+                # Get clicks by date (with GROUP BY)
+                date_query = f"""
+                    SELECT 
+                        DATE(click_timestamp) as click_date,
+                        COUNT(*) as clicks_count
+                    FROM report_clicks
+                    {where_clause}
+                    GROUP BY DATE(click_timestamp) 
+                    ORDER BY click_date DESC
+                """
+                
+                date_result = conn.execute(text(date_query), params)
+                
+                for row in date_result:
                     analytics['clicks_by_date'].append({
                         'date': row.click_date.isoformat() if row.click_date else None,
-                        'clicks': row.total_clicks
+                        'clicks': row.clicks_count
                     })
-                    analytics['total_clicks'] += row.total_clicks
-                
-                # Get overall unique counts
-                if analytics['clicks_by_date']:
-                    overall_query = base_query.replace(", DATE(click_timestamp) as click_date", "").replace("GROUP BY DATE(click_timestamp) ORDER BY click_date DESC", "")
-                    overall_result = conn.execute(text(overall_query), params)
-                    overall_row = overall_result.fetchone()
-                    if overall_row:
-                        analytics['unique_recipients'] = overall_row.unique_recipients
-                        analytics['unique_companies'] = overall_row.unique_companies
-                        analytics['unique_campaigns'] = overall_row.unique_campaigns
                 
                 return analytics
                 
