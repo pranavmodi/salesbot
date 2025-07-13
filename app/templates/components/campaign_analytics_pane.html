@@ -324,6 +324,7 @@ let analyticsData = null;
 let charts = {};
 
 function initializeCampaignAnalytics(campaignId) {
+    console.log('=== ANALYTICS FRONTEND === Initializing campaign analytics for campaign:', campaignId);
     currentCampaignId = campaignId;
     loadAnalyticsData();
 }
@@ -351,48 +352,80 @@ function showPerformanceMetrics() {
 }
 
 function loadAnalyticsData() {
-    if (!currentCampaignId) return;
+    console.log('=== ANALYTICS FRONTEND === Loading analytics data for campaign:', currentCampaignId);
+    
+    if (!currentCampaignId) {
+        console.error('=== ANALYTICS FRONTEND === No campaign ID set!');
+        return;
+    }
 
     $('#analyticsLoading').show();
     $('#analyticsError').hide();
+    
+    const apiUrl = `/api/campaigns/${currentCampaignId}/analytics`;
+    console.log('=== ANALYTICS FRONTEND === Making API request to:', apiUrl);
 
-    fetch(`/api/campaigns/${currentCampaignId}/analytics`)
-        .then(response => response.json())
+    fetch(apiUrl)
+        .then(response => {
+            console.log('=== ANALYTICS FRONTEND === Response status:', response.status);
+            console.log('=== ANALYTICS FRONTEND === Response headers:', response.headers);
+            return response.json();
+        })
         .then(data => {
+            console.log('=== ANALYTICS FRONTEND === Response data:', data);
             $('#analyticsLoading').hide();
             
             if (data.success) {
+                console.log('=== ANALYTICS FRONTEND === Analytics data received:', data.analytics);
                 analyticsData = data.analytics;
                 updateAnalyticsDisplay();
             } else {
+                console.error('=== ANALYTICS FRONTEND === API returned error:', data.message);
                 showAnalyticsError(data.message);
             }
         })
         .catch(error => {
+            console.error('=== ANALYTICS FRONTEND === Fetch error:', error);
+            console.error('=== ANALYTICS FRONTEND === Error details:', error.message, error.stack);
             $('#analyticsLoading').hide();
             showAnalyticsError('Failed to load analytics data');
-            console.error('Analytics error:', error);
         });
 }
 
 function updateAnalyticsDisplay() {
-    if (!analyticsData) return;
+    console.log('=== ANALYTICS FRONTEND === Updating analytics display');
+    
+    if (!analyticsData) {
+        console.error('=== ANALYTICS FRONTEND === No analytics data available!');
+        return;
+    }
 
+    console.log('=== ANALYTICS FRONTEND === Analytics data structure:', analyticsData);
     const metrics = analyticsData.performance_metrics;
+    console.log('=== ANALYTICS FRONTEND === Performance metrics:', metrics);
     
     // Update metric cards
     $('#totalContacts').text(metrics.total_contacts.toLocaleString());
     $('#totalEmails').text(metrics.total_emails.toLocaleString());
     $('#totalClicks').text(metrics.total_clicks.toLocaleString());
     $('#clickRate').text(metrics.click_rate + '%');
+    
+    console.log('=== ANALYTICS FRONTEND === Updated metric cards with:', {
+        contacts: metrics.total_contacts,
+        emails: metrics.total_emails,
+        clicks: metrics.total_clicks,
+        rate: metrics.click_rate
+    });
 
     // Update charts
+    console.log('=== ANALYTICS FRONTEND === Updating charts...');
     updateEngagementFunnelChart();
     updateClicksTimeChart();
     updateDeviceChart();
     updateTopCompanies();
     updateGeographicDistribution();
     updatePerformanceMetrics();
+    console.log('=== ANALYTICS FRONTEND === Charts updated successfully');
 }
 
 function updateEngagementFunnelChart() {

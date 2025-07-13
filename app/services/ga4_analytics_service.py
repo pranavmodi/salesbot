@@ -1,5 +1,6 @@
 import os
 import json
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from google.analytics.data_v1beta import BetaAnalyticsDataClient
@@ -14,6 +15,9 @@ from google.analytics.data_v1beta.types import (
 )
 from google.oauth2 import service_account
 
+# Set up logger for GA4 service
+logger = logging.getLogger(__name__)
+
 class GA4AnalyticsService:
     def __init__(self, credentials_file: str, property_id: str):
         """Initialize GA4 Analytics Service
@@ -22,16 +26,30 @@ class GA4AnalyticsService:
             credentials_file: Path to the service account JSON file
             property_id: GA4 Property ID (e.g., '496568289')
         """
+        logger.info(f"Initializing GA4AnalyticsService with property_id: {property_id}")
+        logger.info(f"Credentials file path: {credentials_file}")
+        
+        if not os.path.exists(credentials_file):
+            logger.error(f"Credentials file not found: {credentials_file}")
+            raise FileNotFoundError(f"GA4 credentials file not found: {credentials_file}")
+        
         self.property_id = f"properties/{property_id}"
+        logger.info(f"Using GA4 property: {self.property_id}")
         
-        # Load service account credentials
-        credentials = service_account.Credentials.from_service_account_file(
-            credentials_file,
-            scopes=["https://www.googleapis.com/auth/analytics.readonly"]
-        )
-        
-        # Initialize the client
-        self.client = BetaAnalyticsDataClient(credentials=credentials)
+        try:
+            # Load service account credentials
+            credentials = service_account.Credentials.from_service_account_file(
+                credentials_file,
+                scopes=["https://www.googleapis.com/auth/analytics.readonly"]
+            )
+            logger.info("Successfully loaded service account credentials")
+            
+            # Initialize the client
+            self.client = BetaAnalyticsDataClient(credentials=credentials)
+            logger.info("Successfully initialized GA4 client")
+        except Exception as e:
+            logger.error(f"Failed to initialize GA4 client: {str(e)}")
+            raise
     
     def get_campaign_analytics(self, campaign_id: str, days: int = 30) -> Dict:
         """Get analytics data for a specific campaign
@@ -43,8 +61,11 @@ class GA4AnalyticsService:
         Returns:
             Dictionary with campaign analytics data
         """
+        logger.info(f"Getting campaign analytics for campaign_id: {campaign_id}, days: {days}")
+        
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days)
+        logger.info(f"Date range: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
         
         # Build the request
         request = RunReportRequest(
@@ -93,10 +114,22 @@ class GA4AnalyticsService:
             )
         )
         
-        # Execute the request
-        response = self.client.run_report(request)
+        logger.info(f"Executing GA4 request for campaign {campaign_id}")
+        logger.debug(f"Request details: property={self.property_id}, date_range={start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
         
-        return self._process_campaign_response(response, campaign_id)
+        try:
+            # Execute the request
+            response = self.client.run_report(request)
+            logger.info(f"GA4 request successful for campaign {campaign_id}")
+            logger.debug(f"Response row count: {response.row_count}")
+            
+            result = self._process_campaign_response(response, campaign_id)
+            logger.info(f"Processed campaign analytics: total_clicks={result.get('total_clicks', 0)}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"GA4 request failed for campaign {campaign_id}: {str(e)}")
+            raise
     
     def get_all_campaigns_analytics(self, days: int = 30) -> List[Dict]:
         """Get analytics data for all campaigns
@@ -369,10 +402,16 @@ class GA4AnalyticsService:
 # Factory function to create GA4 service instance
 def create_ga4_service() -> GA4AnalyticsService:
     """Create GA4 Analytics Service with default configuration"""
+    logger.info("Creating GA4 service with default configuration")
+    
     credentials_file = "poetic-hexagon-465803-a5-557cbe7a4d60.json"
     property_id = "496568289"  # Your GA4 property ID
     
+    logger.info(f"Looking for credentials file: {os.path.abspath(credentials_file)}")
+    
     if not os.path.exists(credentials_file):
+        logger.error(f"GA4 credentials file not found: {os.path.abspath(credentials_file)}")
         raise FileNotFoundError(f"GA4 credentials file not found: {credentials_file}")
     
+    logger.info(f"Found credentials file, creating service for property: {property_id}")
     return GA4AnalyticsService(credentials_file, property_id) 

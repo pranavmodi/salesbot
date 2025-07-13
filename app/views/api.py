@@ -3184,28 +3184,41 @@ def get_campaign_clicks(campaign_id):
 @bp.route('/campaigns/<int:campaign_id>/analytics', methods=['GET'])
 def get_campaign_analytics(campaign_id):
     """Get comprehensive analytics for a campaign including emails and clicks from GA4."""
+    current_app.logger.info(f"=== ANALYTICS API REQUEST === Campaign ID: {campaign_id}")
+    
     try:
         from app.models.campaign import Campaign
         from app.models.email_history import EmailHistory
         
         # Verify campaign exists
+        current_app.logger.info(f"Checking if campaign {campaign_id} exists")
         campaign = Campaign.get_by_id(campaign_id)
         if not campaign:
+            current_app.logger.error(f"Campaign {campaign_id} not found in database")
             return jsonify({
                 'success': False,
                 'message': f'Campaign {campaign_id} not found'
             }), 404
         
+        current_app.logger.info(f"Found campaign: {campaign.name} (status: {campaign.status})")
+        
         # Get number of days to look back (default: 30)
         days = int(request.args.get('days', 30))
+        current_app.logger.info(f"Looking back {days} days for analytics")
         
         # Get email analytics (still from local database)
+        current_app.logger.info("Getting email stats from local database")
         email_stats = EmailHistory.get_campaign_stats(campaign_id)
+        current_app.logger.info(f"Email stats: {email_stats}")
         
         # Try to get click analytics from GA4
+        current_app.logger.info("Attempting to get click analytics from GA4")
         try:
+            current_app.logger.info("Creating GA4 service")
             ga4_service = create_ga4_service()
+            current_app.logger.info("GA4 service created successfully, making analytics request")
             click_analytics = ga4_service.get_campaign_analytics(str(campaign_id), days)
+            current_app.logger.info(f"GA4 analytics response: {click_analytics}")
             data_source = 'GA4'
             
             # Transform GA4 data to match expected format
@@ -3219,9 +3232,9 @@ def get_campaign_analytics(campaign_id):
                 'click_rate': click_analytics.get('click_rate', '0%')
             }
             
-        except FileNotFoundError:
+        except FileNotFoundError as e:
             # Fallback to local database if GA4 credentials not found
-            current_app.logger.warning("GA4 credentials not found, falling back to local database")
+            current_app.logger.warning(f"GA4 credentials not found: {str(e)}, falling back to local database")
             from app.models.report_click import ReportClick
             
             # Get date range from query parameters for local fallback
@@ -3233,8 +3246,19 @@ def get_campaign_analytics(campaign_id):
             if end_date:
                 date_range['end_date'] = end_date
                 
+            current_app.logger.info(f"Using local database with date range: {date_range}")
             ga4_click_analytics = ReportClick.get_click_analytics(campaign_id, date_range)
+            current_app.logger.info(f"Local database analytics: {ga4_click_analytics}")
             data_source = 'Local Database'
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error with GA4 service: {str(e)}")
+            current_app.logger.error(f"Exception type: {type(e).__name__}")
+            import traceback
+            current_app.logger.error(f"Traceback: {traceback.format_exc()}")
+            # Still fallback to local database
+            from app.models.report_click import ReportClick
+            ga4_click_analytics = ReportClick.get_click_analytics(campaign_id)
+            data_source = 'Local Database (GA4 Error)'
         
         # Calculate additional metrics
         total_emails = email_stats.get('total_emails', 0)
@@ -3242,9 +3266,12 @@ def get_campaign_analytics(campaign_id):
         click_rate = (total_clicks / total_emails * 100) if total_emails > 0 else 0
         
         # Get campaign contacts for funnel analysis
+        current_app.logger.info("Getting campaign contacts for funnel analysis")
         campaign_contacts = Campaign.get_campaign_contacts(campaign_id)
+        current_app.logger.info(f"Found {len(campaign_contacts)} campaign contacts")
         
-        return jsonify({
+        # Prepare final response
+        response_data = {
             'success': True,
             'campaign_id': campaign_id,
             'campaign_name': campaign.name,
@@ -3263,7 +3290,12 @@ def get_campaign_analytics(campaign_id):
                     'companies_engaged': ga4_click_analytics.get('unique_companies', 0)
                 }
             }
-        })
+        }
+        
+        current_app.logger.info(f"=== ANALYTICS API RESPONSE === Success: {data_source}")
+        current_app.logger.info(f"Performance metrics: emails={total_emails}, clicks={total_clicks}, rate={round(click_rate, 2)}%")
+        
+        return jsonify(response_data)
         
     except Exception as e:
         current_app.logger.error(f"Error getting campaign analytics for {campaign_id}: {str(e)}")
