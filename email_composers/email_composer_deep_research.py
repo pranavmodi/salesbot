@@ -82,7 +82,7 @@ class DeepResearchEmailComposer:
             Here is context about the sender and their product:
             """ + SENDER_INFO)
 
-    def compose_email(self, lead: Dict[str, str], calendar_url: str = DEFAULT_CALENDAR, extra_context: str | None = None, auto_research: bool = None) -> Dict[str, str] | None:
+    def compose_email(self, lead: Dict[str, str], calendar_url: str = DEFAULT_CALENDAR, extra_context: str | None = None, auto_research: bool = None, campaign_id: int = None) -> Dict[str, str] | None:
         if not self.product_desc:
             print("❗ productdescription.txt missing – aborting.")
             return None
@@ -120,10 +120,10 @@ class DeepResearchEmailComposer:
         # Generate public report URL with tracking parameters
         report_url = None
         if company_id:
-            print(f"📊 PROGRESS: Attempting to publish strategic report for {company_name}")
-            report_url = self._get_or_publish_report_url(company_id, company_name, lead.get("email", ""))
+            print(f"📊 PROGRESS: Publishing strategic report to possibleminds.in for {company_name}")
+            report_url = self._get_or_publish_report_url(company_id, company_name, lead.get("email", ""), campaign_id)
             if report_url:
-                print(f"✅ PROGRESS: Strategic report published successfully")
+                print(f"✅ PROGRESS: Strategic report published and tracking URL ready")
                 print(f"🔍 DEBUG: Generated report URL: {report_url}")
             else:
                 print(f"⚠️ PROGRESS: Report publishing failed, using fallback message")
@@ -200,31 +200,34 @@ class DeepResearchEmailComposer:
         print(f"📧 PROGRESS: Final email ready for delivery")
         return final_result
 
-    def _get_or_publish_report_url(self, company_id: int, company_name: str, recipient_email: str) -> str:
-        """Get or publish report and return the public URL with tracking."""
+    def _get_or_publish_report_url(self, company_id: int, company_name: str, recipient_email: str, campaign_id: int = None) -> str:
+        """Publish report to possibleminds.in and return click tracking URL."""
         print(f"🔍 DEBUG: Getting/publishing report for company_id: {company_id}")
         
         try:
             # Import here to avoid circular imports
             from app.models.company import Company
             
-            # Get the company data
+            # Get the company data to verify report exists
             company = Company.get_by_id(company_id)
             if not company or not company.markdown_report:
                 print(f"🔍 DEBUG: No markdown report available for company_id: {company_id}")
                 return ""
             
-            print(f"🔍 DEBUG: Found markdown report, attempting to publish...")
+            print(f"🔍 DEBUG: Found markdown report, publishing to possibleminds.in...")
             
-            # Publish the report to Netlify
+            # First, publish the report to possibleminds.in
             published_url = self._publish_report_to_netlify(company, recipient_email)
             
             if published_url:
                 print(f"🔍 DEBUG: Successfully published report, URL: {published_url}")
+                # The Netlify function already returns a tracked URL, so we can use it directly
                 return published_url
             else:
-                print(f"🔍 DEBUG: Failed to publish report, using fallback")
-                return ""
+                print(f"🔍 DEBUG: Failed to publish report, using fallback tracking URL")
+                # Fallback: generate click tracking URL even if publishing failed
+                tracked_url = self._generate_report_url_with_tracking(company_id, company_name, recipient_email, campaign_id)
+                return tracked_url
                 
         except Exception as e:
             print(f"❌ Error getting/publishing report: {e}")
@@ -247,8 +250,27 @@ class DeepResearchEmailComposer:
                 "markdown_report": company.markdown_report
             }
             
+            # Log the raw content being published
+            print(f"📝 RAW CONTENT LOGGING: Publishing content to possibleminds.in")
+            print(f"📝 Company: {company.company_name}")
+            print(f"📝 Website: {company.website_url or 'N/A'}")
+            print(f"📝 Recipient: {recipient_email}")
+            print(f"📝 Content Length: {len(company.markdown_report) if company.markdown_report else 0} characters")
+            print(f"📝 RAW MARKDOWN CONTENT START:")
+            print(f"{'='*80}")
+            print(f"{company.markdown_report}")
+            print(f"{'='*80}")
+            print(f"📝 RAW MARKDOWN CONTENT END")
+            
             # Convert payload to JSON string (raw body for signature)
             raw_body = json.dumps(payload, separators=(',', ':'))
+            
+            # Also log the complete JSON payload being sent
+            print(f"📝 COMPLETE JSON PAYLOAD START:")
+            print(f"{'-'*80}")
+            print(f"{json.dumps(payload, indent=2)}")
+            print(f"{'-'*80}")
+            print(f"📝 COMPLETE JSON PAYLOAD END")
             
             headers = {"Content-Type": "application/json"}
             
@@ -277,6 +299,15 @@ class DeepResearchEmailComposer:
             
             print(f"🔍 DEBUG: Netlify response status: {response.status_code}")
             
+            # Log the complete response from possibleminds.in
+            print(f"📝 POSSIBLEMINDS.IN RESPONSE START:")
+            print(f"{'~'*80}")
+            print(f"Status Code: {response.status_code}")
+            print(f"Response Headers: {dict(response.headers)}")
+            print(f"Response Body: {response.text}")
+            print(f"{'~'*80}")
+            print(f"📝 POSSIBLEMINDS.IN RESPONSE END")
+            
             if response.status_code == 200:
                 result = response.json()
                 # Extract publishUrl from the nested data structure
@@ -284,6 +315,12 @@ class DeepResearchEmailComposer:
                 
                 print(f"🔍 DEBUG: Netlify response data: {result}")
                 print(f"🔍 DEBUG: Extracted publishUrl: {public_url}")
+                
+                # Log the successful publishing details
+                print(f"📝 PUBLISHING SUCCESS LOG:")
+                print(f"📝 Company: {company.company_name}")
+                print(f"📝 Published URL: {public_url}")
+                print(f"📝 Tracking will be added to: {public_url}")
                 
                 if public_url:
                     print(f"✅ PROGRESS: Report published successfully to possibleminds.in")
@@ -513,8 +550,11 @@ class DeepResearchEmailComposer:
             print(f"❌ Research error for {company_name}: {e}")
             return "", company_id
 
-    def _generate_report_url_with_tracking(self, company_id: int, company_name: str, recipient_email: str) -> str:
-        """Generate a public report URL with tracking parameters."""
+    def _generate_report_url_with_tracking(self, company_id: int, company_name: str, recipient_email: str, campaign_id: int = None) -> str:
+        """Generate a public report URL with tracking parameters for possibleminds.in."""
+        import time
+        import uuid
+        
         print(f"🔍 DEBUG: Generating report URL for company_id: {company_id}")
         
         if not company_id:
@@ -522,18 +562,25 @@ class DeepResearchEmailComposer:
             return ""
         
         try:
-            # Base public report URL
-            base_url = f"{BASE_URL}/api/public/reports/{company_id}"
+            # Base click tracking URL for possibleminds.in
+            base_url = "https://possibleminds.in/.netlify/functions/click-tracking"
             print(f"🔍 DEBUG: Base URL: {base_url}")
             
-            # Tracking parameters
+            # Generate company slug from company name
+            company_slug = company_name.lower().replace(' ', '-').replace('&', 'and') if company_name else f"company-{company_id}"
+            
+            # Tracking parameters matching possibleminds.in format
             tracking_params = {
+                'company_id': company_slug,
                 'utm_source': 'email',
                 'utm_medium': 'outreach',
-                'utm_campaign': 'deep_research',
+                'utm_campaign': f"campaign_{campaign_id}" if campaign_id else 'deep_research',
                 'utm_content': 'strategic_analysis',
-                'company': company_name.lower().replace(' ', '_'),
-                'recipient': recipient_email.split('@')[0] if recipient_email else 'unknown'
+                'company': company_name if company_name else 'unknown',
+                'recipient': recipient_email.split('@')[0] if recipient_email else 'unknown',
+                'campaign_id': campaign_id if campaign_id else 'unknown',
+                'tracking_id': f"tr_{uuid.uuid4().hex[:8]}",
+                'timestamp': int(time.time())
             }
             
             # Build URL with tracking parameters
@@ -546,7 +593,7 @@ class DeepResearchEmailComposer:
         except Exception as e:
             print(f"❌ Error generating report URL: {e}")
             # Return basic URL without tracking as fallback
-            fallback_url = f"{BASE_URL}/api/public/reports/{company_id}"
+            fallback_url = f"https://possibleminds.in/.netlify/functions/click-tracking?company_id={company_id}&utm_source=email"
             print(f"🔍 DEBUG: Using fallback URL: {fallback_url}")
             return fallback_url
 

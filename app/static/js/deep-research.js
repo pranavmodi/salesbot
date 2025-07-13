@@ -626,6 +626,24 @@
                     company_website: company.website_url || ''
                 };
 
+                // Log the raw content being published
+                console.log('📝 RAW CONTENT LOGGING: Publishing content to possibleminds.in (Frontend)');
+                console.log('📝 Company:', company.company_name);
+                console.log('📝 Website:', company.website_url || 'N/A');
+                console.log('📝 Content Length:', company.markdown_report ? company.markdown_report.length : 0, 'characters');
+                console.log('📝 RAW MARKDOWN CONTENT START:');
+                console.log('='.repeat(80));
+                console.log(company.markdown_report);
+                console.log('='.repeat(80));
+                console.log('📝 RAW MARKDOWN CONTENT END');
+                
+                // Log the complete JSON payload being sent
+                console.log('📝 COMPLETE JSON PAYLOAD START:');
+                console.log('-'.repeat(80));
+                console.log(JSON.stringify(payload, null, 2));
+                console.log('-'.repeat(80));
+                console.log('📝 COMPLETE JSON PAYLOAD END');
+
                 // Make the publish request
                 return fetch('https://possibleminds.in/.netlify/functions/publish-report', {
                     method: 'POST',
@@ -636,9 +654,19 @@
                 });
             })
             .then(response => {
+                // Log the complete response from possibleminds.in
+                console.log('📝 POSSIBLEMINDS.IN RESPONSE START:');
+                console.log('~'.repeat(80));
+                console.log('Status Code:', response.status);
+                console.log('Response Headers:', Object.fromEntries(response.headers.entries()));
+                console.log('Response OK:', response.ok);
+                console.log('~'.repeat(80));
+                console.log('📝 POSSIBLEMINDS.IN RESPONSE END');
+                
                 if (!response.ok) {
                     // Try to get response text for better error messages
                     return response.text().then(text => {
+                        console.log('📝 ERROR RESPONSE BODY:', text);
                         let errorMsg = `HTTP ${response.status}: ${response.statusText}`;
                         if (text) {
                             try {
@@ -654,6 +682,12 @@
                 return response.json();
             })
             .then(result => {
+                // Log the successful publishing details
+                console.log('📝 PUBLISHING SUCCESS LOG:');
+                console.log('📝 Full Response:', result);
+                console.log('📝 Published URL:', result.data?.publishUrl || result.publishUrl || 'Not found');
+                console.log('📝 Success Status:', result.success);
+                
                 if (result.success) {
                     const publishUrl = result.data?.publishUrl || result.publishUrl;
                     showPublishStatus('success', 'Report published successfully!', publishUrl, result);

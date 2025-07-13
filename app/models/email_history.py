@@ -170,4 +170,71 @@ class EmailHistory:
             'sent_via': self.sent_via,
             'email_type': self.email_type,
             'error_details': self.error_details
-        } 
+        }
+
+    @classmethod
+    def get_by_recipient_and_campaign(cls, recipient_email: str, campaign_id: int) -> Optional['EmailHistory']:
+        """Get email history by recipient and campaign for click tracking."""
+        engine = cls.get_db_engine()
+        if not engine:
+            return None
+        
+        try:
+            with engine.connect() as connection:
+                result = connection.execute(
+                    text("""
+                        SELECT id, date, "to", subject, body, status, campaign_id, sent_via, email_type, error_details 
+                        FROM email_history 
+                        WHERE "to" = :recipient_email AND campaign_id = :campaign_id
+                        ORDER BY date DESC
+                        LIMIT 1
+                    """),
+                    {'recipient_email': recipient_email, 'campaign_id': campaign_id}
+                )
+                row = result.fetchone()
+                if row:
+                    return cls(dict(row._mapping))
+                return None
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Error getting email history: {e}")
+            return None
+
+    @classmethod
+    def get_campaign_stats(cls, campaign_id: int) -> Dict:
+        """Get email statistics for a campaign."""
+        engine = cls.get_db_engine()
+        if not engine:
+            return {}
+        
+        try:
+            with engine.connect() as connection:
+                result = connection.execute(
+                    text("""
+                        SELECT 
+                            COUNT(*) as total_emails,
+                            COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent_emails,
+                            COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_emails,
+                            COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_emails,
+                            COUNT(DISTINCT "to") as unique_recipients,
+                            MIN(date) as first_sent,
+                            MAX(date) as last_sent
+                        FROM email_history 
+                        WHERE campaign_id = :campaign_id
+                    """),
+                    {'campaign_id': campaign_id}
+                )
+                row = result.fetchone()
+                if row:
+                    return {
+                        'total_emails': row.total_emails,
+                        'sent_emails': row.sent_emails,
+                        'failed_emails': row.failed_emails,
+                        'pending_emails': row.pending_emails,
+                        'unique_recipients': row.unique_recipients,
+                        'first_sent': row.first_sent.isoformat() if row.first_sent else None,
+                        'last_sent': row.last_sent.isoformat() if row.last_sent else None
+                    }
+                return {}
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Error getting campaign stats: {e}")
+            return {}

@@ -283,7 +283,8 @@ def _compose_fallback_email(campaign: Campaign, contact: Dict, settings: Dict) -
         email_content = composer.compose_email(
             lead=lead_data, 
             calendar_url=calendar_url, 
-            extra_context=f"This email is part of the '{campaign.name}' campaign."
+            extra_context=f"This email is part of the '{campaign.name}' campaign.",
+            campaign_id=campaign.id
         )
         
         return email_content

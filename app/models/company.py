@@ -509,4 +509,41 @@ class Company:
             'research_error': self.research_error,
             'created_at': self.created_at.isoformat() if isinstance(self.created_at, datetime) else str(self.created_at) if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if isinstance(self.updated_at, datetime) else str(self.updated_at) if self.updated_at else None
-        } 
+        }
+
+    @classmethod
+    def search_by_name(cls, company_name: str) -> List[Dict]:
+        """Search companies by name for click tracking."""
+        engine = cls._get_db_engine()
+        if not engine:
+            return []
+        
+        try:
+            with engine.connect() as conn:
+                query = text("""
+                    SELECT id, company_name, website_url, company_research, markdown_report
+                    FROM companies 
+                    WHERE LOWER(company_name) LIKE LOWER(:company_name)
+                    ORDER BY company_name
+                """)
+                
+                result = conn.execute(query, {'company_name': f'%{company_name}%'})
+                
+                companies = []
+                for row in result:
+                    companies.append({
+                        'id': row.id,
+                        'company_name': row.company_name,
+                        'website_url': row.website_url,
+                        'company_research': row.company_research,
+                        'markdown_report': row.markdown_report
+                    })
+                
+                return companies
+                
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Error searching companies by name: {e}")
+            return []
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error searching companies by name: {e}")
+            return []

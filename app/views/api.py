@@ -3000,3 +3000,222 @@ def get_companies_list():
             'success': False,
             'message': 'Failed to load companies'
         }), 500
+
+@bp.route('/webhook/report-click', methods=['POST'])
+def receive_report_click():
+    """Webhook endpoint to receive click tracking data from possibleminds.in."""
+    try:
+        from app.models.report_click import ReportClick
+        from app.models.company import Company
+        from app.models.email_history import EmailHistory
+        import re
+        
+        # Get click data from webhook
+        click_data = request.get_json()
+        
+        if not click_data:
+            return jsonify({
+                'success': False,
+                'message': 'No click data provided'
+            }), 400
+        
+        current_app.logger.info(f"Received click tracking data: {click_data}")
+        
+        # Parse and validate click data
+        processed_data = {}
+        
+        # Extract basic UTM parameters
+        processed_data['utm_source'] = click_data.get('utm_source')
+        processed_data['utm_medium'] = click_data.get('utm_medium')
+        processed_data['utm_campaign'] = click_data.get('utm_campaign')
+        processed_data['utm_content'] = click_data.get('utm_content')
+        processed_data['utm_term'] = click_data.get('utm_term')
+        
+        # Extract tracking information
+        processed_data['tracking_id'] = click_data.get('tracking_id')
+        processed_data['recipient_email'] = click_data.get('recipient_email')
+        processed_data['company_slug'] = click_data.get('company_slug')
+        
+        # Extract campaign_id from utm_campaign or direct field
+        campaign_id = click_data.get('campaign_id')
+        if not campaign_id and processed_data['utm_campaign']:
+            # Try to extract campaign_id from utm_campaign format "campaign_123"
+            match = re.search(r'campaign_(\d+)', processed_data['utm_campaign'])
+            if match:
+                campaign_id = int(match.group(1))
+        
+        processed_data['campaign_id'] = campaign_id
+        
+        # Try to find company_id from company_slug
+        company_id = None
+        if processed_data['company_slug']:
+            # Try to find company by slug/name
+            companies = Company.search_by_name(processed_data['company_slug'].replace('-', ' '))
+            if companies:
+                company_id = companies[0]['id']
+        
+        processed_data['company_id'] = company_id
+        
+        # Find email_history_id by matching recipient and campaign
+        email_history_id = None
+        if processed_data['recipient_email'] and campaign_id:
+            email_history = EmailHistory.get_by_recipient_and_campaign(
+                processed_data['recipient_email'], 
+                campaign_id
+            )
+            if email_history:
+                email_history_id = email_history.id
+        
+        processed_data['email_history_id'] = email_history_id
+        
+        # Extract visitor metadata
+        processed_data['ip_address'] = click_data.get('ip_address')
+        processed_data['user_agent'] = click_data.get('user_agent')
+        processed_data['referer'] = click_data.get('referer')
+        processed_data['session_id'] = click_data.get('session_id')
+        
+        # Extract device information
+        processed_data['device_type'] = click_data.get('device_type')
+        processed_data['browser'] = click_data.get('browser')
+        processed_data['operating_system'] = click_data.get('operating_system')
+        processed_data['country'] = click_data.get('country')
+        processed_data['city'] = click_data.get('city')
+        
+        # Set click timestamp
+        processed_data['click_timestamp'] = datetime.now()
+        
+        # Store any additional data
+        processed_data['custom_data'] = {
+            'original_data': click_data,
+            'processed_at': datetime.now().isoformat()
+        }
+        
+        # Save click to database
+        click_id = ReportClick.save_click(processed_data)
+        
+        if click_id:
+            current_app.logger.info(f"Successfully saved click tracking data with ID: {click_id}")
+            
+            # Log important click events
+            if company_id and campaign_id:
+                current_app.logger.info(f"🎯 REPORT CLICK: Company {company_id}, Campaign {campaign_id}, Recipient {processed_data['recipient_email']}")
+            
+            return jsonify({
+                'success': True,
+                'click_id': click_id,
+                'message': 'Click tracking data saved successfully'
+            })
+        else:
+            current_app.logger.error("Failed to save click tracking data")
+            return jsonify({
+                'success': False,
+                'message': 'Failed to save click tracking data'
+            }), 500
+        
+    except Exception as e:
+        current_app.logger.error(f"Error processing click tracking webhook: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error processing click data: {str(e)}'
+        }), 500
+
+@bp.route('/campaigns/<int:campaign_id>/clicks', methods=['GET'])
+def get_campaign_clicks(campaign_id):
+    """Get click tracking data for a specific campaign."""
+    try:
+        from app.models.report_click import ReportClick
+        from app.models.campaign import Campaign
+        
+        # Verify campaign exists
+        campaign = Campaign.get_by_id(campaign_id)
+        if not campaign:
+            return jsonify({
+                'success': False,
+                'message': f'Campaign {campaign_id} not found'
+            }), 404
+        
+        # Get clicks for this campaign
+        clicks = ReportClick.get_campaign_clicks(campaign_id)
+        
+        # Get click analytics
+        analytics = ReportClick.get_click_analytics(campaign_id)
+        
+        return jsonify({
+            'success': True,
+            'campaign_id': campaign_id,
+            'campaign_name': campaign.name,
+            'clicks': clicks,
+            'analytics': analytics
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting campaign clicks for {campaign_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error getting campaign clicks: {str(e)}'
+        }), 500
+
+@bp.route('/campaigns/<int:campaign_id>/analytics', methods=['GET'])
+def get_campaign_analytics(campaign_id):
+    """Get comprehensive analytics for a campaign including emails and clicks."""
+    try:
+        from app.models.campaign import Campaign
+        from app.models.email_history import EmailHistory
+        from app.models.report_click import ReportClick
+        
+        # Verify campaign exists
+        campaign = Campaign.get_by_id(campaign_id)
+        if not campaign:
+            return jsonify({
+                'success': False,
+                'message': f'Campaign {campaign_id} not found'
+            }), 404
+        
+        # Get date range from query parameters
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        date_range = {}
+        if start_date:
+            date_range['start_date'] = start_date
+        if end_date:
+            date_range['end_date'] = end_date
+        
+        # Get email analytics
+        email_stats = EmailHistory.get_campaign_stats(campaign_id)
+        
+        # Get click analytics
+        click_analytics = ReportClick.get_click_analytics(campaign_id, date_range)
+        
+        # Calculate additional metrics
+        total_emails = email_stats.get('total_emails', 0)
+        total_clicks = click_analytics.get('total_clicks', 0)
+        click_rate = (total_clicks / total_emails * 100) if total_emails > 0 else 0
+        
+        # Get campaign contacts for funnel analysis
+        campaign_contacts = Campaign.get_campaign_contacts(campaign_id)
+        
+        return jsonify({
+            'success': True,
+            'campaign_id': campaign_id,
+            'campaign_name': campaign.name,
+            'campaign_status': campaign.status,
+            'analytics': {
+                'email_stats': email_stats,
+                'click_analytics': click_analytics,
+                'performance_metrics': {
+                    'total_contacts': len(campaign_contacts),
+                    'total_emails': total_emails,
+                    'total_clicks': total_clicks,
+                    'click_rate': round(click_rate, 2),
+                    'unique_clickers': click_analytics.get('unique_recipients', 0),
+                    'companies_engaged': click_analytics.get('unique_companies', 0)
+                }
+            }
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting campaign analytics for {campaign_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error getting campaign analytics: {str(e)}'
+        }), 500
