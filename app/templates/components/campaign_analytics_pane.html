@@ -376,8 +376,8 @@ function loadAnalyticsData() {
             $('#analyticsLoading').hide();
             
             if (data.success) {
-                console.log('=== ANALYTICS FRONTEND === Analytics data received:', data.analytics);
-                analyticsData = data.analytics;
+                console.log('=== ANALYTICS FRONTEND === Analytics data received:', data);
+                analyticsData = data;  // Store the full response object, not just data.analytics
                 updateAnalyticsDisplay();
             } else {
                 console.error('=== ANALYTICS FRONTEND === API returned error:', data.message);
@@ -481,7 +481,7 @@ function updateEngagementFunnelChart() {
 
 function updateClicksTimeChart() {
     const ctx = document.getElementById('clicksTimeChart').getContext('2d');
-    const clicksData = analyticsData.click_analytics.clicks_by_date || [];
+    const clicksData = analyticsData.analytics.clicks_by_date || [];
     
     if (charts.timeChart) {
         charts.timeChart.destroy();

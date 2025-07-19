@@ -3122,7 +3122,7 @@ def receive_report_click():
 
 @bp.route('/campaigns/<int:campaign_id>/clicks', methods=['GET'])
 def get_campaign_clicks(campaign_id):
-    """Get click tracking data for a specific campaign from GA4."""
+    """Get click tracking data using only GA4 custom parameters from possibleminds.in (no local database fallback)."""
     try:
         from app.models.campaign import Campaign
         
@@ -3137,58 +3137,76 @@ def get_campaign_clicks(campaign_id):
         # Get number of days to look back (default: 30)
         days = int(request.args.get('days', 30))
         
-        # Create GA4 service and get click data
+        # Get click data from GA4 custom parameters ONLY
+        current_app.logger.info(f"=== CLICKS API === Getting GA4 custom parameters clicks for campaign {campaign_id}")
         try:
             ga4_service = create_ga4_service()
+            current_app.logger.info("=== CLICKS API === GA4 custom parameters service created successfully")
             
-            # Get detailed clicks from GA4
-            clicks = ga4_service.get_detailed_clicks(str(campaign_id), days)
+            # Get detailed clicks using custom parameters
+            ga4_clicks = ga4_service.get_detailed_clicks(str(campaign_id), days)
+            current_app.logger.info(f"=== CLICKS API === GA4 custom parameters returned {len(ga4_clicks)} click records")
             
             # Get campaign analytics for summary
             analytics = ga4_service.get_campaign_analytics(str(campaign_id), days)
+            current_app.logger.info(f"=== CLICKS API === Analytics summary received")
+            
+            # Log sample of click data for verification
+            if ga4_clicks:
+                sample_click = ga4_clicks[0]
+                current_app.logger.info(f"=== CLICKS API === Sample click data:")
+                current_app.logger.info(f"=== CLICKS API === Company: {sample_click.get('company_name', 'N/A')}")
+                current_app.logger.info(f"=== CLICKS API === Recipient: {sample_click.get('recipient_email', 'N/A')}")
+                current_app.logger.info(f"=== CLICKS API === Device: {sample_click.get('device_type', 'N/A')}")
+                current_app.logger.info(f"=== CLICKS API === IP: {sample_click.get('visitor_ip', 'N/A')}")
+                current_app.logger.info(f"=== CLICKS API === Referrer: {sample_click.get('referrer', 'N/A')}")
             
             return jsonify({
                 'success': True,
                 'campaign_id': campaign_id,
                 'campaign_name': campaign.name,
-                'clicks': clicks,
+                'clicks': ga4_clicks,
                 'analytics': analytics,
-                'data_source': 'GA4',
-                'days_back': days
+                'data_source': analytics.get('data_source', 'ga4_custom_dimensions'),
+                'days_back': days,
+                'total_clicks': len(ga4_clicks)
             })
             
         except FileNotFoundError as e:
-            # Fallback to local database if GA4 credentials not found
-            current_app.logger.warning(f"GA4 credentials not found: {str(e)}, falling back to local database")
-            from app.models.report_click import ReportClick
-            
-            clicks = ReportClick.get_campaign_clicks(campaign_id)
-            analytics = ReportClick.get_click_analytics(campaign_id)
-            
+            current_app.logger.error(f"=== API GA4 ENHANCED CLICKS === GA4 credentials not found: {str(e)}")
             return jsonify({
-                'success': True,
+                'success': False,
+                'message': 'GA4 credentials not found. Please ensure the service account file is properly configured.',
                 'campaign_id': campaign_id,
                 'campaign_name': campaign.name,
-                'clicks': clicks,
-                'analytics': analytics,
-                'data_source': 'Local Database'
-            })
+                'data_source': 'GA4 Enhanced (unavailable)'
+            }), 503
+            
         except Exception as e:
-            # Fallback to local database for any GA4 errors (permissions, invalid dimensions, etc.)
-            current_app.logger.warning(f"GA4 error: {str(e)}, falling back to local database")
-            from app.models.report_click import ReportClick
+            current_app.logger.error(f"=== API GA4 ENHANCED CLICKS === GA4 service error: {str(e)}")
+            current_app.logger.error(f"=== API GA4 ENHANCED CLICKS === Exception type: {type(e).__name__}")
+            import traceback
+            current_app.logger.error(f"=== API GA4 ENHANCED CLICKS === Full traceback: {traceback.format_exc()}")
             
-            clicks = ReportClick.get_campaign_clicks(campaign_id)
-            analytics = ReportClick.get_click_analytics(campaign_id)
+            # Check for specific error types for better error messages
+            error_message = "Unknown GA4 error"
+            if 'grpc' in str(type(e)).lower():
+                error_message = "GA4 API connection error"
+            elif 'permission' in str(e).lower() or 'access' in str(e).lower():
+                error_message = "GA4 API permission error - check service account permissions"
+            elif 'quota' in str(e).lower() or 'limit' in str(e).lower():
+                error_message = "GA4 API quota exceeded - try again later"
+            elif 'dimension' in str(e).lower() or 'metric' in str(e).lower():
+                error_message = "GA4 dimension/metric compatibility error"
             
             return jsonify({
-                'success': True,
+                'success': False,
+                'message': f'GA4 service error: {error_message}',
                 'campaign_id': campaign_id,
                 'campaign_name': campaign.name,
-                'clicks': clicks,
-                'analytics': analytics,
-                'data_source': 'Local Database (GA4 Error)'
-            })
+                'data_source': 'GA4 Enhanced (error)',
+                'error_details': str(e)
+            }), 500
         
     except Exception as e:
         current_app.logger.error(f"Error getting campaign clicks for {campaign_id}: {str(e)}")
@@ -3199,15 +3217,14 @@ def get_campaign_clicks(campaign_id):
 
 @bp.route('/campaigns/<int:campaign_id>/analytics', methods=['GET'])
 def get_campaign_analytics(campaign_id):
-    """Get comprehensive analytics for a campaign including emails and clicks from GA4."""
-    current_app.logger.info(f"=== ANALYTICS API REQUEST === Campaign ID: {campaign_id}")
+    """Get campaign analytics using only GA4 custom parameters from possibleminds.in (no local database fallback)."""
+    current_app.logger.info(f"=== ANALYTICS API === Campaign ID: {campaign_id}")
     
     try:
         from app.models.campaign import Campaign
         from app.models.email_history import EmailHistory
         
         # Verify campaign exists
-        current_app.logger.info(f"Checking if campaign {campaign_id} exists")
         campaign = Campaign.get_by_id(campaign_id)
         if not campaign:
             current_app.logger.error(f"Campaign {campaign_id} not found in database")
@@ -3216,185 +3233,336 @@ def get_campaign_analytics(campaign_id):
                 'message': f'Campaign {campaign_id} not found'
             }), 404
         
-        current_app.logger.info(f"Found campaign: {campaign.name} (status: {campaign.status})")
-        
         # Get number of days to look back (default: 30)
         days = int(request.args.get('days', 30))
-        current_app.logger.info(f"Looking back {days} days for analytics")
         
-        # Get email analytics (still from local database)
-        current_app.logger.info("Getting email stats from local database")
-        email_stats = EmailHistory.get_campaign_stats(campaign_id)
-        current_app.logger.info(f"Email stats: {email_stats}")
-        
-        # Try to get click analytics from GA4
-        current_app.logger.info("=== API GA4 === Attempting to get click analytics from GA4")
+        # Get analytics from GA4 custom parameters ONLY
+        current_app.logger.info(f"=== ANALYTICS API === Getting GA4 custom parameters analytics for {days} days")
         try:
-            current_app.logger.info("=== API GA4 === Creating GA4 service")
             ga4_service = create_ga4_service()
-            current_app.logger.info("=== API GA4 === GA4 service created successfully, making analytics request")
-            current_app.logger.info(f"=== API GA4 === Requesting analytics for campaign {campaign_id} with {days} days lookback")
-            click_analytics = ga4_service.get_campaign_analytics(str(campaign_id), days)
-            current_app.logger.info(f"=== API GA4 === GA4 analytics response received with {click_analytics.get('total_clicks', 0)} clicks")
+            current_app.logger.info("=== ANALYTICS API === GA4 custom parameters service created successfully")
             
-            # GA4 now uses only compatible dimensions
-            data_source = 'GA4 (Compatible Dimensions)'
-            current_app.logger.info(f"=== API GA4 === Data source determined: {data_source}")
+            # Use custom parameters method
+            analytics_data = ga4_service.get_campaign_analytics(str(campaign_id), days)
+            current_app.logger.info(f"=== ANALYTICS API === GA4 custom parameters returned data: {analytics_data}")
             
-            # Transform GA4 data to match expected format
-            ga4_click_analytics = {
-                'total_clicks': click_analytics.get('total_clicks', 0),
-                'unique_recipients': click_analytics.get('unique_recipients', 0),
-                'unique_companies': click_analytics.get('unique_companies', 0),
-                'clicks_by_date': click_analytics.get('clicks_by_date', {}),
-                'device_breakdown': click_analytics.get('device_breakdown', {}),
-                'location_data': click_analytics.get('location_data', []),
-                'click_rate': click_analytics.get('click_rate', '0%')
-            }
+            # Get email statistics from database for context
+            try:
+                email_stats = EmailHistory.get_campaign_stats(campaign_id)
+                current_app.logger.info(f"=== ANALYTICS API === Email stats: {email_stats}")
+            except Exception as email_error:
+                current_app.logger.error(f"=== ANALYTICS API === Email stats error: {str(email_error)}")
+                email_stats = {'sent_emails': 0, 'total_emails': 0, 'unique_recipients': 0}
+                current_app.logger.info(f"=== ANALYTICS API === Using default email stats: {email_stats}")
             
-        except FileNotFoundError as e:
-            # Fallback to local database if GA4 credentials not found
-            current_app.logger.warning(f"=== API GA4 === GA4 credentials not found: {str(e)}, falling back to local database")
-            from app.models.report_click import ReportClick
-            
-            # Get date range from query parameters for local fallback
-            start_date = request.args.get('start_date')
-            end_date = request.args.get('end_date')
-            date_range = {}
-            if start_date:
-                date_range['start_date'] = start_date
-            if end_date:
-                date_range['end_date'] = end_date
-                
-            current_app.logger.info(f"=== API GA4 === Using local database with date range: {date_range}")
-            ga4_click_analytics = ReportClick.get_click_analytics(campaign_id, date_range)
-            current_app.logger.info(f"=== API GA4 === Local database analytics: {ga4_click_analytics}")
-            data_source = 'Local Database'
-        except Exception as e:
-            current_app.logger.error(f"=== API GA4 === Unexpected error with GA4 service: {str(e)}")
-            current_app.logger.error(f"=== API GA4 === Exception type: {type(e).__name__}")
-            current_app.logger.error(f"=== API GA4 === Exception module: {type(e).__module__}")
-            import traceback
-            current_app.logger.error(f"=== API GA4 === Full traceback: {traceback.format_exc()}")
-            
-            # Check for specific error types
-            if 'grpc' in str(type(e)).lower():
-                current_app.logger.error(f"=== API GA4 === gRPC error detected")
-                if hasattr(e, 'code'):
-                    try:
-                        current_app.logger.error(f"=== API GA4 === gRPC status code: {e.code}")
-                    except:
-                        current_app.logger.error(f"=== API GA4 === gRPC status code: {getattr(e, 'code', 'unknown')}")
-                if hasattr(e, 'details'):
-                    try:
-                        current_app.logger.error(f"=== API GA4 === gRPC details: {e.details}")
-                    except:
-                        current_app.logger.error(f"=== API GA4 === gRPC details: {getattr(e, 'details', 'unknown')}")
-            elif 'permission' in str(e).lower() or 'access' in str(e).lower():
-                current_app.logger.error(f"=== API GA4 === Permission/access error detected")
-            elif 'quota' in str(e).lower() or 'limit' in str(e).lower():
-                current_app.logger.error(f"=== API GA4 === Quota/limit error detected")
-            elif 'dimension' in str(e).lower() or 'metric' in str(e).lower():
-                current_app.logger.error(f"=== API GA4 === Dimension/metric error detected")
-                
-            # Still fallback to local database
-            from app.models.report_click import ReportClick
-            ga4_click_analytics = ReportClick.get_click_analytics(campaign_id)
-            data_source = 'Local Database (GA4 Error)'
-        
-        # Calculate additional metrics
-        total_emails = email_stats.get('total_emails', 0)
-        total_clicks = ga4_click_analytics.get('total_clicks', 0)
-        click_rate = (total_clicks / total_emails * 100) if total_emails > 0 else 0
-        
-        # Get campaign contacts for funnel analysis
-        current_app.logger.info("Getting campaign contacts for funnel analysis")
-        campaign_contacts = Campaign.get_campaign_contacts(campaign_id)
-        current_app.logger.info(f"Found {len(campaign_contacts)} campaign contacts")
-        
-        # Prepare final response
-        response_data = {
-            'success': True,
-            'campaign_id': campaign_id,
-            'campaign_name': campaign.name,
-            'campaign_status': campaign.status,
-            'data_source': data_source,
-            'days_back': days,
-            'analytics': {
-                'email_stats': email_stats,
-                'click_analytics': ga4_click_analytics,
+            # Combine GA4 custom parameters data with email stats
+            result = {
+                'success': True,
+                'campaign_id': campaign_id,
+                'campaign_name': campaign.name,
+                'analytics': {
+                    'total_clicks': analytics_data.get('total_clicks', 0),
+                    'unique_users': analytics_data.get('unique_users', 0),
+                    'unique_companies': analytics_data.get('unique_companies', 0),
+                    'unique_recipients': analytics_data.get('unique_recipients', 0),
+                                         'data_source': analytics_data.get('data_source', 'ga4_custom_dimensions'),
+                    'companies_clicked': analytics_data.get('companies_list', []),
+                    'recipients_clicked': analytics_data.get('recipients_list', [])
+                },
+                'email_stats': {
+                    'total_sent': email_stats.get('sent_emails', 0),
+                    'total_delivered': email_stats.get('sent_emails', 0),  # Use sent as proxy for delivered
+                    'total_opened': 0,  # Not available in current email stats
+                    'total_clicked': 0,  # Not available in current email stats
+                    'total_replied': 0,  # Not available in current email stats
+                    'delivery_rate': '100%' if email_stats.get('sent_emails', 0) > 0 else '0%',
+                    'open_rate': '0%',
+                    'click_rate': '0%',
+                    'reply_rate': '0%'
+                },
                 'performance_metrics': {
-                    'total_contacts': len(campaign_contacts),
-                    'total_emails': total_emails,
-                    'total_clicks': total_clicks,
-                    'click_rate': round(click_rate, 2),
-                    'unique_clickers': ga4_click_analytics.get('unique_recipients', 0),
-                    'companies_engaged': ga4_click_analytics.get('unique_companies', 0)
+                    'total_contacts': email_stats.get('unique_recipients', 0),
+                    'total_emails': email_stats.get('total_emails', 0),
+                    'total_clicks': analytics_data.get('total_clicks', 0),
+                    'click_rate': f"{analytics_data.get('total_clicks', 0)}%" if analytics_data.get('total_clicks', 0) > 0 else '0%',
+                    'unique_clickers': analytics_data.get('unique_recipients', 0),
+                    'companies_engaged': analytics_data.get('unique_companies', 0),
+                    'active_users': analytics_data.get('unique_users', 0)
                 }
             }
-        }
-        
-        current_app.logger.info(f"=== ANALYTICS API RESPONSE === Success: {data_source}")
-        current_app.logger.info(f"Performance metrics: emails={total_emails}, clicks={total_clicks}, rate={round(click_rate, 2)}%")
-        
-        return jsonify(response_data)
+            
+            current_app.logger.info(f"=== ANALYTICS API === Final result keys: {list(result.keys())}")
+            current_app.logger.info(f"=== ANALYTICS API === Performance metrics: {result.get('performance_metrics', 'MISSING!')}")
+            current_app.logger.info(f"=== ANALYTICS API === Full result: {result}")
+            return jsonify(result)
+            
+        except Exception as ga4_error:
+            current_app.logger.error(f"=== ANALYTICS API === GA4 custom parameters error: {str(ga4_error)}")
+            
+            # Get email stats for error response structure
+            try:
+                email_stats = EmailHistory.get_campaign_stats(campaign_id)
+            except:
+                email_stats = {'sent_emails': 0, 'total_emails': 0, 'unique_recipients': 0}
+            
+            # Return error response with consistent structure including performance_metrics
+            return jsonify({
+                'success': False,
+                'message': 'GA4 analytics service error',
+                'error': str(ga4_error),
+                'campaign_id': campaign_id,
+                'campaign_name': campaign.name,
+                'analytics': {
+                    'total_clicks': 0,
+                    'unique_users': 0,
+                    'unique_companies': 0,
+                    'unique_recipients': 0,
+                    'data_source': 'ga4_custom_dimensions_error',
+                    'companies_clicked': [],
+                    'recipients_clicked': []
+                },
+                'email_stats': {
+                    'total_sent': email_stats.get('sent_emails', 0),
+                    'total_delivered': email_stats.get('sent_emails', 0),
+                    'total_opened': 0,
+                    'total_clicked': 0,
+                    'total_replied': 0,
+                    'delivery_rate': '100%' if email_stats.get('sent_emails', 0) > 0 else '0%',
+                    'open_rate': '0%',
+                    'click_rate': '0%',
+                    'reply_rate': '0%'
+                },
+                'performance_metrics': {
+                    'total_contacts': email_stats.get('unique_recipients', 0),
+                    'total_emails': email_stats.get('total_emails', 0),
+                    'total_clicks': 0,
+                    'click_rate': '0%',
+                    'unique_clickers': 0,
+                    'companies_engaged': 0,
+                    'active_users': 0
+                }
+            }), 500
         
     except Exception as e:
-        current_app.logger.error(f"Error getting campaign analytics for {campaign_id}: {str(e)}")
+        current_app.logger.error(f"=== ANALYTICS API === Unexpected error: {str(e)}")
         return jsonify({
             'success': False,
-            'message': f'Error getting campaign analytics: {str(e)}'
+            'message': 'Internal server error',
+            'error': str(e),
+            'analytics': {
+                'total_clicks': 0,
+                'unique_users': 0,
+                'unique_companies': 0,
+                'unique_recipients': 0,
+                'data_source': 'error',
+                'companies_clicked': [],
+                'recipients_clicked': []
+            },
+            'email_stats': {
+                'total_sent': 0,
+                'total_delivered': 0,
+                'total_opened': 0,
+                'total_clicked': 0,
+                'total_replied': 0,
+                'delivery_rate': '0%',
+                'open_rate': '0%',
+                'click_rate': '0%',
+                'reply_rate': '0%'
+            },
+            'performance_metrics': {
+                'total_contacts': 0,
+                'total_emails': 0,
+                'total_clicks': 0,
+                'click_rate': '0%',
+                'unique_clickers': 0,
+                'companies_engaged': 0,
+                'active_users': 0
+            }
         }), 500
 
 @bp.route('/campaigns/analytics/all', methods=['GET'])
 def get_all_campaigns_analytics():
-    """Get analytics for all campaigns from GA4."""
+    """Get analytics for all campaigns using GA4 custom parameters from possibleminds.in."""
     try:
         # Get number of days to look back (default: 30)
         days = int(request.args.get('days', 30))
         
-        # Try to get analytics from GA4
+        # Since custom parameters are campaign-specific, we need to get all campaigns from database
+        # and query GA4 for each one individually
+        current_app.logger.info(f"=== ALL CAMPAIGNS API === Getting analytics for all campaigns using custom parameters for {days} days")
+        
+        from app.models.campaign import Campaign
+        all_campaigns = Campaign.get_all_campaigns()
+        current_app.logger.info(f"=== ALL CAMPAIGNS API === Found {len(all_campaigns)} campaigns in database")
+        
         try:
             ga4_service = create_ga4_service()
-            all_campaigns_data = ga4_service.get_all_campaigns_analytics(days)
-            data_source = 'GA4'
+            current_app.logger.info("=== ALL CAMPAIGNS API === GA4 custom parameters service created successfully")
             
-            # Enhance with campaign names from database
-            from app.models.campaign import Campaign
-            for campaign_data in all_campaigns_data:
-                campaign_id = campaign_data.get('campaign_id')
-                if campaign_id and str(campaign_id).isdigit():
-                    campaign = Campaign.get_by_id(int(campaign_id))
-                    if campaign:
-                        campaign_data['campaign_name'] = campaign.name
-                        campaign_data['campaign_status'] = campaign.status
-                    else:
-                        campaign_data['campaign_name'] = f'Campaign {campaign_id}'
-                        campaign_data['campaign_status'] = 'unknown'
-                else:
-                    campaign_data['campaign_name'] = f'Campaign {campaign_id}'
-                    campaign_data['campaign_status'] = 'unknown'
+            campaigns_data = []
+            
+            for campaign in all_campaigns:
+                try:
+                    # Get analytics for each campaign using custom parameters
+                    analytics_data = ga4_service.get_campaign_analytics(str(campaign.id), days)
+                    
+                    campaign_summary = {
+                        'campaign_id': campaign.id,
+                        'campaign_name': campaign.name,
+                        'campaign_status': campaign.status,
+                        'total_clicks': analytics_data.get('total_clicks', 0),
+                        'unique_users': analytics_data.get('unique_users', 0),
+                        'unique_companies': analytics_data.get('unique_companies', 0),
+                        'unique_recipients': analytics_data.get('unique_recipients', 0),
+                        'data_source': analytics_data.get('data_source', 'ga4_custom_dimensions')
+                    }
+                    
+                    campaigns_data.append(campaign_summary)
+                    current_app.logger.info(f"=== ALL CAMPAIGNS API === Campaign {campaign.id} ({campaign.name}): {analytics_data.get('total_clicks', 0)} clicks")
+                    
+                except Exception as campaign_error:
+                    # If one campaign fails, log it but continue with others
+                    current_app.logger.error(f"=== ALL CAMPAIGNS API === Error getting analytics for campaign {campaign.id}: {str(campaign_error)}")
+                    campaigns_data.append({
+                        'campaign_id': campaign.id,
+                        'campaign_name': campaign.name,
+                        'campaign_status': campaign.status,
+                        'total_clicks': 0,
+                        'unique_users': 0,
+                        'unique_companies': 0,
+                        'unique_recipients': 0,
+                        'data_source': 'ga4_custom_dimensions_error',
+                        'error': str(campaign_error)
+                    })
+            
+            current_app.logger.info(f"=== ALL CAMPAIGNS API === Successfully processed {len(campaigns_data)} campaigns")
             
             return jsonify({
                 'success': True,
-                'data_source': data_source,
+                'data_source': 'ga4_custom_dimensions',
                 'days_back': days,
-                'campaigns': all_campaigns_data,
-                'total_campaigns': len(all_campaigns_data)
+                'campaigns': campaigns_data,
+                'total_campaigns': len(campaigns_data)
             })
             
-        except FileNotFoundError:
-            # Fallback message if GA4 credentials not found
-            current_app.logger.warning("GA4 credentials not found, cannot provide global analytics")
+        except Exception as e:
+            current_app.logger.error(f"=== ALL CAMPAIGNS API === GA4 service error: {str(e)}")
             return jsonify({
                 'success': False,
-                'message': 'GA4 credentials not found. Please ensure the service account file is properly configured.',
-                'data_source': 'GA4 (unavailable)'
-            }), 503
+                'message': 'GA4 custom dimensions service error',
+                'data_source': 'ga4_custom_dimensions_error',
+                'error': str(e)
+            }), 500
         
     except Exception as e:
         current_app.logger.error(f"Error getting all campaigns analytics: {str(e)}")
         return jsonify({
             'success': False,
             'message': f'Error getting campaigns analytics: {str(e)}'
+        }), 500
+
+@bp.route('/campaigns/analytics/ga4-diagnostic', methods=['GET'])
+def ga4_diagnostic():
+    """Diagnostic endpoint to test GA4 custom dimensions without campaign filtering."""
+    try:
+        # Get number of days to look back (default: 30)
+        days = int(request.args.get('days', 30))
+        
+        current_app.logger.info(f"=== DIAGNOSTIC API === Testing GA4 custom dimensions for ANY report_click events")
+        
+        try:
+            ga4_service = create_ga4_service()
+            current_app.logger.info("=== DIAGNOSTIC API === GA4 service created successfully")
+            
+            # Test GA4 without campaign filtering
+            diagnostic_data = ga4_service.test_ga4_custom_dimensions_no_filter(days)
+            current_app.logger.info(f"=== DIAGNOSTIC API === Diagnostic results: {diagnostic_data}")
+            
+            return jsonify({
+                'success': True,
+                'diagnostic_data': diagnostic_data,
+                'days_tested': days,
+                'explanation': {
+                    'purpose': 'Test if GA4 custom dimensions are working without campaign filtering',
+                    'what_we_are_looking_for': [
+                        'Any report_click events in GA4',
+                        'Company names from custom dimensions',
+                        'Recipient IDs from custom dimensions', 
+                        'Campaign IDs from custom dimensions'
+                    ],
+                    'next_steps': {
+                        'if_data_found': 'Campaign filtering may be the issue - check campaign ID values',
+                        'if_no_data': 'Custom dimensions may need time to populate or no clicks exist',
+                        'if_error': 'GA4 API or credentials issue'
+                    }
+                }
+            })
+            
+        except Exception as e:
+            current_app.logger.error(f"=== DIAGNOSTIC API === GA4 service error: {str(e)}")
+            return jsonify({
+                'success': False,
+                'message': 'GA4 diagnostic service error',
+                'error': str(e)
+            }), 500
+        
+    except Exception as e:
+        current_app.logger.error(f"=== DIAGNOSTIC API === Unexpected error: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Diagnostic endpoint error',
+            'error': str(e)
+        }), 500
+
+@bp.route('/campaigns/analytics/ga4-raw-diagnostic', methods=['GET'])
+def ga4_raw_diagnostic():
+    """Enhanced diagnostic to show raw GA4 data including (not set) values."""
+    try:
+        # Get number of days to look back (default: 30)
+        days = int(request.args.get('days', 30))
+        
+        current_app.logger.info(f"=== RAW DIAGNOSTIC API === Testing GA4 raw custom dimensions data")
+        
+        try:
+            ga4_service = create_ga4_service()
+            current_app.logger.info("=== RAW DIAGNOSTIC API === GA4 service created successfully")
+            
+            # Test GA4 with raw data including (not set) values
+            raw_data = ga4_service.test_ga4_custom_dimensions_raw_data(days)
+            current_app.logger.info(f"=== RAW DIAGNOSTIC API === Raw diagnostic results: {raw_data}")
+            
+            return jsonify({
+                'success': True,
+                'raw_diagnostic_data': raw_data,
+                'days_tested': days,
+                'analysis': {
+                    'purpose': 'Show ALL raw GA4 data including (not set) values to understand custom dimension status',
+                    'what_this_shows': [
+                        'Exact values GA4 returns for each custom dimension',
+                        'Whether custom dimensions return (not set) or actual data',
+                        'Total click counts and row details',
+                        'Which custom dimensions are working vs not working'
+                    ],
+                    'interpretation': {
+                        'if_all_not_set': 'Custom dimensions not populating - may need time or reconfiguration',
+                        'if_some_set': 'Custom dimensions partially working - possibleminds.in may be sending incomplete data',
+                        'if_all_set': 'Custom dimensions working perfectly - campaign filtering was the issue'
+                    }
+                }
+            })
+            
+        except Exception as e:
+            current_app.logger.error(f"=== RAW DIAGNOSTIC API === GA4 service error: {str(e)}")
+            return jsonify({
+                'success': False,
+                'message': 'GA4 raw diagnostic service error',
+                'error': str(e)
+            }), 500
+        
+    except Exception as e:
+        current_app.logger.error(f"=== RAW DIAGNOSTIC API === Unexpected error: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Raw diagnostic endpoint error',
+            'error': str(e)
         }), 500
