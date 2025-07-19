@@ -620,20 +620,28 @@ class Campaign:
         try:
             with engine.connect() as conn:
                 with conn.begin():
-                    # Delete associated email_history records first
+                    # Delete from report_clicks first to avoid foreign key violations
+                    # This handles both direct and indirect campaign associations
+                    report_clicks_result = conn.execute(text("""
+                        DELETE FROM report_clicks
+                        WHERE campaign_id IN (SELECT id FROM campaigns)
+                    """))
+                    report_clicks_count = report_clicks_result.rowcount
+
+                    # Delete associated email_history records
                     email_history_result = conn.execute(text("""
                         DELETE FROM email_history 
                         WHERE campaign_id IS NOT NULL
                     """))
                     email_history_count = email_history_result.rowcount
                     
-                    # Delete campaign_contacts records (should cascade, but let's be explicit)
+                    # Delete campaign_contacts records
                     campaign_contacts_result = conn.execute(text("""
                         DELETE FROM campaign_contacts
                     """))
                     campaign_contacts_count = campaign_contacts_result.rowcount
                     
-                    # Delete campaigns
+                    # Finally, delete campaigns
                     campaigns_result = conn.execute(text("""
                         DELETE FROM campaigns
                     """))
@@ -642,18 +650,19 @@ class Campaign:
                     current_app.logger.info(
                         f"Successfully deleted all campaigns and associated data: "
                         f"{campaigns_count} campaigns, {campaign_contacts_count} campaign_contacts, "
-                        f"{email_history_count} email_history records"
+                        f"{email_history_count} email_history records, {report_clicks_count} report_clicks records"
                     )
                     
                     return {
                         'campaigns': campaigns_count,
                         'campaign_contacts': campaign_contacts_count,
-                        'email_history': email_history_count
+                        'email_history': email_history_count,
+                        'report_clicks': report_clicks_count
                     }
                     
         except SQLAlchemyError as e:
             current_app.logger.error(f"Database error deleting all campaigns: {e}")
-            return {'campaigns': 0, 'campaign_contacts': 0, 'email_history': 0}
+            return {'campaigns': 0, 'campaign_contacts': 0, 'email_history': 0, 'report_clicks': 0}
         except Exception as e:
             current_app.logger.error(f"Unexpected error deleting all campaigns: {e}")
-            return {'campaigns': 0, 'campaign_contacts': 0, 'email_history': 0} 
+            return {'campaigns': 0, 'campaign_contacts': 0, 'email_history': 0, 'report_clicks': 0} 
