@@ -3566,3 +3566,109 @@ def ga4_raw_diagnostic():
             'message': 'Raw diagnostic endpoint error',
             'error': str(e)
         }), 500
+
+@bp.route('/campaigns/<int:campaign_id>/analytics/debug', methods=['GET'])
+def debug_campaign_analytics(campaign_id):
+    """Debug endpoint to check what events GA4 is actually receiving."""
+    current_app.logger.info(f"=== DEBUG === Starting analytics debug for campaign {campaign_id}")
+    
+    try:
+        from app.services.ga4_analytics_service import create_ga4_service
+        from app.models.campaign import Campaign
+        from app.models.report_click import ReportClick
+        
+        # Verify campaign exists
+        campaign = Campaign.get_by_id(campaign_id)
+        if not campaign:
+            return jsonify({
+                'success': False,
+                'message': f'Campaign {campaign_id} not found'
+            }), 404
+        
+        # Get number of days to look back (default: 30)
+        days = int(request.args.get('days', 30))
+        
+        current_app.logger.info(f"=== DEBUG === Campaign found: {campaign.name}")
+        
+        # Check local database clicks first
+        try:
+            from datetime import datetime, timedelta
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=days)
+            
+            local_analytics = ReportClick.get_click_analytics(
+                campaign_id=campaign_id,
+                date_range={'start_date': start_date, 'end_date': end_date}
+            )
+            current_app.logger.info(f"=== DEBUG === Local database clicks: {local_analytics}")
+        except Exception as db_error:
+            current_app.logger.error(f"=== DEBUG === Local database error: {str(db_error)}")
+            local_analytics = {'error': str(db_error)}
+        
+        # Test GA4 without campaign filter
+        try:
+            ga4_service = create_ga4_service()
+            current_app.logger.info("=== DEBUG === Testing GA4 without campaign filter")
+            
+            # Test 1: Get ANY report_click events (no campaign filter)
+            diagnostic_no_filter = ga4_service.test_ga4_custom_dimensions_no_filter(days)
+            current_app.logger.info(f"=== DEBUG === GA4 diagnostic (no filter): {diagnostic_no_filter}")
+            
+            # Test 2: Get raw data with all (not set) values
+            diagnostic_raw = ga4_service.test_ga4_custom_dimensions_raw_data(days)
+            current_app.logger.info(f"=== DEBUG === GA4 raw diagnostic: {diagnostic_raw}")
+            
+        except Exception as ga4_error:
+            current_app.logger.error(f"=== DEBUG === GA4 error: {str(ga4_error)}")
+            diagnostic_no_filter = {'error': str(ga4_error)}
+            diagnostic_raw = {'error': str(ga4_error)}
+        
+        # Test GA4 with original query
+        try:
+            analytics_data = ga4_service.get_campaign_analytics(str(campaign_id), days)
+            current_app.logger.info(f"=== DEBUG === GA4 original query: {analytics_data}")
+        except Exception as original_error:
+            current_app.logger.error(f"=== DEBUG === Original query error: {str(original_error)}")
+            analytics_data = {'error': str(original_error)}
+        
+        debug_result = {
+            'success': True,
+            'campaign_id': campaign_id,
+            'campaign_name': campaign.name,
+            'days_checked': days,
+            'debug_info': {
+                'local_database_clicks': local_analytics,
+                'ga4_diagnostic_no_filter': diagnostic_no_filter,
+                'ga4_raw_diagnostic': diagnostic_raw,
+                'ga4_original_query': analytics_data
+            },
+            'analysis': {
+                'local_clicks_found': local_analytics.get('total_clicks', 0) > 0,
+                'ga4_any_events_found': diagnostic_no_filter.get('total_clicks', 0) > 0,
+                'ga4_campaign_events_found': analytics_data.get('total_clicks', 0) > 0,
+                'possible_issues': []
+            }
+        }
+        
+        # Analyze the results
+        if local_analytics.get('total_clicks', 0) > 0 and diagnostic_no_filter.get('total_clicks', 0) == 0:
+            debug_result['analysis']['possible_issues'].append(
+                "Local database has clicks but GA4 has no report_click events. The tracking URLs may not be sending events to GA4."
+            )
+        
+        if diagnostic_no_filter.get('total_clicks', 0) > 0 and analytics_data.get('total_clicks', 0) == 0:
+            campaigns_found = diagnostic_no_filter.get('unique_campaign_ids', [])
+            debug_result['analysis']['possible_issues'].append(
+                f"GA4 has report_click events but none for campaign_id '{campaign_id}'. Available campaigns: {campaigns_found}"
+            )
+        
+        current_app.logger.info(f"=== DEBUG === Final result: {debug_result}")
+        return jsonify(debug_result)
+        
+    except Exception as e:
+        current_app.logger.error(f"=== DEBUG === Unexpected error: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Debug failed',
+            'error': str(e)
+        }), 500

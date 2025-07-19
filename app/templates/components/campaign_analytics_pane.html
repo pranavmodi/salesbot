@@ -355,7 +355,7 @@ function loadAnalyticsData() {
             
             if (data.success) {
                 console.log('=== ANALYTICS FRONTEND === Analytics data received:', data);
-                analyticsData = data;  // Store the full response object, not just data.analytics
+                analyticsData = data;  // Store the full response object
                 updateAnalyticsDisplay();
             } else {
                 console.error('=== ANALYTICS FRONTEND === API returned error:', data.message);
@@ -379,14 +379,22 @@ function updateAnalyticsDisplay() {
     }
 
     console.log('=== ANALYTICS FRONTEND === Analytics data structure:', analyticsData);
-    const metrics = analyticsData.analytics.performance_metrics;
+    
+    // Fix: performance_metrics is at the top level, not inside analytics
+    const metrics = analyticsData.performance_metrics;
+    
     console.log('=== ANALYTICS FRONTEND === Performance metrics:', metrics);
+
+    if (!metrics) {
+        showAnalyticsError("Performance metrics data is missing or in an unexpected format.");
+        return;
+    }
     
     // Update metric cards
     $('#totalContacts').text(metrics.total_contacts.toLocaleString());
     $('#totalEmails').text(metrics.total_emails.toLocaleString());
     $('#totalClicks').text(metrics.total_clicks.toLocaleString());
-    $('#clickRate').text(metrics.click_rate + '%');
+    $('#clickRate').text(metrics.click_rate || '0%');
     
     console.log('=== ANALYTICS FRONTEND === Updated metric cards with:', {
         contacts: metrics.total_contacts,
@@ -395,7 +403,7 @@ function updateAnalyticsDisplay() {
         rate: metrics.click_rate
     });
 
-    // Update charts
+    // Update charts - handle missing data gracefully
     console.log('=== ANALYTICS FRONTEND === Updating charts...');
     updateEngagementFunnelChart();
     updateClicksTimeChart();
@@ -408,7 +416,14 @@ function updateAnalyticsDisplay() {
 
 function updateEngagementFunnelChart() {
     const ctx = document.getElementById('engagementFunnelChart').getContext('2d');
-    const metrics = analyticsData.analytics.performance_metrics;
+    // Fix: Use correct data paths from backend
+    const metrics = analyticsData.performance_metrics;
+    const analytics = analyticsData.analytics;
+
+    if (!metrics || !analytics) {
+        console.log('=== ANALYTICS FRONTEND === Missing data for funnel chart, skipping');
+        return;
+    }
     
     if (charts.funnelChart) {
         charts.funnelChart.destroy();
@@ -421,10 +436,10 @@ function updateEngagementFunnelChart() {
             datasets: [{
                 label: 'Engagement Funnel',
                 data: [
-                    metrics.total_contacts,
-                    metrics.total_emails,
-                    metrics.total_clicks,
-                    analyticsData.analytics.click_analytics.unique_recipients
+                    metrics.total_contacts || 0,
+                    metrics.total_emails || 0,
+                    metrics.total_clicks || 0,
+                    analytics.unique_recipients || 0
                 ],
                 backgroundColor: [
                     'rgba(54, 162, 235, 0.8)',
@@ -459,10 +474,47 @@ function updateEngagementFunnelChart() {
 
 function updateClicksTimeChart() {
     const ctx = document.getElementById('clicksTimeChart').getContext('2d');
-    const clicksData = analyticsData.analytics.click_analytics.clicks_by_date || [];
+    // Fix: Backend doesn't provide clicks_by_date, create fallback or simple data
+    const clicksData = analyticsData.analytics?.click_analytics?.clicks_by_date || [];
     
     if (charts.timeChart) {
         charts.timeChart.destroy();
+    }
+    
+    // If no time-based data available, create a simple chart with total clicks
+    if (clicksData.length === 0) {
+        const totalClicks = analyticsData.performance_metrics?.total_clicks || 0;
+        const today = new Date().toLocaleDateString();
+        
+        charts.timeChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [today],
+                datasets: [{
+                    label: 'Total Clicks',
+                    data: [totalClicks],
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    tension: 0.1,
+                    pointRadius: 6,
+                    pointHoverRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+        return;
     }
     
     charts.timeChart = new Chart(ctx, {
@@ -496,10 +548,18 @@ function updateClicksTimeChart() {
 function updateDeviceChart() {
     console.log('=== ANALYTICS FRONTEND === Updating device chart with real data');
     const ctx = document.getElementById('deviceChart').getContext('2d');
-    const deviceData = analyticsData.analytics.click_analytics.device_breakdown || {};
+    
+    // Fix: Backend doesn't provide device_breakdown in click_analytics, use fallback
+    const deviceData = analyticsData.analytics?.click_analytics?.device_breakdown || {};
     
     if (Object.keys(deviceData).length === 0) {
         if (charts.deviceChart) charts.deviceChart.destroy();
+        // Show "No device data available" message instead of empty chart
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.fillStyle = '#6c757d';
+        ctx.font = '14px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('No device data available', ctx.canvas.width / 2, ctx.canvas.height / 2);
         return;
     }
     
@@ -539,20 +599,28 @@ function updateDeviceChart() {
 function updateTopCompanies() {
     console.log('=== ANALYTICS FRONTEND === Updating top companies with real data');
     const container = $('#topCompanies');
-    const topCompanies = analyticsData.analytics.click_analytics.top_companies || [];
+    
+    // Fix: Backend provides companies_clicked in analytics, not in click_analytics.top_companies
+    const topCompanies = analyticsData.analytics?.companies_clicked || [];
     
     if (topCompanies.length === 0) {
         container.html('<div class="text-muted text-center py-3">No company engagement data available</div>');
         return;
     }
     
-    const html = topCompanies.slice(0, 5).map(company => `
+    // Convert simple company names to the expected format with click counts
+    const formattedCompanies = topCompanies.map(company => ({
+        company_name: company,
+        click_count: 1 // Since backend doesn't provide individual click counts
+    }));
+    
+    const html = formattedCompanies.slice(0, 5).map(company => `
         <div class="list-group-item d-flex justify-content-between align-items-center">
             <div>
                 <div class="fw-bold">${company.company_name}</div>
-                <small class="text-muted">${company.click_count} click${company.click_count !== 1 ? 's' : ''}</small>
+                <small class="text-muted">Engaged</small>
             </div>
-            <span class="badge bg-primary rounded-pill">${company.click_count}</span>
+            <span class="badge bg-primary rounded-pill"><i class="fas fa-check"></i></span>
         </div>
     `).join('');
     
@@ -562,10 +630,12 @@ function updateTopCompanies() {
 function updateGeographicDistribution() {
     console.log('=== ANALYTICS FRONTEND === Updating geographic distribution with real data');
     const container = $('#geoBreakdown');
-    const geoData = analyticsData.analytics.click_analytics.geo_distribution || [];
+    
+    // Fix: Backend doesn't provide geo_distribution, show message instead
+    const geoData = analyticsData.analytics?.click_analytics?.geo_distribution || [];
     
     if (geoData.length === 0) {
-        container.html('<div class="text-muted text-center py-3">No geographic data available</div>');
+        container.html('<div class="text-muted text-center py-3">Geographic data not available</div>');
         return;
     }
     
@@ -583,18 +653,27 @@ function updateGeographicDistribution() {
 }
 
 function updatePerformanceMetrics() {
-    const metrics = analyticsData.analytics.performance_metrics;
-    const emailStats = analyticsData.analytics.email_stats;
+    // Fix: Use the correct data structure from backend
+    const metrics = analyticsData.performance_metrics;
+    const emailStats = analyticsData.email_stats;
+    const analytics = analyticsData.analytics;
+
+    if (!metrics || !emailStats || !analytics) return;
     
-    const deliveryRate = emailStats.total_emails > 0 ? (emailStats.sent_emails / emailStats.total_emails * 100).toFixed(1) : 0;
+    // Calculate rates using available data
+    const deliveryRate = emailStats.total_sent > 0 ? (emailStats.total_delivered / emailStats.total_sent * 100).toFixed(1) : 0;
     const reportClickRate = metrics.total_emails > 0 ? (metrics.total_clicks / metrics.total_emails * 100).toFixed(1) : 0;
-    const uniqueEngagementRate = metrics.total_contacts > 0 ? (analyticsData.analytics.click_analytics.unique_recipients / metrics.total_contacts * 100).toFixed(1) : 0;
+    const uniqueEngagementRate = metrics.total_contacts > 0 ? (analytics.unique_recipients / metrics.total_contacts * 100).toFixed(1) : 0;
     
     $('#deliveryRate').text(deliveryRate + '%');
     $('#reportClickRate').text(reportClickRate + '%');
     $('#uniqueEngagementRate').text(uniqueEngagementRate + '%');
-    $('#companiesEngaged').text(metrics.companies_engaged);
+    $('#companiesEngaged').text(metrics.companies_engaged || analytics.unique_companies || 0);
     $('#totalCompaniesTargeted').text(metrics.total_contacts);
+    
+    // Handle additional metrics that are not available in backend
+    $('#avgTimeToClick').text('N/A');
+    $('#repeatEngagement').text('N/A');
     
     $('#deliveryRateBar').css('width', deliveryRate + '%');
     $('#reportClickRateBar').css('width', reportClickRate + '%');
