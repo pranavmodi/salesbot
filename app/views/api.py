@@ -3228,14 +3228,18 @@ def get_campaign_analytics(campaign_id):
         current_app.logger.info(f"Email stats: {email_stats}")
         
         # Try to get click analytics from GA4
-        current_app.logger.info("Attempting to get click analytics from GA4")
+        current_app.logger.info("=== API GA4 === Attempting to get click analytics from GA4")
         try:
-            current_app.logger.info("Creating GA4 service")
+            current_app.logger.info("=== API GA4 === Creating GA4 service")
             ga4_service = create_ga4_service()
-            current_app.logger.info("GA4 service created successfully, making analytics request")
+            current_app.logger.info("=== API GA4 === GA4 service created successfully, making analytics request")
+            current_app.logger.info(f"=== API GA4 === Requesting analytics for campaign {campaign_id} with {days} days lookback")
             click_analytics = ga4_service.get_campaign_analytics(str(campaign_id), days)
-            current_app.logger.info(f"GA4 analytics response: {click_analytics}")
-            data_source = 'GA4'
+            current_app.logger.info(f"=== API GA4 === GA4 analytics response received with {click_analytics.get('total_clicks', 0)} clicks")
+            
+            # GA4 now uses only compatible dimensions
+            data_source = 'GA4 (Compatible Dimensions)'
+            current_app.logger.info(f"=== API GA4 === Data source determined: {data_source}")
             
             # Transform GA4 data to match expected format
             ga4_click_analytics = {
@@ -3250,7 +3254,7 @@ def get_campaign_analytics(campaign_id):
             
         except FileNotFoundError as e:
             # Fallback to local database if GA4 credentials not found
-            current_app.logger.warning(f"GA4 credentials not found: {str(e)}, falling back to local database")
+            current_app.logger.warning(f"=== API GA4 === GA4 credentials not found: {str(e)}, falling back to local database")
             from app.models.report_click import ReportClick
             
             # Get date range from query parameters for local fallback
@@ -3262,15 +3266,37 @@ def get_campaign_analytics(campaign_id):
             if end_date:
                 date_range['end_date'] = end_date
                 
-            current_app.logger.info(f"Using local database with date range: {date_range}")
+            current_app.logger.info(f"=== API GA4 === Using local database with date range: {date_range}")
             ga4_click_analytics = ReportClick.get_click_analytics(campaign_id, date_range)
-            current_app.logger.info(f"Local database analytics: {ga4_click_analytics}")
+            current_app.logger.info(f"=== API GA4 === Local database analytics: {ga4_click_analytics}")
             data_source = 'Local Database'
         except Exception as e:
-            current_app.logger.error(f"Unexpected error with GA4 service: {str(e)}")
-            current_app.logger.error(f"Exception type: {type(e).__name__}")
+            current_app.logger.error(f"=== API GA4 === Unexpected error with GA4 service: {str(e)}")
+            current_app.logger.error(f"=== API GA4 === Exception type: {type(e).__name__}")
+            current_app.logger.error(f"=== API GA4 === Exception module: {type(e).__module__}")
             import traceback
-            current_app.logger.error(f"Traceback: {traceback.format_exc()}")
+            current_app.logger.error(f"=== API GA4 === Full traceback: {traceback.format_exc()}")
+            
+            # Check for specific error types
+            if 'grpc' in str(type(e)).lower():
+                current_app.logger.error(f"=== API GA4 === gRPC error detected")
+                if hasattr(e, 'code'):
+                    try:
+                        current_app.logger.error(f"=== API GA4 === gRPC status code: {e.code}")
+                    except:
+                        current_app.logger.error(f"=== API GA4 === gRPC status code: {getattr(e, 'code', 'unknown')}")
+                if hasattr(e, 'details'):
+                    try:
+                        current_app.logger.error(f"=== API GA4 === gRPC details: {e.details}")
+                    except:
+                        current_app.logger.error(f"=== API GA4 === gRPC details: {getattr(e, 'details', 'unknown')}")
+            elif 'permission' in str(e).lower() or 'access' in str(e).lower():
+                current_app.logger.error(f"=== API GA4 === Permission/access error detected")
+            elif 'quota' in str(e).lower() or 'limit' in str(e).lower():
+                current_app.logger.error(f"=== API GA4 === Quota/limit error detected")
+            elif 'dimension' in str(e).lower() or 'metric' in str(e).lower():
+                current_app.logger.error(f"=== API GA4 === Dimension/metric error detected")
+                
             # Still fallback to local database
             from app.models.report_click import ReportClick
             ga4_click_analytics = ReportClick.get_click_analytics(campaign_id)
