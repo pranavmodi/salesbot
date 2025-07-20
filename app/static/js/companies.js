@@ -713,3 +713,15 @@ if (typeof module !== 'undefined' && module.exports) {
         currentCompanyId
     };
 }
+
+// Global function assignments for HTML onclick handlers
+window.clearCompanySearch = clearCompanySearch;
+window.changeCompaniesPage = changeCompaniesPage;
+window.loadCompanyDetails = loadCompanyDetails;
+window.researchCompanies = researchCompanies;
+window.researchSingleCompany = researchSingleCompany;
+window.extractCompaniesFromContacts = extractCompaniesFromContacts;
+window.toggleCompanyEditMode = toggleCompanyEditMode;
+window.saveCompanyInModal = saveCompanyInModal;
+window.cancelCompanyEdit = cancelCompanyEdit;
+window.saveCompany = saveCompany;

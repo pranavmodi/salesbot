@@ -41,12 +41,30 @@ function setupCampaignEventListeners() {
 
 // Campaign modal management
 function initializeCampaignModal() {
-    const modal = document.getElementById('campaignModal');
+    const modal = document.getElementById('createCampaignModal');
     if (modal) {
         modal.addEventListener('show.bs.modal', resetCampaignModal);
         setupStepValidation();
+        setupSelectionMethodListeners();
         handleSelectionMethodChange();
     }
+}
+
+function setupSelectionMethodListeners() {
+    // Add event listeners for selection method radio buttons
+    const selectionMethodRadios = document.querySelectorAll('input[name="selectionMethod"]');
+    selectionMethodRadios.forEach(radio => {
+        radio.addEventListener('change', handleSelectionMethodChange);
+    });
+    
+    // Add event listeners for filter fields to update contact count
+    const filterFields = ['targetCompany', 'targetLocation', 'targetJobTitle'];
+    filterFields.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (field) {
+            field.addEventListener('change', updateContactCount);
+        }
+    });
 }
 
 function resetCampaignModal() {
@@ -138,13 +156,22 @@ function updateNavigationButtons(stepNumber) {
 
 function nextStep() {
     const currentStep = document.querySelector('.campaign-step[style*="block"]');
-    if (!currentStep) return;
+    if (!currentStep) {
+        console.error('No current step found');
+        return;
+    }
     
     const stepNumber = parseInt(currentStep.id.replace('step', ''));
+    console.log(`Attempting to move from step ${stepNumber}`);
     
     if (validateCurrentStep(stepNumber)) {
+        console.log(`Step ${stepNumber} validation passed`);
         saveCurrentStepData(stepNumber);
         showStep(stepNumber + 1);
+    } else {
+        console.log(`Step ${stepNumber} validation failed`);
+        // Show validation error
+        showToast('warningToast', `Please complete all required fields in step ${stepNumber}`);
     }
 }
 
@@ -169,8 +196,23 @@ function validateCurrentStep(stepNumber) {
 }
 
 function validateStep1() {
-    const name = document.getElementById('campaignName').value.trim();
-    return name.length > 0;
+    const nameInput = document.getElementById('campaignName');
+    if (!nameInput) {
+        console.error('Campaign name input not found');
+        return false;
+    }
+    
+    const name = nameInput.value.trim();
+    console.log(`Campaign name validation: "${name}", length: ${name.length}`);
+    
+    if (name.length === 0) {
+        // Highlight the field
+        nameInput.classList.add('is-invalid');
+        return false;
+    } else {
+        nameInput.classList.remove('is-invalid');
+        return true;
+    }
 }
 
 function validateStep2() {
@@ -585,7 +627,7 @@ function createCampaign() {
             showToast('successToast', 'Campaign created successfully!');
             
             // Close modal
-            const modal = bootstrap.Modal.getInstance(document.getElementById('campaignModal'));
+            const modal = bootstrap.Modal.getInstance(document.getElementById('createCampaignModal'));
             if (modal) {
                 modal.hide();
             }
@@ -646,10 +688,20 @@ function saveCampaignDraft() {
 
 // Campaign loading and display
 function loadCampaigns() {
-    const campaignsContainer = document.getElementById('campaignsContainer');
-    if (!campaignsContainer) return;
+    console.log('loadCampaigns() called');
     
-    campaignsContainer.innerHTML = `
+    // Check if we have the individual campaign containers
+    const activeCampaignsContainer = document.getElementById('activeCampaignsContainer');
+    const draftCampaignsContainer = document.getElementById('draftCampaignsContainer');
+    const completedCampaignsContainer = document.getElementById('completedCampaignsContainer');
+    
+    if (!activeCampaignsContainer || !draftCampaignsContainer || !completedCampaignsContainer) {
+        console.error('Campaign containers not found');
+        return;
+    }
+    
+    console.log('Setting loading state...');
+    const loadingHTML = `
         <div class="text-center py-4">
             <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Loading...</span>
@@ -658,19 +710,31 @@ function loadCampaigns() {
         </div>
     `;
     
+    // Set loading state on all containers
+    activeCampaignsContainer.innerHTML = loadingHTML;
+    draftCampaignsContainer.innerHTML = loadingHTML;
+    completedCampaignsContainer.innerHTML = loadingHTML;
+    
+    console.log('Fetching campaigns from /api/campaigns...');
     fetch('/api/campaigns')
-        .then(response => response.json())
+        .then(response => {
+            console.log('Response received:', response.status, response.statusText);
+            return response.json();
+        })
         .then(data => {
+            console.log('Campaign data received:', data);
             if (data.success) {
+                console.log('Campaigns loaded successfully:', data.campaigns?.length || 0, 'campaigns');
                 displayCampaigns(data.campaigns || []);
                 updateCampaignStats(data.campaigns || []);
             } else {
+                console.error('API returned success=false:', data.message);
                 throw new Error(data.message || 'Failed to load campaigns');
             }
         })
         .catch(error => {
             console.error('Error loading campaigns:', error);
-            campaignsContainer.innerHTML = `
+            const errorHTML = `
                 <div class="text-center py-5">
                     <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
                     <h5 class="text-danger">Failed to Load Campaigns</h5>
@@ -680,23 +744,41 @@ function loadCampaigns() {
                     </button>
                 </div>
             `;
+            
+            // Set error state on all containers
+            activeCampaignsContainer.innerHTML = errorHTML;
+            draftCampaignsContainer.innerHTML = errorHTML;
+            completedCampaignsContainer.innerHTML = errorHTML;
         });
 }
 
 function displayCampaigns(campaigns) {
-    const campaignsContainer = document.getElementById('campaignsContainer');
+    console.log('displayCampaigns() called with:', campaigns);
+    
+    const activeCampaignsContainer = document.getElementById('activeCampaignsContainer');
+    const draftCampaignsContainer = document.getElementById('draftCampaignsContainer');
+    const completedCampaignsContainer = document.getElementById('completedCampaignsContainer');
+    
+    if (!activeCampaignsContainer || !draftCampaignsContainer || !completedCampaignsContainer) {
+        console.error('Campaign containers not found in displayCampaigns');
+        return;
+    }
     
     if (campaigns.length === 0) {
-        campaignsContainer.innerHTML = `
+        console.log('No campaigns to display, showing empty state');
+        const emptyStateHTML = `
             <div class="text-center py-5">
                 <i class="fas fa-bullhorn fa-3x text-muted mb-3"></i>
                 <h5 class="text-muted">No Campaigns Yet</h5>
                 <p class="text-muted">Create your first campaign to start reaching out to contacts.</p>
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#campaignModal">
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createCampaignModal">
                     <i class="fas fa-plus me-2"></i>Create Campaign
                 </button>
             </div>
         `;
+        activeCampaignsContainer.innerHTML = emptyStateHTML;
+        draftCampaignsContainer.innerHTML = '<div class="text-center text-muted py-4"><p>No draft campaigns found.</p></div>';
+        completedCampaignsContainer.innerHTML = '<div class="text-center text-muted py-4"><p>No completed campaigns found.</p></div>';
         return;
     }
     
@@ -706,89 +788,135 @@ function displayCampaigns(campaigns) {
     const completedCampaigns = campaigns.filter(c => c.status === 'completed');
     const draftCampaigns = campaigns.filter(c => c.status === 'draft');
     
-    let html = '';
+    console.log('Campaign counts by status:', {
+        active: activeCampaigns.length,
+        paused: pausedCampaigns.length,
+        completed: completedCampaigns.length,
+        draft: draftCampaigns.length
+    });
     
-    if (activeCampaigns.length > 0) {
-        html += '<h6 class="text-success mb-3"><i class="fas fa-play-circle me-2"></i>Active Campaigns</h6>';
-        html += displayCampaignList(activeCampaigns, 'activeCampaigns', 'active');
+    // Display active campaigns (including paused ones in the active tab)
+    const allActiveCampaigns = [...activeCampaigns, ...pausedCampaigns];
+    if (allActiveCampaigns.length > 0) {
+        console.log('Adding active campaigns section');
+        activeCampaignsContainer.innerHTML = displayCampaignList(allActiveCampaigns, 'activeCampaigns', 'active');
+    } else {
+        activeCampaignsContainer.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-bullhorn fa-3x mb-3"></i>
+                <p>No active campaigns yet. Create your first GTM campaign to get started!</p>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createCampaignModal">
+                    <i class="fas fa-plus me-1"></i>Create Campaign
+                </button>
+            </div>
+        `;
     }
     
-    if (pausedCampaigns.length > 0) {
-        html += '<h6 class="text-warning mb-3 mt-4"><i class="fas fa-pause-circle me-2"></i>Paused Campaigns</h6>';
-        html += displayCampaignList(pausedCampaigns, 'pausedCampaigns', 'paused');
-    }
-    
+    // Display draft campaigns
     if (draftCampaigns.length > 0) {
-        html += '<h6 class="text-secondary mb-3 mt-4"><i class="fas fa-edit me-2"></i>Draft Campaigns</h6>';
-        html += displayCampaignList(draftCampaigns, 'draftCampaigns', 'draft');
+        console.log('Adding draft campaigns section');
+        draftCampaignsContainer.innerHTML = displayCampaignList(draftCampaigns, 'draftCampaigns', 'draft');
+    } else {
+        draftCampaignsContainer.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-edit fa-3x mb-3"></i>
+                <p>No draft campaigns found.</p>
+            </div>
+        `;
     }
     
+    // Display completed campaigns
     if (completedCampaigns.length > 0) {
-        html += '<h6 class="text-primary mb-3 mt-4"><i class="fas fa-check-circle me-2"></i>Completed Campaigns</h6>';
-        html += displayCampaignList(completedCampaigns, 'completedCampaigns', 'completed');
+        console.log('Adding completed campaigns section');
+        completedCampaignsContainer.innerHTML = displayCampaignList(completedCampaigns, 'completedCampaigns', 'completed');
+    } else {
+        completedCampaignsContainer.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-check fa-3x mb-3"></i>
+                <p>No completed campaigns found.</p>
+            </div>
+        `;
     }
     
-    campaignsContainer.innerHTML = html;
+    console.log('Campaigns display completed');
 }
 
 function displayCampaignList(campaigns, containerId, type) {
-    let html = `<div id="${containerId}" class="row">`;
+    console.log(`displayCampaignList called for ${type} with ${campaigns.length} campaigns`);
+    let html = '<div class="row">';
     
     campaigns.forEach(campaign => {
         const statusBadge = getStatusBadge(campaign.status);
-        const priorityBadge = getPriorityBadge(campaign.priority);
+        const priorityBadge = getPriorityBadge('medium'); // Default since not in DB
+        const createdDate = new Date(campaign.created_at).toLocaleDateString();
+        const emailsSent = campaign.emails_sent || 0;
+        const targetCount = campaign.target_contacts_count || 0;
+        const responseRate = targetCount > 0 ? Math.round((campaign.responses_received || 0) / targetCount * 100) : 0;
         
         html += `
             <div class="col-md-6 col-lg-4 mb-3">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                            <h6 class="card-title mb-0">${campaign.name}</h6>
-                            <div class="btn-group btn-group-sm" role="group">
-                                <button type="button" class="btn btn-outline-primary" 
-                                        onclick="viewCampaignDetails(${campaign.id})" 
-                                        title="View Details">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                            </div>
+                <div class="card campaign-card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-start">
+                        <div>
+                            <h6 class="card-title mb-1">${campaign.name}</h6>
+                            <small class="text-muted">${(campaign.type || 'unknown').replace('_', ' ').toUpperCase()}</small>
                         </div>
-                        
-                        <div class="mb-2">
+                        <div>
                             ${statusBadge}
                             ${priorityBadge}
                         </div>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text small text-muted">${campaign.description || 'No description provided'}</p>
                         
-                        <p class="card-text text-muted small mb-3">
-                            ${campaign.description || 'No description provided'}
-                        </p>
-                        
-                        <div class="mb-2">
-                            <small class="text-muted">
-                                <i class="fas fa-users me-1"></i>
-                                ${campaign.target_count || 0} contacts
-                            </small>
-                        </div>
-                        
-                        <div class="mb-2">
-                            <small class="text-muted">
-                                <i class="fas fa-envelope me-1"></i>
-                                ${campaign.emails_sent || 0} emails sent
-                            </small>
-                        </div>
-                        
-                        <div class="progress mb-2" style="height: 5px;">
-                            <div class="progress-bar" 
-                                 style="width: ${campaign.progress || 0}%"
-                                 aria-valuenow="${campaign.progress || 0}" 
-                                 aria-valuemin="0" 
-                                 aria-valuemax="100">
+                        <div class="campaign-metrics">
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <div class="metric-value">${targetCount}</div>
+                                    <div class="metric-label">Targets</div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="metric-value">${emailsSent}</div>
+                                    <div class="metric-label">Sent</div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="metric-value">${responseRate}%</div>
+                                    <div class="metric-label">Response</div>
+                                </div>
                             </div>
                         </div>
                         
-                        <small class="text-muted">
-                            <i class="fas fa-calendar me-1"></i>
-                            Created ${new Date(campaign.created_at).toLocaleDateString()}
-                        </small>
+                        <div class="campaign-details mt-3">
+                            <small class="text-muted">
+                                <i class="fas fa-calendar me-1"></i>Created: ${createdDate}<br>
+                                <i class="fas fa-envelope me-1"></i>Template: ${campaign.email_template || 'Not set'}<br>
+                                <i class="fas fa-clock me-1"></i>Follow-up: ${campaign.followup_days || 3} days
+                            </small>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <div class="btn-group w-100" role="group">
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="viewCampaignDetails('${campaign.id}')">
+                                <i class="fas fa-eye me-1"></i>View
+                            </button>
+                            <button type="button" class="btn btn-outline-info btn-sm" onclick="viewCampaignAnalytics('${campaign.id}', '${campaign.name.replace(/'/g, '&apos;')}')">
+                                <i class="fas fa-chart-line me-1"></i>Analytics
+                            </button>
+                            ${campaign.status === 'draft' ? 
+                                `<button type="button" class="btn btn-outline-success btn-sm" onclick="launchCampaign('${campaign.id}')">
+                                    <i class="fas fa-rocket me-1"></i>Launch
+                                </button>` : ''
+                            }
+                            ${campaign.status === 'active' ? 
+                                `<button type="button" class="btn btn-outline-warning btn-sm" onclick="pauseCampaign(${campaign.id})">
+                                    <i class="fas fa-pause me-1"></i>Pause
+                                </button>` : 
+                                campaign.status === 'paused' ?
+                                `<button type="button" class="btn btn-outline-success btn-sm" onclick="resumeCampaign(${campaign.id})">
+                                    <i class="fas fa-play me-1"></i>Resume
+                                </button>` : ''
+                            }
+                        </div>
                     </div>
                 </div>
             </div>
@@ -884,3 +1012,49 @@ if (typeof module !== 'undefined' && module.exports) {
         selectedCampaignContacts
     };
 }
+
+// Campaign action functions
+function viewCampaignAnalytics(campaignId, campaignName) {
+    console.log(`Viewing analytics for campaign: ${campaignId} - ${campaignName}`);
+    showToast('infoToast', 'Campaign analytics feature coming soon!');
+}
+
+function launchCampaign(campaignId) {
+    console.log(`Launching campaign: ${campaignId}`);
+    if (confirm('Are you sure you want to launch this campaign? This will start sending emails to the selected contacts.')) {
+        // Implementation would go here
+        showToast('infoToast', 'Campaign launch feature coming soon!');
+    }
+}
+
+function pauseCampaign(campaignId) {
+    console.log(`Pausing campaign: ${campaignId}`);
+    if (confirm('Are you sure you want to pause this campaign?')) {
+        // Implementation would go here
+        showToast('infoToast', 'Campaign pause feature coming soon!');
+    }
+}
+
+function resumeCampaign(campaignId) {
+    console.log(`Resuming campaign: ${campaignId}`);
+    if (confirm('Are you sure you want to resume this campaign?')) {
+        // Implementation would go here
+        showToast('infoToast', 'Campaign resume feature coming soon!');
+    }
+}
+
+// Global function assignments for HTML onclick handlers
+window.nextStep = nextStep;
+window.previousStep = previousStep;
+window.handleSelectionMethodChange = handleSelectionMethodChange;
+window.toggleContactSelection = toggleContactSelection;
+window.searchContactsForCampaign = searchContactsForCampaign;
+window.clearCampaignSearch = clearCampaignSearch;
+window.saveCampaignDraft = saveCampaignDraft;
+window.updateContactCount = updateContactCount;
+window.viewCampaignDetails = viewCampaignDetails;
+window.viewCampaignAnalytics = viewCampaignAnalytics;
+window.launchCampaign = launchCampaign;
+window.pauseCampaign = pauseCampaign;
+window.resumeCampaign = resumeCampaign;
+window.deleteAllCampaigns = deleteAllCampaigns;

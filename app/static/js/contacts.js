@@ -593,3 +593,13 @@ if (typeof module !== 'undefined' && module.exports) {
         currentContactEmail
     };
 }
+
+// Global function assignments for HTML onclick handlers
+window.clearContactSearch = clearContactSearch;
+window.viewContactDetails = viewContactDetails;
+window.exportContact = exportContact;
+window.updateSelectionCount = updateSelectionCount;
+window.toggleSelectAll = toggleSelectAll;
+window.toggleSelectAllSearchResults = toggleSelectAllSearchResults;
+window.startBulkEmailComposition = startBulkEmailComposition;
+window.changePage = changePage;

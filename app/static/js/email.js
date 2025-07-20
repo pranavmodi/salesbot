@@ -639,3 +639,14 @@ if (typeof module !== 'undefined' && module.exports) {
         emailHistory
     };
 }
+
+// Global function assignments for HTML onclick handlers
+window.generateEmailPreview = generateEmailPreview;
+window.sendComposedEmail = sendComposedEmail;
+window.testGlobalAccountConnection = testGlobalAccountConnection;
+window.refreshEmailHistory = refreshEmailHistory;
+window.changeEmailHistoryPage = changeEmailHistoryPage;
+window.applyEmailHistoryFilter = applyEmailHistoryFilter;
+window.viewEmailDetails = viewEmailDetails;
+window.showEmailDetails = showEmailDetails;
+window.testEmailConnection = testEmailConnection;
