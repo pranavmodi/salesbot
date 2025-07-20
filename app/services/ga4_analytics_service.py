@@ -75,7 +75,7 @@ class GA4AnalyticsService:
                     Dimension(name="date"),
                     Dimension(name="customEvent:custom_company_name"),      # GA4 confirmed this works
                     Dimension(name="customEvent:custom_recipient_id"),       # GA4 suggested this works
-                    Dimension(name="customEvent:custom_campaign_id")        # This should work based on our custom dimension setup
+                    Dimension(name="customEvent:custom_campaign_id"),        # This should work based on our custom dimension setup
                 ],
                 metrics=[
                     Metric(name="eventCount"),

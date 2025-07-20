@@ -312,16 +312,8 @@ function showDebugData() {
         return;
     }
     
-    const debugUrl = `/api/campaigns/${currentCampaignId}/analytics/debug`;
-    const debugWindow = window.open('', 'DebugData', 'width=800,height=600,scrollbars=yes');
-    debugWindow.document.write(`
-        <html><head><title>Debug Data</title></head><body>
-        <h3>Debug Info</h3>
-        <p><a href="${debugUrl}" target="_blank">Open Debug API URL</a></p>
-        <pre>${JSON.stringify(analyticsData, null, 2)}</pre>
-        </body></html>
-    `);
-    debugWindow.document.close();
+    const debugUrl = `/api/campaigns/${currentCampaignId}/analytics?debug=true`;
+    const debugWindow = window.open(debugUrl, 'DebugData', 'width=800,height=600,scrollbars=yes');
 }
 </script>
  

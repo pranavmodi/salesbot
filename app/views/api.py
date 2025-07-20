@@ -6,6 +6,7 @@ from app.models.company import Company
 from app.services.email_service import EmailService
 from app.services.email_reader_service import email_reader, configure_email_reader
 from app.services.ga4_analytics_service import create_ga4_service
+from app.services.possibleminds_analytics_service import create_possibleminds_service
 from app.utils.email_config import email_config, EmailAccount
 import os
 import tempfile
@@ -3138,38 +3139,22 @@ def get_campaign_clicks(campaign_id):
         days = int(request.args.get('days', 30))
         
         # Get click data from GA4 custom parameters ONLY
-        current_app.logger.info(f"=== CLICKS API === Getting GA4 custom parameters clicks for campaign {campaign_id}")
+        current_app.logger.info(f"=== CLICKS API === Getting GA4 raw diagnostic data for campaign {campaign_id}")
         try:
             ga4_service = create_ga4_service()
             current_app.logger.info("=== CLICKS API === GA4 custom parameters service created successfully")
             
-            # Get detailed clicks using custom parameters
-            ga4_clicks = ga4_service.get_detailed_clicks(str(campaign_id), days)
-            current_app.logger.info(f"=== CLICKS API === GA4 custom parameters returned {len(ga4_clicks)} click records")
-            
-            # Get campaign analytics for summary
-            analytics = ga4_service.get_campaign_analytics(str(campaign_id), days)
-            current_app.logger.info(f"=== CLICKS API === Analytics summary received")
-            
-            # Log sample of click data for verification
-            if ga4_clicks:
-                sample_click = ga4_clicks[0]
-                current_app.logger.info(f"=== CLICKS API === Sample click data:")
-                current_app.logger.info(f"=== CLICKS API === Company: {sample_click.get('company_name', 'N/A')}")
-                current_app.logger.info(f"=== CLICKS API === Recipient: {sample_click.get('recipient_email', 'N/A')}")
-                current_app.logger.info(f"=== CLICKS API === Device: {sample_click.get('device_type', 'N/A')}")
-                current_app.logger.info(f"=== CLICKS API === IP: {sample_click.get('visitor_ip', 'N/A')}")
-                current_app.logger.info(f"=== CLICKS API === Referrer: {sample_click.get('referrer', 'N/A')}")
+            # Get raw diagnostic data
+            raw_data = ga4_service.test_ga4_custom_dimensions_raw_data(days)
+            current_app.logger.info(f"=== CLICKS API === GA4 raw diagnostic data returned")
             
             return jsonify({
                 'success': True,
                 'campaign_id': campaign_id,
                 'campaign_name': campaign.name,
-                'clicks': ga4_clicks,
-                'analytics': analytics,
-                'data_source': analytics.get('data_source', 'ga4_custom_dimensions'),
-                'days_back': days,
-                'total_clicks': len(ga4_clicks)
+                'raw_data': raw_data,
+                'data_source': 'ga4_raw_diagnostic',
+                'days_back': days
             })
             
         except FileNotFoundError as e:
@@ -3236,13 +3221,16 @@ def get_campaign_analytics(campaign_id):
         # Get number of days to look back (default: 30)
         days = int(request.args.get('days', 30))
         
-        # Get analytics from GA4 custom parameters ONLY
-        current_app.logger.info(f"=== ANALYTICS API === Getting GA4 custom parameters analytics for {days} days")
-        try:
+        provider = os.getenv('ANALYTICS_PROVIDER', 'possibleminds')
+        analytics_data = {}
+
+        if provider == 'possibleminds':
+            current_app.logger.info(f"Using possibleminds provider for campaign {campaign_id}")
+            pm_service = create_possibleminds_service()
+            analytics_data = pm_service.get_campaign_clicks(str(campaign_id))
+        else:
+            current_app.logger.info(f"Using ga4 provider for campaign {campaign_id}")
             ga4_service = create_ga4_service()
-            current_app.logger.info("=== ANALYTICS API === GA4 custom parameters service created successfully")
-            
-            # Use custom parameters method
             analytics_data = ga4_service.get_campaign_analytics(str(campaign_id), days)
             current_app.logger.info(f"=== ANALYTICS API === GA4 custom parameters returned data: {analytics_data}")
             
@@ -3514,58 +3502,65 @@ def ga4_diagnostic():
             'error': str(e)
         }), 500
 
-@bp.route('/campaigns/analytics/ga4-raw-diagnostic', methods=['GET'])
-def ga4_raw_diagnostic():
-    """Enhanced diagnostic to show raw GA4 data including (not set) values."""
+@bp.route('/campaigns/<int:campaign_id>/analytics', methods=['GET'])
+def get_campaign_analytics_data(campaign_id):
+    """Get campaign analytics from the configured provider."""
     try:
-        # Get number of days to look back (default: 30)
-        days = int(request.args.get('days', 30))
-        
-        current_app.logger.info(f"=== RAW DIAGNOSTIC API === Testing GA4 raw custom dimensions data")
-        
-        try:
-            ga4_service = create_ga4_service()
-            current_app.logger.info("=== RAW DIAGNOSTIC API === GA4 service created successfully")
-            
-            # Test GA4 with raw data including (not set) values
-            raw_data = ga4_service.test_ga4_custom_dimensions_raw_data(days)
-            current_app.logger.info(f"=== RAW DIAGNOSTIC API === Raw diagnostic results: {raw_data}")
-            
+        days = request.args.get('days', 30, type=int)
+        provider = os.getenv('ANALYTICS_PROVIDER', 'possibleminds')  # Default to possibleminds
+
+        if provider == 'possibleminds':
+            current_app.logger.info(f"=== ANALYTICS API === Using possibleminds provider for campaign {campaign_id}")
+            pm_service = create_possibleminds_service()
+            data = pm_service.get_campaign_clicks(str(campaign_id))
+            # Normalize data to match frontend expectations
             return jsonify({
                 'success': True,
-                'raw_diagnostic_data': raw_data,
-                'days_tested': days,
-                'analysis': {
-                    'purpose': 'Show ALL raw GA4 data including (not set) values to understand custom dimension status',
-                    'what_this_shows': [
-                        'Exact values GA4 returns for each custom dimension',
-                        'Whether custom dimensions return (not set) or actual data',
-                        'Total click counts and row details',
-                        'Which custom dimensions are working vs not working'
-                    ],
-                    'interpretation': {
-                        'if_all_not_set': 'Custom dimensions not populating - may need time or reconfiguration',
-                        'if_some_set': 'Custom dimensions partially working - possibleminds.in may be sending incomplete data',
-                        'if_all_set': 'Custom dimensions working perfectly - campaign filtering was the issue'
-                    }
-                }
+                'analytics': {
+                    'total_clicks': len(data.get('clicks', [])),
+                    'unique_users': len(set(c['recipient_email'] for c in data.get('clicks', []))),
+                    'companies_clicked': list(set(c['company_name'] for c in data.get('clicks', []))),
+                    'data_source': 'possibleminds'
+                },
+                'performance_metrics': {
+                    'total_clicks': len(data.get('clicks', [])),
+                    # These would need to be fetched from the local DB if needed
+                    'total_contacts': 0, 
+                    'total_emails': 0,
+                    'click_rate': '0%'
+                },
+                'clicks': data.get('clicks', [])
             })
-            
-        except Exception as e:
-            current_app.logger.error(f"=== RAW DIAGNOSTIC API === GA4 service error: {str(e)}")
+        else: # Default to ga4
+            current_app.logger.info(f"=== ANALYTICS API === Using ga4 provider for campaign {campaign_id}")
+            ga4_service = create_ga4_service()
+            analytics_data = ga4_service.get_campaign_analytics(str(campaign_id), days)
+            # This part would need to be filled out with the same logic as the original ga4 route
+            # For now, returning the raw data
             return jsonify({
-                'success': False,
-                'message': 'GA4 raw diagnostic service error',
-                'error': str(e)
-            }), 500
-        
+                'success': True,
+                'analytics': analytics_data
+            })
+
     except Exception as e:
-        current_app.logger.error(f"=== RAW DIAGNOSTIC API === Unexpected error: {str(e)}")
+        current_app.logger.error(f"=== ANALYTICS API === Error: {str(e)}")
         return jsonify({
             'success': False,
-            'message': 'Raw diagnostic endpoint error',
+            'message': 'Analytics service error',
             'error': str(e)
         }), 500
+
+@bp.route('/campaigns/<int:campaign_id>/analytics/possibleminds', methods=['GET'])
+def get_possibleminds_analytics(campaign_id):
+    """Get campaign analytics from the PossibleMinds endpoint."""
+    try:
+        pm_service = create_possibleminds_service()
+        click_data = pm_service.get_campaign_clicks(str(campaign_id))
+        return jsonify(click_data)
+    except Exception as e:
+        current_app.logger.error(f"Error getting PossibleMinds analytics: {e}")
+        return jsonify({'success': False, 'message': 'Internal Server Error'}), 500
+
 
 @bp.route('/campaigns/<int:campaign_id>/analytics/debug', methods=['GET'])
 def debug_campaign_analytics(campaign_id):
