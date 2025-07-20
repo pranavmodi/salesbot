@@ -481,7 +481,7 @@ function performContactSearch(searchTerm) {
     `;
     
     // Perform server-side search
-    fetch(`/api/search_contacts?q=${encodeURIComponent(searchTerm)}`)
+    fetch(`/api/contacts/search?q=${encodeURIComponent(searchTerm)}`)
         .then(response => response.json())
         .then(data => {
             if (data.error) {
@@ -1601,7 +1601,7 @@ function generateEmailPreview() {
         position: form.position.value
     };
     
-    fetch('/api/preview_email', {
+    fetch('/api/email/preview_email', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -1830,7 +1830,7 @@ function sendComposedEmail(e) {
         formData.append('account_name', currentGlobalAccount.name);
     }
 
-    fetch('/api/send_email', {
+    fetch('/api/email/send_email', {
         method: 'POST',
         body: formData
     })
@@ -4341,7 +4341,7 @@ function searchContactsForCampaign() {
         return;
     }
     
-    fetch(`/api/search_contacts?q=${encodeURIComponent(searchTerm)}`)
+    fetch(`/api/contacts/search?q=${encodeURIComponent(searchTerm)}`)
         .then(response => response.json())
         .then(data => {
             if (data.success) {

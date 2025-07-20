@@ -326,7 +326,12 @@ class CampaignScheduler:
     def __init__(self):
         self.scheduler = None
         self.running_campaigns = {}  # Track active campaign jobs
-        self._setup_scheduler()
+    
+    def init_app(self, app):
+        """Initialize the scheduler with the Flask app context."""
+        with app.app_context():
+            self._setup_scheduler()
+            self.start()
     
     def _setup_scheduler(self):
         """Setup APScheduler with database persistence."""
