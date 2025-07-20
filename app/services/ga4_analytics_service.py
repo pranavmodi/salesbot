@@ -73,9 +73,9 @@ class GA4AnalyticsService:
                 dimensions=[
                     Dimension(name="eventName"),
                     Dimension(name="date"),
-                    Dimension(name="customEvent:company_name"),      # GA4 confirmed this works
-                    Dimension(name="customEvent:recipient_id"),       # GA4 suggested this works
-                    Dimension(name="customEvent:campaign_id")        # This should work based on our custom dimension setup
+                    Dimension(name="customEvent:custom_company_name"),      # GA4 confirmed this works
+                    Dimension(name="customEvent:custom_recipient_id"),       # GA4 suggested this works
+                    Dimension(name="customEvent:custom_campaign_id")        # This should work based on our custom dimension setup
                 ],
                 metrics=[
                     Metric(name="eventCount"),
@@ -96,7 +96,7 @@ class GA4AnalyticsService:
                             ),
                             FilterExpression(
                                 filter=Filter(
-                                    field_name="customEvent:campaign_id",
+                                    field_name="customEvent:custom_campaign_id",
                                     string_filter=Filter.StringFilter(value=str(campaign_id))
                                 )
                             )
@@ -156,9 +156,11 @@ class GA4AnalyticsService:
                 dimensions=[
                     Dimension(name="eventName"),
                     Dimension(name="dateHour"),  # More precise timing
-                    Dimension(name="customEvent:company_name"),      # GA4 confirmed this works
-                    Dimension(name="customEvent:recipient_id"),       # GA4 suggested this works
-                    Dimension(name="customEvent:campaign_id"),        # This should work based on our custom dimension setup
+                    Dimension(name="customEvent:custom_company_name"),      # GA4 confirmed this works
+                    Dimension(name="customEvent:custom_recipient_id"),       # GA4 suggested this works
+                    Dimension(name="customEvent:custom_campaign_id"),        # This should work based on our custom dimension setup
+                    Dimension(name="customEvent:visitor_ip"),
+                    Dimension(name="customEvent:referrer"),
                     Dimension(name="deviceCategory")      # This is a standard dimension that should work
                 ],
                 metrics=[
@@ -179,7 +181,7 @@ class GA4AnalyticsService:
                             ),
                             FilterExpression(
                                 filter=Filter(
-                                    field_name="customEvent:campaign_id",
+                                    field_name="customEvent:custom_campaign_id",
                                     string_filter=Filter.StringFilter(value=str(campaign_id))
                                 )
                             )
@@ -218,9 +220,9 @@ class GA4AnalyticsService:
                 dimensions=[
                     Dimension(name="eventName"),
                     Dimension(name="date"),
-                    Dimension(name="customEvent:company_name"),
-                    Dimension(name="customEvent:recipient_id"),
-                    Dimension(name="customEvent:campaign_id")
+                    Dimension(name="customEvent:custom_company_name"),
+                    Dimension(name="customEvent:custom_recipient_id"),
+                    Dimension(name="customEvent:custom_campaign_id")
                 ],
                 metrics=[
                     Metric(name="eventCount"),
@@ -313,9 +315,9 @@ class GA4AnalyticsService:
                 dimensions=[
                     Dimension(name="eventName"),
                     Dimension(name="date"),
-                    Dimension(name="customEvent:company_name"),
-                    Dimension(name="customEvent:recipient_id"),
-                    Dimension(name="customEvent:campaign_id")
+                    Dimension(name="customEvent:custom_company_name"),
+                    Dimension(name="customEvent:custom_recipient_id"),
+                    Dimension(name="customEvent:custom_campaign_id")
                 ],
                 metrics=[
                     Metric(name="eventCount"),

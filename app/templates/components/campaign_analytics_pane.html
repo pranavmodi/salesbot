@@ -1,4 +1,4 @@
-<!-- Campaign Analytics Pane with Click Tracking -->
+<!-- Campaign Analytics Pane (Simplified) -->
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="mb-0">
@@ -22,60 +22,54 @@
 
         <!-- Analytics Content -->
         <div id="analyticsContent">
+            <!-- Data Processing Notice -->
+            <div id="dataProcessingNotice" class="alert alert-info mb-4" style="display: none;">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <div class="flex-grow-1">
+                        <strong>Analytics Data Processing</strong><br>
+                        <small>Click tracking data may take 24-48 hours to appear due to GA4 processing delays. If you see "Processing," it means we are waiting for data from Google.</small>
+                    </div>
+                    <button class="btn btn-sm btn-outline-info ms-3" onclick="showDebugData()">
+                        <i class="fas fa-bug me-1"></i>Debug Data
+                    </button>
+                </div>
+            </div>
+            
             <!-- Overview Section -->
-            <h4 class="mb-3">Overview</h4>
+            <h4 class="mb-3">Campaign Performance</h4>
             <div id="analyticsOverview" class="analytics-section">
                 <!-- Performance Metrics Row -->
                 <div class="row mb-4">
                     <div class="col-md-3">
-                        <div class="card bg-primary text-white">
+                        <div class="card bg-light">
                             <div class="card-body text-center">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <h4 class="mb-0" id="totalContacts">-</h4>
-                                        <p class="mb-0 small">Total Contacts</p>
-                                    </div>
-                                    <i class="fas fa-users fa-2x opacity-50"></i>
-                                </div>
+                                <h4 class="mb-0" id="totalContacts">-</h4>
+                                <p class="mb-0 text-muted small">Total Contacts</p>
                             </div>
                         </div>
                     </div>
                     <div class="col-md-3">
-                        <div class="card bg-success text-white">
+                        <div class="card bg-light">
                             <div class="card-body text-center">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <h4 class="mb-0" id="totalEmails">-</h4>
-                                        <p class="mb-0 small">Emails Sent</p>
-                                    </div>
-                                    <i class="fas fa-envelope fa-2x opacity-50"></i>
-                                </div>
+                                <h4 class="mb-0" id="totalEmails">-</h4>
+                                <p class="mb-0 text-muted small">Emails Sent</p>
                             </div>
                         </div>
                     </div>
                     <div class="col-md-3">
-                        <div class="card bg-info text-white">
+                        <div class="card bg-light">
                             <div class="card-body text-center">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <h4 class="mb-0" id="totalClicks">-</h4>
-                                        <p class="mb-0 small">Report Clicks</p>
-                                    </div>
-                                    <i class="fas fa-mouse-pointer fa-2x opacity-50"></i>
-                                </div>
+                                <h4 class="mb-0" id="totalClicks">-</h4>
+                                <p class="mb-0 text-muted small">Report Clicks</p>
                             </div>
                         </div>
                     </div>
                     <div class="col-md-3">
-                        <div class="card bg-warning text-white">
+                        <div class="card bg-light">
                             <div class="card-body text-center">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <h4 class="mb-0" id="clickRate">-</h4>
-                                        <p class="mb-0 small">Click Rate</p>
-                                    </div>
-                                    <i class="fas fa-percentage fa-2x opacity-50"></i>
-                                </div>
+                                <h4 class="mb-0" id="clickRate">-</h4>
+                                <p class="mb-0 text-muted small">Click Rate</p>
                             </div>
                         </div>
                     </div>
@@ -83,7 +77,7 @@
 
                 <!-- Charts Row -->
                 <div class="row mb-4">
-                    <div class="col-md-6">
+                    <div class="col-md-8">
                         <div class="card">
                             <div class="card-header">
                                 <h6 class="mb-0">
@@ -91,26 +85,10 @@
                                 </h6>
                             </div>
                             <div class="card-body">
-                                <canvas id="engagementFunnelChart" width="400" height="300"></canvas>
+                                <canvas id="engagementFunnelChart" width="400" height="250"></canvas>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-header">
-                                <h6 class="mb-0">
-                                    <i class="fas fa-chart-line me-2"></i>Clicks Over Time
-                                </h6>
-                            </div>
-                            <div class="card-body">
-                                <canvas id="clicksTimeChart" width="400" height="300"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Engagement Details Row -->
-                <div class="row">
                     <div class="col-md-4">
                         <div class="card">
                             <div class="card-header">
@@ -125,32 +103,6 @@
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="card">
-                            <div class="card-header">
-                                <h6 class="mb-0">
-                                    <i class="fas fa-desktop me-2"></i>Device Breakdown
-                                </h6>
-                            </div>
-                            <div class="card-body">
-                                <canvas id="deviceChart" width="300" height="300"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="card">
-                            <div class="card-header">
-                                <h6 class="mb-0">
-                                    <i class="fas fa-globe me-2"></i>Geographic Distribution
-                                </h6>
-                            </div>
-                            <div class="card-body">
-                                <div id="geoBreakdown" class="list-group list-group-flush">
-                                    <!-- Dynamic content -->
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
 
@@ -159,25 +111,6 @@
             <!-- Click Details Section -->
             <h4 class="mb-3">Click Details</h4>
             <div id="clickDetails" class="analytics-section">
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <div class="input-group">
-                            <span class="input-group-text">
-                                <i class="fas fa-search"></i>
-                            </span>
-                            <input type="text" class="form-control" id="clickSearchInput" placeholder="Search clicks by company, email, or tracking ID...">
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <select class="form-select" id="clickDateFilter">
-                            <option value="all">All Time</option>
-                            <option value="today">Today</option>
-                            <option value="week">This Week</option>
-                            <option value="month">This Month</option>
-                        </select>
-                    </div>
-                </div>
-
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead class="table-dark">
@@ -187,8 +120,6 @@
                                 <th>Recipient</th>
                                 <th>Device</th>
                                 <th>Location</th>
-                                <th>UTM Campaign</th>
-                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="clickDetailsTable">
@@ -203,227 +134,77 @@
                     <p class="text-muted">Click data will appear here when prospects engage with your strategic reports.</p>
                 </div>
             </div>
-
-            <hr class="my-4">
-
-            <!-- Performance Metrics Section -->
-            <h4 class="mb-3">Performance Metrics</h4>
-            <div id="performanceMetrics" class="analytics-section">
-                <div class="row mb-4">
-                    <div class="col-md-8">
-                        <div class="card">
-                            <div class="card-header">
-                                <h6 class="mb-0">
-                                    <i class="fas fa-tachometer-alt me-2"></i>Campaign Performance Metrics
-                                </h6>
-                            </div>
-                            <div class="card-body">
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="metric-item border-bottom pb-3 mb-3">
-                                            <div class="d-flex justify-content-between">
-                                                <span class="text-muted">Email Delivery Rate</span>
-                                                <span class="fw-bold text-success" id="deliveryRate">-</span>
-                                            </div>
-                                            <div class="progress mt-2" style="height: 6px;">
-                                                <div class="progress-bar bg-success" id="deliveryRateBar" style="width: 0%"></div>
-                                            </div>
-                                        </div>
-                                        <div class="metric-item border-bottom pb-3 mb-3">
-                                            <div class="d-flex justify-content-between">
-                                                <span class="text-muted">Report Click Rate</span>
-                                                <span class="fw-bold text-info" id="reportClickRate">-</span>
-                                            </div>
-                                            <div class="progress mt-2" style="height: 6px;">
-                                                <div class="progress-bar bg-info" id="reportClickRateBar" style="width: 0%"></div>
-                                            </div>
-                                        </div>
-                                        <div class="metric-item border-bottom pb-3 mb-3">
-                                            <div class="d-flex justify-content-between">
-                                                <span class="text-muted">Unique Engagement Rate</span>
-                                                <span class="fw-bold text-warning" id="uniqueEngagementRate">-</span>
-                                            </div>
-                                            <div class="progress mt-2" style="height: 6px;">
-                                                <div class="progress-bar bg-warning" id="uniqueEngagementRateBar" style="width: 0%"></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="metric-item border-bottom pb-3 mb-3">
-                                            <div class="d-flex justify-content-between">
-                                                <span class="text-muted">Companies Engaged</span>
-                                                <span class="fw-bold text-primary" id="companiesEngaged">-</span>
-                                            </div>
-                                            <small class="text-muted">Out of <span id="totalCompaniesTargeted">-</span> targeted</small>
-                                        </div>
-                                        <div class="metric-item border-bottom pb-3 mb-3">
-                                            <div class="d-flex justify-content-between">
-                                                <span class="text-muted">Avg. Time to Click</span>
-                                                <span class="fw-bold text-secondary" id="avgTimeToClick">-</span>
-                                            </div>
-                                            <small class="text-muted">From email send to first click</small>
-                                        </div>
-                                        <div class="metric-item">
-                                            <div class="d-flex justify-content-between">
-                                                <span class="text-muted">Repeat Engagement</span>
-                                                <span class="fw-bold text-success" id="repeatEngagement">-</span>
-                                            </div>
-                                            <small class="text-muted">Multiple clicks from same prospect</small>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="card">
-                            <div class="card-header">
-                                <h6 class="mb-0">
-                                    <i class="fas fa-trophy me-2"></i>Campaign Score
-                                </h6>
-                            </div>
-                            <div class="card-body text-center">
-                                <div class="position-relative d-inline-block">
-                                    <canvas id="campaignScoreChart" width="120" height="120"></canvas>
-                                    <div class="position-absolute top-50 start-50 translate-middle">
-                                        <h3 class="mb-0 text-primary" id="campaignScore">-</h3>
-                                        <small class="text-muted">Score</small>
-                                    </div>
-                                </div>
-                                <div class="mt-3">
-                                    <small class="text-muted">Based on engagement metrics and industry benchmarks</small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Recommendations -->
-                <div class="card">
-                    <div class="card-header">
-                        <h6 class="mb-0">
-                            <i class="fas fa-lightbulb me-2"></i>Optimization Recommendations
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <div id="recommendations" class="list-group list-group-flush">
-                            <!-- Dynamic recommendations -->
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 </div>
 
 <script>
-// Campaign Analytics JavaScript
+// Campaign Analytics JavaScript (Simplified)
 let currentCampaignId = null;
 let analyticsData = null;
 let charts = {};
 
 function initializeCampaignAnalytics(campaignId) {
-    console.log('=== ANALYTICS FRONTEND === Initializing campaign analytics for campaign:', campaignId);
     currentCampaignId = campaignId;
     loadAnalyticsData();
-    loadClickDetails(); // Load click details on initialization
+    loadClickDetails();
 }
 
 function loadAnalyticsData() {
-    console.log('=== ANALYTICS FRONTEND === Loading analytics data for campaign:', currentCampaignId);
-    
-    if (!currentCampaignId) {
-        console.error('=== ANALYTICS FRONTEND === No campaign ID set!');
-        return;
-    }
+    if (!currentCampaignId) return;
 
     $('#analyticsLoading').show();
     $('#analyticsError').hide();
     
-    const apiUrl = `/api/campaigns/${currentCampaignId}/analytics`;
-    console.log('=== ANALYTICS FRONTEND === Making API request to:', apiUrl);
-
-    fetch(apiUrl)
-        .then(response => {
-            console.log('=== ANALYTICS FRONTEND === Response status:', response.status);
-            console.log('=== ANALYTICS FRONTEND === Response headers:', response.headers);
-            return response.json();
-        })
+    fetch(`/api/campaigns/${currentCampaignId}/analytics`)
+        .then(response => response.json())
         .then(data => {
-            console.log('=== ANALYTICS FRONTEND === Response data:', data);
             $('#analyticsLoading').hide();
-            
             if (data.success) {
-                console.log('=== ANALYTICS FRONTEND === Analytics data received:', data);
-                analyticsData = data;  // Store the full response object
+                analyticsData = data;
                 updateAnalyticsDisplay();
             } else {
-                console.error('=== ANALYTICS FRONTEND === API returned error:', data.message);
-                showAnalyticsError(data.message);
+                showAnalyticsError(data.message || 'Failed to load analytics data');
             }
         })
         .catch(error => {
-            console.error('=== ANALYTICS FRONTEND === Fetch error:', error);
-            console.error('=== ANALYTICS FRONTEND === Error details:', error.message, error.stack);
             $('#analyticsLoading').hide();
-            showAnalyticsError('Failed to load analytics data');
+            showAnalyticsError('An unexpected error occurred.');
         });
 }
 
 function updateAnalyticsDisplay() {
-    console.log('=== ANALYTICS FRONTEND === Updating analytics display');
-    
-    if (!analyticsData) {
-        console.error('=== ANALYTICS FRONTEND === No analytics data available!');
-        return;
-    }
+    if (!analyticsData) return;
 
-    console.log('=== ANALYTICS FRONTEND === Analytics data structure:', analyticsData);
-    
-    // Fix: performance_metrics is at the top level, not inside analytics
     const metrics = analyticsData.performance_metrics;
-    
-    console.log('=== ANALYTICS FRONTEND === Performance metrics:', metrics);
-
     if (!metrics) {
-        showAnalyticsError("Performance metrics data is missing or in an unexpected format.");
+        showAnalyticsError("Performance metrics data is missing.");
         return;
     }
     
-    // Update metric cards
     $('#totalContacts').text(metrics.total_contacts.toLocaleString());
     $('#totalEmails').text(metrics.total_emails.toLocaleString());
-    $('#totalClicks').text(metrics.total_clicks.toLocaleString());
-    $('#clickRate').text(metrics.click_rate || '0%');
-    
-    console.log('=== ANALYTICS FRONTEND === Updated metric cards with:', {
-        contacts: metrics.total_contacts,
-        emails: metrics.total_emails,
-        clicks: metrics.total_clicks,
-        rate: metrics.click_rate
-    });
 
-    // Update charts - handle missing data gracefully
-    console.log('=== ANALYTICS FRONTEND === Updating charts...');
+    if (analyticsData.analytics.data_source === 'ga4_custom_params_error' || (metrics.total_clicks === 0 && metrics.total_emails > 0)) {
+        $('#totalClicks').html('<span class="text-muted">Processing...</span>');
+        $('#clickRate').html('<span class="text-muted">Processing...</span>');
+        $('#dataProcessingNotice').show();
+    } else {
+        $('#totalClicks').text(metrics.total_clicks.toLocaleString());
+        $('#clickRate').text(metrics.click_rate || '0%');
+        $('#dataProcessingNotice').hide();
+    }
+
     updateEngagementFunnelChart();
-    updateClicksTimeChart();
-    updateDeviceChart();
     updateTopCompanies();
-    updateGeographicDistribution();
-    updatePerformanceMetrics();
-    console.log('=== ANALYTICS FRONTEND === Charts updated successfully');
 }
 
 function updateEngagementFunnelChart() {
     const ctx = document.getElementById('engagementFunnelChart').getContext('2d');
-    // Fix: Use correct data paths from backend
     const metrics = analyticsData.performance_metrics;
     const analytics = analyticsData.analytics;
 
-    if (!metrics || !analytics) {
-        console.log('=== ANALYTICS FRONTEND === Missing data for funnel chart, skipping');
-        return;
-    }
+    if (!metrics || !analytics) return;
     
     if (charts.funnelChart) {
         charts.funnelChart.destroy();
@@ -442,280 +223,38 @@ function updateEngagementFunnelChart() {
                     analytics.unique_recipients || 0
                 ],
                 backgroundColor: [
-                    'rgba(54, 162, 235, 0.8)',
-                    'rgba(75, 192, 192, 0.8)',
-                    'rgba(255, 206, 86, 0.8)',
-                    'rgba(153, 102, 255, 0.8)'
-                ],
-                borderColor: [
-                    'rgba(54, 162, 235, 1)',
-                    'rgba(75, 192, 192, 1)',
-                    'rgba(255, 206, 86, 1)',
-                    'rgba(153, 102, 255, 1)'
-                ],
-                borderWidth: 1
+                    'rgba(54, 162, 235, 0.7)',
+                    'rgba(75, 192, 192, 0.7)',
+                    'rgba(255, 206, 86, 0.7)',
+                    'rgba(153, 102, 255, 0.7)'
+                ]
             }]
         },
         options: {
             responsive: true,
-            plugins: {
-                legend: {
-                    display: false
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
-            }
-        }
-    });
-}
-
-function updateClicksTimeChart() {
-    const ctx = document.getElementById('clicksTimeChart').getContext('2d');
-    // Fix: Backend doesn't provide clicks_by_date, create fallback or simple data
-    const clicksData = analyticsData.analytics?.click_analytics?.clicks_by_date || [];
-    
-    if (charts.timeChart) {
-        charts.timeChart.destroy();
-    }
-    
-    // If no time-based data available, create a simple chart with total clicks
-    if (clicksData.length === 0) {
-        const totalClicks = analyticsData.performance_metrics?.total_clicks || 0;
-        const today = new Date().toLocaleDateString();
-        
-        charts.timeChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: [today],
-                datasets: [{
-                    label: 'Total Clicks',
-                    data: [totalClicks],
-                    borderColor: 'rgba(75, 192, 192, 1)',
-                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                    tension: 0.1,
-                    pointRadius: 6,
-                    pointHoverRadius: 8
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
-                }
-            }
-        });
-        return;
-    }
-    
-    charts.timeChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: clicksData.map(d => new Date(d.date).toLocaleDateString()),
-            datasets: [{
-                label: 'Clicks',
-                data: clicksData.map(d => d.clicks),
-                borderColor: 'rgba(75, 192, 192, 1)',
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                tension: 0.1
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: {
-                    display: false
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
-            }
-        }
-    });
-}
-
-function updateDeviceChart() {
-    console.log('=== ANALYTICS FRONTEND === Updating device chart with real data');
-    const ctx = document.getElementById('deviceChart').getContext('2d');
-    
-    // Fix: Backend doesn't provide device_breakdown in click_analytics, use fallback
-    const deviceData = analyticsData.analytics?.click_analytics?.device_breakdown || {};
-    
-    if (Object.keys(deviceData).length === 0) {
-        if (charts.deviceChart) charts.deviceChart.destroy();
-        // Show "No device data available" message instead of empty chart
-        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-        ctx.fillStyle = '#6c757d';
-        ctx.font = '14px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('No device data available', ctx.canvas.width / 2, ctx.canvas.height / 2);
-        return;
-    }
-    
-    if (charts.deviceChart) {
-        charts.deviceChart.destroy();
-    }
-    
-    const colors = [
-        'rgba(54, 162, 235, 0.8)',
-        'rgba(255, 99, 132, 0.8)',
-        'rgba(255, 206, 86, 0.8)',
-        'rgba(75, 192, 192, 0.8)',
-        'rgba(153, 102, 255, 0.8)',
-        'rgba(255, 159, 64, 0.8)'
-    ];
-    
-    charts.deviceChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: Object.keys(deviceData),
-            datasets: [{
-                data: Object.values(deviceData),
-                backgroundColor: colors.slice(0, Object.keys(deviceData).length)
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: {
-                    position: 'bottom'
-                }
-            }
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true } }
         }
     });
 }
 
 function updateTopCompanies() {
-    console.log('=== ANALYTICS FRONTEND === Updating top companies with real data');
     const container = $('#topCompanies');
-    
-    // Fix: Backend provides companies_clicked in analytics, not in click_analytics.top_companies
     const topCompanies = analyticsData.analytics?.companies_clicked || [];
     
     if (topCompanies.length === 0) {
-        container.html('<div class="text-muted text-center py-3">No company engagement data available</div>');
+        container.html('<div class="text-muted text-center py-3">No company engagement data yet.</div>');
         return;
     }
     
-    // Convert simple company names to the expected format with click counts
-    const formattedCompanies = topCompanies.map(company => ({
-        company_name: company,
-        click_count: 1 // Since backend doesn't provide individual click counts
-    }));
-    
-    const html = formattedCompanies.slice(0, 5).map(company => `
+    const html = topCompanies.slice(0, 5).map(company => `
         <div class="list-group-item d-flex justify-content-between align-items-center">
-            <div>
-                <div class="fw-bold">${company.company_name}</div>
-                <small class="text-muted">Engaged</small>
-            </div>
+            <div class="fw-bold">${company}</div>
             <span class="badge bg-primary rounded-pill"><i class="fas fa-check"></i></span>
         </div>
     `).join('');
     
     container.html(html);
-}
-
-function updateGeographicDistribution() {
-    console.log('=== ANALYTICS FRONTEND === Updating geographic distribution with real data');
-    const container = $('#geoBreakdown');
-    
-    // Fix: Backend doesn't provide geo_distribution, show message instead
-    const geoData = analyticsData.analytics?.click_analytics?.geo_distribution || [];
-    
-    if (geoData.length === 0) {
-        container.html('<div class="text-muted text-center py-3">Geographic data not available</div>');
-        return;
-    }
-    
-    const html = geoData.slice(0, 5).map(geo => `
-        <div class="list-group-item d-flex justify-content-between align-items-center">
-            <div>
-                <div class="fw-bold">${geo.country}</div>
-                <small class="text-muted">${geo.click_count} click${geo.click_count !== 1 ? 's' : ''}</small>
-            </div>
-            <span class="badge bg-info rounded-pill">${geo.click_count}</span>
-        </div>
-    `).join('');
-    
-    container.html(html);
-}
-
-function updatePerformanceMetrics() {
-    // Fix: Use the correct data structure from backend
-    const metrics = analyticsData.performance_metrics;
-    const emailStats = analyticsData.email_stats;
-    const analytics = analyticsData.analytics;
-
-    if (!metrics || !emailStats || !analytics) return;
-    
-    // Calculate rates using available data
-    const deliveryRate = emailStats.total_sent > 0 ? (emailStats.total_delivered / emailStats.total_sent * 100).toFixed(1) : 0;
-    const reportClickRate = metrics.total_emails > 0 ? (metrics.total_clicks / metrics.total_emails * 100).toFixed(1) : 0;
-    const uniqueEngagementRate = metrics.total_contacts > 0 ? (analytics.unique_recipients / metrics.total_contacts * 100).toFixed(1) : 0;
-    
-    $('#deliveryRate').text(deliveryRate + '%');
-    $('#reportClickRate').text(reportClickRate + '%');
-    $('#uniqueEngagementRate').text(uniqueEngagementRate + '%');
-    $('#companiesEngaged').text(metrics.companies_engaged || analytics.unique_companies || 0);
-    $('#totalCompaniesTargeted').text(metrics.total_contacts);
-    
-    // Handle additional metrics that are not available in backend
-    $('#avgTimeToClick').text('N/A');
-    $('#repeatEngagement').text('N/A');
-    
-    $('#deliveryRateBar').css('width', deliveryRate + '%');
-    $('#reportClickRateBar').css('width', reportClickRate + '%');
-    $('#uniqueEngagementRateBar').css('width', uniqueEngagementRate + '%');
-    
-    const campaignScore = Math.round((parseFloat(deliveryRate) + parseFloat(reportClickRate) + parseFloat(uniqueEngagementRate)) / 3);
-    $('#campaignScore').text(campaignScore);
-    
-    updateCampaignScoreChart(campaignScore);
-}
-
-function updateCampaignScoreChart(score) {
-    const ctx = document.getElementById('campaignScoreChart').getContext('2d');
-    
-    if (charts.scoreChart) {
-        charts.scoreChart.destroy();
-    }
-    
-    charts.scoreChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            datasets: [{
-                data: [score, 100 - score],
-                backgroundColor: [
-                    score >= 70 ? 'rgba(75, 192, 192, 0.8)' : 
-                    score >= 50 ? 'rgba(255, 206, 86, 0.8)' : 
-                    'rgba(255, 99, 132, 0.8)',
-                    'rgba(200, 200, 200, 0.2)'
-                ],
-                borderWidth: 0
-            }]
-        },
-        options: {
-            responsive: true,
-            cutout: '70%',
-            plugins: {
-                legend: {
-                    display: false
-                }
-            }
-        }
-    });
 }
 
 function loadClickDetails() {
@@ -726,12 +265,14 @@ function loadClickDetails() {
         .then(data => {
             if (data.success) {
                 updateClickDetailsTable(data.clicks);
-            } else {
+            }
+            else {
+                $('#clickDetailsTable').empty();
                 $('#clickDetailsEmpty').show();
             }
         })
         .catch(error => {
-            console.error('Click details error:', error);
+            $('#clickDetailsTable').empty();
             $('#clickDetailsEmpty').show();
         });
 }
@@ -750,25 +291,14 @@ function updateClickDetailsTable(clicks) {
     const html = clicks.map(click => `
         <tr>
             <td>${new Date(click.click_timestamp).toLocaleString()}</td>
-            <td>${click.company_name || 'Unknown'}</td>
-            <td>${click.recipient_email || 'Unknown'}</td>
-            <td>${click.device_type || 'Unknown'}</td>
-            <td>${click.country || 'Unknown'}</td>
-            <td>${click.utm_campaign || 'Unknown'}</td>
-            <td>
-                <button class="btn btn-sm btn-outline-primary" onclick="viewClickDetails('${click.tracking_id}')">
-                    <i class="fas fa-eye"></i>
-                </button>
-            </td>
+            <td>${click.company_name || 'N/A'}</td>
+            <td>${click.recipient_email || 'N/A'}</td>
+            <td>${click.device_type || 'N/A'}</td>
+            <td>${click.country || 'N/A'}</td>
         </tr>
     `).join('');
     
     tbody.html(html);
-}
-
-function viewClickDetails(trackingId) {
-    // Implement click details modal
-    alert(`View details for tracking ID: ${trackingId}`);
 }
 
 function showAnalyticsError(message) {
@@ -776,48 +306,22 @@ function showAnalyticsError(message) {
     $('#analyticsErrorMessage').text(message);
 }
 
-// Initialize click search
-$('#clickSearchInput').on('input', function() {
-    const searchTerm = $(this).val().toLowerCase();
-    $('#clickDetailsTable tr').each(function() {
-        const text = $(this).text().toLowerCase();
-        $(this).toggle(text.includes(searchTerm));
-    });
-});
-
-// Initialize date filter
-$('#clickDateFilter').on('change', function() {
-    // Implement date filtering
-    loadClickDetails();
-});
+function showDebugData() {
+    if (!analyticsData) {
+        alert('No analytics data available');
+        return;
+    }
+    
+    const debugUrl = `/api/campaigns/${currentCampaignId}/analytics/debug`;
+    const debugWindow = window.open('', 'DebugData', 'width=800,height=600,scrollbars=yes');
+    debugWindow.document.write(`
+        <html><head><title>Debug Data</title></head><body>
+        <h3>Debug Info</h3>
+        <p><a href="${debugUrl}" target="_blank">Open Debug API URL</a></p>
+        <pre>${JSON.stringify(analyticsData, null, 2)}</pre>
+        </body></html>
+    `);
+    debugWindow.document.close();
+}
 </script>
-
-<style>
-.analytics-section {
-    min-height: 500px;
-}
-
-.metric-item {
-    padding: 0.5rem 0;
-}
-
-.progress {
-    height: 6px;
-    border-radius: 3px;
-}
-
-.card-body canvas {
-    max-width: 100%;
-}
-
-.opacity-50 {
-    opacity: 0.5;
-}
-
-.list-group-flush .list-group-item {
-    border-left: 0;
-    border-right: 0;
-    border-radius: 0;
-}
-</style>
  

@@ -217,7 +217,7 @@ class DeepResearchEmailComposer:
             print(f"🔍 DEBUG: Found markdown report, publishing to possibleminds.in...")
             
             # First, publish the report to possibleminds.in
-            published_url = self._publish_report_to_netlify(company, recipient_email)
+            published_url = self._publish_report_to_netlify(company, recipient_email, campaign_id)
             
             if published_url:
                 print(f"🔍 DEBUG: Successfully published report, URL: {published_url}")
@@ -233,8 +233,8 @@ class DeepResearchEmailComposer:
             print(f"❌ Error getting/publishing report: {e}")
             return ""
 
-    def _publish_report_to_netlify(self, company, recipient_email: str) -> str:
-        """Publish report to Netlify function and return public URL."""
+    def _publish_report_to_netlify(self, company, recipient_email: str, campaign_id: int = None) -> str:
+        """Publish report to Netlify function and return click tracking URL."""
         try:
             from datetime import datetime
             
@@ -324,23 +324,33 @@ class DeepResearchEmailComposer:
                 
                 if public_url:
                     print(f"✅ PROGRESS: Report published successfully to possibleminds.in")
-                    print(f"🔗 PROGRESS: Adding tracking parameters to report URL")
+                    print(f"🔗 PROGRESS: Creating click tracking URL that routes through /.netlify/functions/click-tracking")
                     
-                    # Add tracking parameters to the public URL
+                    # Extract company slug from the public URL for click tracking
+                    # Example: https://possibleminds.in/reports/ola-ola -> ola-ola
+                    import re
+                    slug_match = re.search(r'/reports/([^/?]+)', public_url)
+                    company_slug = slug_match.group(1) if slug_match else company.company_name.lower().replace(' ', '-').replace('&', 'and')
+                    
+                    # Create click tracking URL that routes through the tracking function first
                     tracking_params = {
+                        'slug': company_slug,  # Use slug parameter as expected by click tracking
                         'utm_source': 'email',
                         'utm_medium': 'outreach',
                         'utm_campaign': 'deep_research',
                         'utm_content': 'strategic_analysis',
                         'company': company.company_name.lower().replace(' ', '_'),
-                        'recipient': recipient_email.split('@')[0] if recipient_email else 'unknown'
+                        'recipient': recipient_email.split('@')[0] if recipient_email else 'unknown',
+                        'campaign_id': campaign_id if campaign_id else 'unknown'  # Use actual campaign_id
                     }
                     
+                    base_tracking_url = "https://possibleminds.in/.netlify/functions/click-tracking"
                     url_params = urllib.parse.urlencode(tracking_params)
-                    tracked_url = f"{public_url}?{url_params}"
+                    tracked_url = f"{base_tracking_url}?{url_params}"
                     
-                    print(f"✅ PROGRESS: Tracking-enabled report URL ready")
-                    print(f"🔍 DEBUG: Final tracked URL: {tracked_url}")
+                    print(f"✅ PROGRESS: Click tracking URL ready - will route through tracking function first")
+                    print(f"🔍 DEBUG: Click tracking URL: {tracked_url}")
+                    print(f"🔍 DEBUG: After click tracking, user will be redirected to: {public_url}")
                     return tracked_url
                 else:
                     print(f"❌ PROGRESS: Failed to extract public URL from response")
@@ -571,10 +581,10 @@ class DeepResearchEmailComposer:
             
             # Tracking parameters matching possibleminds.in format
             tracking_params = {
-                'company_id': company_slug,
+                'slug': company_slug,  # Use slug parameter as expected by click tracking
                 'utm_source': 'email',
                 'utm_medium': 'outreach',
-                'utm_campaign': f"campaign_{campaign_id}" if campaign_id else 'deep_research',
+                'utm_campaign': 'deep_research',
                 'utm_content': 'strategic_analysis',
                 'company': company_name if company_name else 'unknown',
                 'recipient': recipient_email.split('@')[0] if recipient_email else 'unknown',
