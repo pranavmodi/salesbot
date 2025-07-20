@@ -363,3 +363,54 @@ def get_campaign_analytics(campaign_id):
     except Exception as e:
         current_app.logger.error(f"Error getting campaign analytics for campaign {campaign_id}: {str(e)}")
         return jsonify({'error': 'Failed to retrieve campaign analytics'}), 500
+
+@campaign_bp.route('/campaigns/<int:campaign_id>/status', methods=['GET'])
+def get_campaign_status(campaign_id):
+    """Get the current status and basic stats of a campaign."""
+    try:
+        campaign = Campaign.get_by_id(campaign_id)
+        if not campaign:
+            return jsonify({'success': False, 'message': 'Campaign not found'}), 404
+        
+        stats = Campaign.get_campaign_stats(campaign_id)
+        
+        return jsonify({
+            'success': True,
+            'campaign_id': campaign.id,
+            'status': campaign.status,
+            'stats': stats
+        })
+    except Exception as e:
+        current_app.logger.error(f"Error getting campaign status for {campaign_id}: {str(e)}")
+        return jsonify({'success': False, 'message': 'Failed to retrieve campaign status'}), 500
+
+@campaign_bp.route('/campaigns/<int:campaign_id>/activity', methods=['GET'])
+def get_campaign_activity(campaign_id):
+    """Get recent activity (emails sent) for a specific campaign."""
+    try:
+        campaign = Campaign.get_by_id(campaign_id)
+        if not campaign:
+            return jsonify({'success': False, 'message': 'Campaign not found'}), 404
+        
+        # Get recent email history for this campaign (e.g., last 20)
+        recent_emails = EmailHistory.get_by_campaign_id(campaign_id, limit=20)
+        
+        activity_data = []
+        for email in recent_emails:
+            activity_data.append({
+                'id': email.id,
+                'to': email.to,
+                'subject': email.subject,
+                'status': email.status,
+                'date': email.date.isoformat() if email.date else None,
+                'direction': 'sent' # Campaign activity emails are always 'sent'
+            })
+        
+        return jsonify({
+            'success': True,
+            'campaign_id': campaign_id,
+            'activity': activity_data
+        })
+    except Exception as e:
+        current_app.logger.error(f"Error getting campaign activity for {campaign_id}: {str(e)}")
+        return jsonify({'success': False, 'message': 'Failed to retrieve campaign activity'}), 500

@@ -1,5 +1,4 @@
 // SalesBot CRM - Main Dashboard JavaScript (Refactored)
-// This file now imports and coordinates functionality from separate modules
 
 // Initialize application
 document.addEventListener('DOMContentLoaded', function() {
@@ -33,17 +32,6 @@ function setupMainEventListeners() {
     const saveContactBtn = document.getElementById('saveContactBtn');
     if (saveContactBtn) {
         saveContactBtn.addEventListener('click', saveNewContact);
-    }
-
-    // Add Contact modal reset and setup
-    const addContactModal = document.getElementById('addContactModal');
-    if (addContactModal) {
-        addContactModal.addEventListener('hidden.bs.modal', function() {
-            resetAddContactForm();
-        });
-        addContactModal.addEventListener('show.bs.modal', function() {
-            loadCompaniesForDropdown();
-        });
     }
 
     // Test emails functionality
@@ -578,32 +566,6 @@ function loadCampaignActivity(campaignId) {
                 console.error('Error loading campaign activity:', error);
                 showActivityError(error.message);
             });
-    }
-}
-
-// Stub functions for campaign activity (to be implemented or moved to campaigns.js)
-function populateEmailHistory(emails) {
-    console.log('Populating email history:', emails);
-}
-
-function populateExecutionLogs(logs) {
-    console.log('Populating execution logs:', logs);
-}
-
-function populateNextActions(actions) {
-    console.log('Populating next actions:', actions);
-}
-
-function showActivityError(message) {
-    const contentContainer = document.getElementById('campaignActivityContent');
-    if (contentContainer) {
-        contentContainer.innerHTML = `
-            <div class="text-center py-5">
-                <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
-                <h5 class="text-danger">Failed to Load Activity</h5>
-                <p class="text-muted">${message}</p>
-            </div>
-        `;
     }
 }
 

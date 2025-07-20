@@ -101,7 +101,8 @@ class EmailHistory:
         return {record.to.lower() for record in history if record.to}
 
     @classmethod
-    def get_by_campaign(cls, campaign_id: int) -> List['EmailHistory']:
+    def get_by_campaign_id(cls, campaign_id: int, limit: Optional[int] = None) -> List['EmailHistory']:
+        """Get all email history for a specific campaign, with an optional limit."""
         """Get all email history for a specific campaign."""
         engine = cls.get_db_engine()
         if not engine:
@@ -110,10 +111,14 @@ class EmailHistory:
         history = []
         try:
             with engine.connect() as connection:
-                result = connection.execute(
-                    text('SELECT id, date, "to", subject, body, status, campaign_id, sent_via, email_type, error_details FROM email_history WHERE campaign_id = :campaign_id ORDER BY date DESC'),
-                    {"campaign_id": campaign_id}
-                )
+                if limit:
+                    query_str = 'SELECT id, date, "to", subject, body, status, campaign_id, sent_via, email_type, error_details FROM email_history WHERE campaign_id = :campaign_id ORDER BY date DESC LIMIT :limit'
+                    result = connection.execute(text(query_str),
+                                                {"campaign_id": campaign_id, "limit": limit})
+                else:
+                    query_str = 'SELECT id, date, "to", subject, body, status, campaign_id, sent_via, email_type, error_details FROM email_history WHERE campaign_id = :campaign_id ORDER BY date DESC'
+                    result = connection.execute(text(query_str),
+                                                {"campaign_id": campaign_id})
                 for row in result:
                     history.append(cls(dict(row._mapping)))
             current_app.logger.info(f"Loaded {len(history)} records for campaign {campaign_id}.")
