@@ -4732,7 +4732,7 @@ function displayCampaignList(campaigns, containerId, type) {
                     <div class="card-header d-flex justify-content-between align-items-start">
                         <div>
                             <h6 class="card-title mb-1">${campaign.name}</h6>
-                            <small class="text-muted">${campaign.type.replace('_', ' ').toUpperCase()}</small>
+                            <small class="text-muted">${(campaign.type || 'unknown').replace('_', ' ').toUpperCase()}</small>
                         </div>
                         <div>
                             ${statusBadge}

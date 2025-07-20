@@ -161,10 +161,10 @@ def get_campaigns():
     """Get all campaigns."""
     try:
         campaigns = Campaign.load_all()
-        return jsonify([campaign.to_dict() for campaign in campaigns])
+        return jsonify({'success': True, 'campaigns': [campaign.to_dict() for campaign in campaigns]})
     except Exception as e:
         current_app.logger.error(f"Error getting campaigns: {str(e)}")
-        return jsonify({'error': 'Failed to load campaigns'}), 500
+        return jsonify({'success': False, 'error': 'Failed to load campaigns'}), 500
 
 @campaign_bp.route('/campaigns/<int:campaign_id>', methods=['GET'])
 def get_campaign(campaign_id):
