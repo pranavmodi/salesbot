@@ -324,49 +324,52 @@ def schedule_campaign_route(campaign_id):
 
 @campaign_bp.route('/campaigns/<int:campaign_id>/analytics', methods=['GET'])
 def get_campaign_analytics(campaign_id):
-    """Get analytics for a specific campaign."""
+    """Get analytics for a specific campaign from external PossibleMinds endpoint."""
     try:
         campaign = Campaign.get_by_id(campaign_id)
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
         
-        # Get email history for this campaign
-        campaign_emails = EmailHistory.get_by_campaign_id(campaign_id)
+        # Import PossibleMinds analytics service
+        from app.services.possibleminds_analytics_service import create_possibleminds_service
         
-        total_sent = len(campaign_emails)
-        total_opened = sum(1 for e in campaign_emails if e.status == 'opened')
-        total_replied = sum(1 for e in campaign_emails if e.status == 'replied')
-        total_bounced = sum(1 for e in campaign_emails if e.status == 'bounced')
+        # Get analytics from PossibleMinds endpoint
+        current_app.logger.info(f"Fetching analytics for campaign {campaign_id} from PossibleMinds")
+        analytics_service = create_possibleminds_service()
+        analytics_data = analytics_service.get_campaign_clicks(str(campaign_id))
         
-        # Calculate rates
-        open_rate = (total_opened / total_sent * 100) if total_sent > 0 else 0
-        reply_rate = (total_replied / total_sent * 100) if total_sent > 0 else 0
-        bounce_rate = (total_bounced / total_sent * 100) if total_sent > 0 else 0
+        if not analytics_data.get('success', True):
+            current_app.logger.warning(f"PossibleMinds analytics warning for campaign {campaign_id}: {analytics_data.get('message')}")
+            # Return empty analytics rather than failing
+            analytics_data = {
+                'success': True,
+                'clicks': [],
+                'total_clicks': 0,
+                'unique_visitors': 0,
+                'message': 'No analytics data available'
+            }
         
-        # Get click data (if available)
-        from app.models.report_click import ReportClick
-        clicks = ReportClick.get_by_campaign_id(campaign_id)
-        total_clicks = len(clicks)
-        click_rate = (total_clicks / total_opened * 100) if total_opened > 0 else 0 # Click-through open rate
+        # Extract metrics from PossibleMinds response
+        clicks = analytics_data.get('clicks', [])
+        total_clicks = analytics_data.get('total_clicks', len(clicks))
+        unique_visitors = analytics_data.get('unique_visitors', 0)
         
-        # Get unique clicks (if needed)
-        unique_clicks = len(set(c.contact_email for c in clicks))
+        # Calculate additional metrics if available
+        unique_emails = len(set(click.get('contact_email', '') for click in clicks if click.get('contact_email')))
+        
+        current_app.logger.info(f"PossibleMinds analytics for campaign {campaign_id}: {total_clicks} clicks, {unique_visitors} unique visitors")
         
         return jsonify({
             'success': True,
             'campaign_id': campaign_id,
             'campaign_name': campaign.name,
             'analytics': {
-                'total_sent': total_sent,
-                'total_opened': total_opened,
-                'total_replied': total_replied,
-                'total_bounced': total_bounced,
-                'open_rate': round(open_rate, 2),
-                'reply_rate': round(reply_rate, 2),
-                'bounce_rate': round(bounce_rate, 2),
                 'total_clicks': total_clicks,
-                'unique_clicks': unique_clicks,
-                'click_rate': round(click_rate, 2)
+                'unique_clicks': unique_emails,
+                'unique_visitors': unique_visitors,
+                'click_rate': 0,  # Would need email send data to calculate
+                'source': 'possibleminds',
+                'raw_data': analytics_data
             }
         })
         

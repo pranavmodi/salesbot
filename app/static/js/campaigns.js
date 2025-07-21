@@ -1411,7 +1411,7 @@ function viewCampaignAnalytics(campaignId, campaignName) {
     }
     
     // Set loading state for analytics content
-    const analyticsContent = document.getElementById('campaignAnalyticsContent');
+    const analyticsContent = document.getElementById('analyticsContent');
     if (analyticsContent) {
         analyticsContent.innerHTML = `
             <div class="text-center py-4">
@@ -1427,7 +1427,9 @@ function viewCampaignAnalytics(campaignId, campaignName) {
     fetch(`/api/campaigns/${campaignId}/analytics`)
         .then(response => response.json())
         .then(data => {
+            console.log('Raw analytics API response:', data);
             if (data.success) {
+                console.log('Analytics data being passed to display function:', data.analytics);
                 displayCampaignAnalytics(data.analytics, campaignName);
             } else {
                 throw new Error(data.error || 'Failed to load analytics');
@@ -1451,23 +1453,131 @@ function viewCampaignAnalytics(campaignId, campaignName) {
 }
 
 function displayCampaignAnalytics(analytics, campaignName) {
-    const analyticsContent = document.getElementById('campaignAnalyticsContent');
-    if (!analyticsContent) return;
+    try {
+        console.log('displayCampaignAnalytics function called with:', analytics, campaignName);
+        
+        const analyticsContent = document.getElementById('analyticsContent');
+        console.log('analyticsContent element found:', analyticsContent);
+        
+        if (!analyticsContent) {
+            console.error('ERROR: analyticsContent element not found!');
+            return;
+        }
+        
+        console.log('Displaying analytics:', analytics);
+    console.log('Analytics structure check:');
+    console.log('- total_clicks:', analytics.total_clicks);
+    console.log('- unique_visitors:', analytics.unique_visitors);
+    console.log('- unique_clicks:', analytics.unique_clicks);
+    console.log('- raw_data:', analytics.raw_data);
+    console.log('- raw_data.clicks:', analytics.raw_data?.clicks);
+    console.log('- full raw_data structure:', JSON.stringify(analytics.raw_data, null, 2));
+    
+    // Extract PossibleMinds data - handle multiple possible structures
+    let clicks = [];
+    if (analytics.raw_data?.clicks) {
+        clicks = analytics.raw_data.clicks;
+    } else if (analytics.clicks) {
+        clicks = analytics.clicks;
+    } else if (Array.isArray(analytics.raw_data)) {
+        clicks = analytics.raw_data;
+    }
+    
+    console.log('Extracted clicks array:', clicks);
+    console.log('Extracted clicks length:', clicks.length);
+    console.log('First click object:', clicks[0]);
+    
+    const totalClicks = analytics.total_clicks || analytics.raw_data?.total_clicks || clicks.length || 0;
+    const uniqueVisitors = analytics.unique_visitors || analytics.raw_data?.unique_visitors || 0;
+    
+    // Calculate unique emails from actual clicks if not provided
+    let uniqueEmails = analytics.unique_clicks || analytics.raw_data?.unique_clicks || 0;
+    if (uniqueEmails === 0 && clicks.length > 0) {
+        const uniqueEmailSet = new Set();
+        clicks.forEach(click => {
+            const email = click.contact_email || click.recipient;
+            if (email) uniqueEmailSet.add(email);
+        });
+        uniqueEmails = uniqueEmailSet.size;
+    }
+    
+    // Process click data for display
+    const companiesData = {};
+    const clickDetails = [];
+    
+    clicks.forEach(click => {
+        console.log('Processing click:', click);
+        
+        // Handle both company formats: "ola_ola" -> "Ola Ola"
+        let company = click.company || click.company_slug || 'Unknown';
+        if (company.includes('_')) {
+            company = company.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+        }
+        
+        const recipient = click.contact_email || click.recipient || 'Unknown';
+        const timestamp = new Date(click.click_timestamp || click.timestamp).toLocaleString();
+        const device = getDeviceFromUserAgent(click.user_agent || '');
+        const location = getLocationFromIP(click.visitor_ip || click.ip_address || '');
+        
+        // Count by company
+        companiesData[company] = (companiesData[company] || 0) + 1;
+        
+        // Add to click details
+        clickDetails.push({
+            timestamp,
+            company,
+            recipient,
+            device,
+            location,
+            utm_source: click.utm_source || '',
+            utm_campaign: click.utm_campaign || '',
+            utm_content: click.utm_content || ''
+        });
+    });
+    
+    // Sort companies by click count
+    const topCompanies = Object.entries(companiesData)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 5);
+    
+    console.log('Final calculated values:');
+    console.log('- totalClicks:', totalClicks);
+    console.log('- uniqueEmails:', uniqueEmails);
+    console.log('- uniqueVisitors:', uniqueVisitors);
+    console.log('- companiesData:', companiesData);
+    console.log('- topCompanies:', topCompanies);
+    console.log('- clickDetails:', clickDetails);
+    
+    // Add a debug section to verify data is making it to HTML
+    console.log('About to render HTML with these values:');
+    console.log('  totalClicks for HTML:', totalClicks);
+    console.log('  uniqueEmails for HTML:', uniqueEmails);
+    console.log('  topCompanies.length for HTML:', topCompanies.length);
     
     const html = `
+        <!-- DEBUG: Testing variable interpolation -->
+        <div class="alert alert-info">
+            <strong>Debug Info:</strong> 
+            totalClicks = ${totalClicks}, 
+            uniqueEmails = ${uniqueEmails}, 
+            clicksLength = ${clicks.length},
+            topCompaniesLength = ${topCompanies.length}
+        </div>
+        
         <div class="row">
             <!-- Overview Cards -->
             <div class="col-12 mb-4">
+                <h5 class="mb-3">Campaign Performance</h5>
                 <div class="row g-3">
                     <div class="col-md-3">
                         <div class="card bg-primary text-white">
                             <div class="card-body">
                                 <div class="d-flex justify-content-between">
                                     <div>
-                                        <h6 class="card-subtitle mb-2">Total Sent</h6>
-                                        <h4 class="mb-0">${analytics.total_sent || 0}</h4>
+                                        <h6 class="card-subtitle mb-2">Total Contacts</h6>
+                                        <h4 class="mb-0">${uniqueEmails || 0}</h4>
                                     </div>
-                                    <i class="fas fa-paper-plane fa-2x opacity-75"></i>
+                                    <i class="fas fa-users fa-2x opacity-75"></i>
                                 </div>
                             </div>
                         </div>
@@ -1477,11 +1587,11 @@ function displayCampaignAnalytics(analytics, campaignName) {
                             <div class="card-body">
                                 <div class="d-flex justify-content-between">
                                     <div>
-                                        <h6 class="card-subtitle mb-2">Opened</h6>
-                                        <h4 class="mb-0">${analytics.total_opened || 0}</h4>
-                                        <small class="opacity-75">${analytics.open_rate || 0}% rate</small>
+                                        <h6 class="card-subtitle mb-2">Emails Sent</h6>
+                                        <h4 class="mb-0">-</h4>
+                                        <small class="opacity-75">External tracking</small>
                                     </div>
-                                    <i class="fas fa-envelope-open fa-2x opacity-75"></i>
+                                    <i class="fas fa-paper-plane fa-2x opacity-75"></i>
                                 </div>
                             </div>
                         </div>
@@ -1491,11 +1601,11 @@ function displayCampaignAnalytics(analytics, campaignName) {
                             <div class="card-body">
                                 <div class="d-flex justify-content-between">
                                     <div>
-                                        <h6 class="card-subtitle mb-2">Replied</h6>
-                                        <h4 class="mb-0">${analytics.total_replied || 0}</h4>
-                                        <small class="opacity-75">${analytics.reply_rate || 0}% rate</small>
+                                        <h6 class="card-subtitle mb-2">Report Clicks</h6>
+                                        <h4 class="mb-0">${totalClicks}</h4>
+                                        <small class="opacity-75">${uniqueVisitors} unique</small>
                                     </div>
-                                    <i class="fas fa-reply fa-2x opacity-75"></i>
+                                    <i class="fas fa-mouse-pointer fa-2x opacity-75"></i>
                                 </div>
                             </div>
                         </div>
@@ -1505,11 +1615,11 @@ function displayCampaignAnalytics(analytics, campaignName) {
                             <div class="card-body">
                                 <div class="d-flex justify-content-between">
                                     <div>
-                                        <h6 class="card-subtitle mb-2">Bounced</h6>
-                                        <h4 class="mb-0">${analytics.total_bounced || 0}</h4>
-                                        <small class="opacity-75">${analytics.bounce_rate || 0}% rate</small>
+                                        <h6 class="card-subtitle mb-2">Click Rate</h6>
+                                        <h4 class="mb-0">-</h4>
+                                        <small class="opacity-75">Need send data</small>
                                     </div>
-                                    <i class="fas fa-exclamation-triangle fa-2x opacity-75"></i>
+                                    <i class="fas fa-percentage fa-2x opacity-75"></i>
                                 </div>
                             </div>
                         </div>
@@ -1517,85 +1627,85 @@ function displayCampaignAnalytics(analytics, campaignName) {
                 </div>
             </div>
             
-            <!-- Click Analytics -->
+            <!-- Top Companies -->
             <div class="col-md-6">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="card-title mb-0"><i class="fas fa-mouse-pointer me-2"></i>Click Analytics</h5>
+                        <h5 class="card-title mb-0"><i class="fas fa-building me-2"></i>Top Engaged Companies</h5>
                     </div>
                     <div class="card-body">
-                        <div class="row text-center">
-                            <div class="col-6">
-                                <h4 class="text-primary">${analytics.total_clicks || 0}</h4>
-                                <small class="text-muted">Total Clicks</small>
-                            </div>
-                            <div class="col-6">
-                                <h4 class="text-success">${analytics.unique_clicks || 0}</h4>
-                                <small class="text-muted">Unique Clicks</small>
-                            </div>
-                        </div>
-                        <div class="mt-3">
-                            <div class="d-flex justify-content-between">
-                                <span>Click Rate</span>
-                                <span class="fw-bold">${analytics.click_rate || 0}%</span>
-                            </div>
-                            <div class="progress mt-1">
-                                <div class="progress-bar bg-info" style="width: ${analytics.click_rate || 0}%"></div>
-                            </div>
-                        </div>
+                        ${topCompanies.length > 0 ? 
+                            topCompanies.map(([company, count]) => `
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="fw-medium">${company}</span>
+                                    <span class="badge bg-primary">${count} click${count > 1 ? 's' : ''}</span>
+                                </div>
+                            `).join('') :
+                            '<p class="text-muted mb-0">No click data available</p>'
+                        }
                     </div>
                 </div>
             </div>
             
-            <!-- Performance Summary -->
+            <!-- Click Details -->
             <div class="col-md-6">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="card-title mb-0"><i class="fas fa-chart-bar me-2"></i>Performance Summary</h5>
+                        <h5 class="card-title mb-0"><i class="fas fa-mouse-pointer me-2"></i>Recent Clicks</h5>
                     </div>
                     <div class="card-body">
-                        <div class="mb-3">
-                            <div class="d-flex justify-content-between">
-                                <span>Open Rate</span>
-                                <span class="fw-bold text-success">${analytics.open_rate || 0}%</span>
-                            </div>
-                            <div class="progress mt-1">
-                                <div class="progress-bar bg-success" style="width: ${analytics.open_rate || 0}%"></div>
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <div class="d-flex justify-content-between">
-                                <span>Reply Rate</span>
-                                <span class="fw-bold text-info">${analytics.reply_rate || 0}%</span>
-                            </div>
-                            <div class="progress mt-1">
-                                <div class="progress-bar bg-info" style="width: ${analytics.reply_rate || 0}%"></div>
-                            </div>
-                        </div>
-                        <div class="mb-0">
-                            <div class="d-flex justify-content-between">
-                                <span>Bounce Rate</span>
-                                <span class="fw-bold text-warning">${analytics.bounce_rate || 0}%</span>
-                            </div>
-                            <div class="progress mt-1">
-                                <div class="progress-bar bg-warning" style="width: ${analytics.bounce_rate || 0}%"></div>
-                            </div>
-                        </div>
+                        ${clickDetails.length > 0 ? 
+                            clickDetails.slice(0, 5).map(click => `
+                                <div class="border-bottom pb-2 mb-2">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="fw-medium">${click.company}</span>
+                                        <small class="text-muted">${click.timestamp}</small>
+                                    </div>
+                                    <small class="text-muted">${click.recipient}</small>
+                                    ${click.device ? `<br><small class="text-info">${click.device}</small>` : ''}
+                                    ${click.location ? `<br><small class="text-success">${click.location}</small>` : ''}
+                                </div>
+                            `).join('') :
+                            '<p class="text-muted mb-0">No click data available</p>'
+                        }
                     </div>
                 </div>
             </div>
         </div>
         
-        ${analytics.total_sent === 0 ? `
-            <div class="text-center py-4">
+        ${totalClicks === 0 ? `
+            <div class="text-center py-4 mt-4">
                 <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
-                <h5 class="text-muted">No Analytics Data Yet</h5>
-                <p class="text-muted">This campaign hasn't sent any emails yet. Analytics will appear once emails are sent.</p>
+                <h5 class="text-muted">No Click Data Available</h5>
+                <p class="text-muted">Click analytics from PossibleMinds will appear here once recipients interact with campaign reports.</p>
+                <small class="text-muted">Data source: ${analytics.source || 'possibleminds'}</small>
             </div>
-        ` : ''}
+        ` : `
+            <div class="text-center mt-4">
+                <small class="text-muted">Analytics powered by ${analytics.source || 'PossibleMinds'} • ${totalClicks} total clicks tracked</small>
+            </div>
+        `}
     `;
     
+    console.log('Setting analyticsContent.innerHTML with generated HTML');
     analyticsContent.innerHTML = html;
+    console.log('Analytics display completed successfully');
+    
+    } catch (error) {
+        console.error('ERROR in displayCampaignAnalytics:', error);
+        console.error('Error stack:', error.stack);
+        // Fallback error display
+        const analyticsContent = document.getElementById('analyticsContent');
+        if (analyticsContent) {
+            analyticsContent.innerHTML = `
+                <div class="alert alert-danger">
+                    <h5>Analytics Display Error</h5>
+                    <p>Error: ${error.message}</p>
+                    <pre>${error.stack}</pre>
+                </div>
+            `;
+        }
+    }
 }
 
 function launchCampaign(campaignId) {
@@ -1740,6 +1850,38 @@ function resumeCampaign(campaignId) {
             }
         });
     }
+}
+
+// Helper function to extract device info from user agent
+function getDeviceFromUserAgent(userAgent) {
+    if (!userAgent) return 'Unknown';
+    
+    const ua = userAgent.toLowerCase();
+    if (ua.includes('mobile') || ua.includes('android') || ua.includes('iphone')) {
+        return 'Mobile';
+    } else if (ua.includes('ipad') || ua.includes('tablet')) {
+        return 'Tablet';
+    } else if (ua.includes('macintosh') || ua.includes('windows') || ua.includes('linux')) {
+        return 'Desktop';
+    } else {
+        return 'Unknown';
+    }
+}
+
+// Helper function to extract location from IP
+function getLocationFromIP(ipAddress) {
+    if (!ipAddress) return 'Unknown';
+    
+    // Handle comma-separated IPs (take the first real IP, skip proxies)
+    if (ipAddress.includes(',')) {
+        const ips = ipAddress.split(',').map(ip => ip.trim());
+        // Take the first IP that's not a common proxy/CDN IP
+        ipAddress = ips.find(ip => !ip.startsWith('18.') && !ip.startsWith('172.')) || ips[0];
+    }
+    
+    // For now, just return the IP address  
+    // In a real implementation, you'd use a geolocation service
+    return ipAddress;
 }
 
 function executeCampaignNow(campaignId) {
