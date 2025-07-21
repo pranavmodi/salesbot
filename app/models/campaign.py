@@ -5,17 +5,53 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 import os
 import logging
+import json
 
 class Campaign:
     """Campaign model for managing email campaign data."""
     
-    def __init__(self, data: Dict):
-        self.id = data.get('id')
-        self.name = data.get('name', '')
-        self.description = data.get('description', '')
-        self.status = data.get('status', 'active')  # active, paused, completed
-        self.created_at = data.get('created_at')
-        self.updated_at = data.get('updated_at')
+    def __init__(self, name=None, type=None, description='', email_template=None, 
+                 priority='medium', schedule_date=None, followup_days=3, 
+                 selection_criteria=None, **kwargs):
+        # Handle both dict-style and keyword initialization
+        if isinstance(name, dict):
+            data = name
+            self.id = data.get('id')
+            self.name = data.get('name', '')
+            self.type = data.get('type', '')
+            self.description = data.get('description', '')
+            self.email_template = data.get('email_template', '')
+            self.priority = data.get('priority', 'medium')
+            self.schedule_date = data.get('schedule_date')
+            self.followup_days = data.get('followup_days', 3)
+            self.selection_criteria = data.get('selection_criteria', '{}')
+            self.status = data.get('status', 'draft')  # draft, active, paused, completed
+            self.created_at = data.get('created_at')
+            self.updated_at = data.get('updated_at')
+        else:
+            # Direct parameter initialization
+            self.id = kwargs.get('id')
+            self.name = name or ''
+            self.type = type or ''
+            self.description = description
+            self.email_template = email_template or ''
+            self.priority = priority
+            self.schedule_date = schedule_date
+            self.followup_days = followup_days
+            self.selection_criteria = selection_criteria or '{}'
+            self.status = kwargs.get('status', 'draft')
+            self.created_at = kwargs.get('created_at')
+            self.updated_at = kwargs.get('updated_at')
+    
+    @property
+    def selection_criteria_dict(self):
+        """Parse selection criteria JSON string to dict."""
+        try:
+            if isinstance(self.selection_criteria, str):
+                return json.loads(self.selection_criteria)
+            return self.selection_criteria or {}
+        except (json.JSONDecodeError, TypeError):
+            return {}
 
     @staticmethod
     def _get_db_engine():
@@ -36,19 +72,28 @@ class Campaign:
         campaigns = []
         engine = cls._get_db_engine()
         if not engine:
+            current_app.logger.error("No database engine available")
             return campaigns
             
         try:
             with engine.connect() as conn:
+                current_app.logger.info("Loading campaigns with full schema...")
                 result = conn.execute(text("""
-                    SELECT id, name, description, status, created_at, updated_at
+                    SELECT id, name, type, description, email_template, priority, 
+                           schedule_date, followup_days, selection_criteria, status, 
+                           created_at, updated_at
                     FROM campaigns 
                     ORDER BY created_at DESC
                 """))
                 
+                row_count = 0
                 for row in result:
+                    row_count += 1
                     campaign_data = dict(row._mapping)
+                    current_app.logger.info(f"Processing campaign row {row_count}: {campaign_data}")
                     campaigns.append(cls(campaign_data))
+                
+                current_app.logger.info(f"Loaded {len(campaigns)} campaigns successfully")
                     
         except SQLAlchemyError as e:
             current_app.logger.error(f"Error loading campaigns from database: {e}")
@@ -68,7 +113,9 @@ class Campaign:
         try:
             with engine.connect() as conn:
                 result = conn.execute(text("""
-                    SELECT id, name, description, status, created_at, updated_at
+                    SELECT id, name, type, description, email_template, priority, 
+                           schedule_date, followup_days, selection_criteria, status, 
+                           created_at, updated_at
                     FROM campaigns 
                     WHERE status = 'active'
                     ORDER BY created_at DESC
@@ -95,7 +142,9 @@ class Campaign:
         try:
             with engine.connect() as conn:
                 result = conn.execute(text("""
-                    SELECT id, name, description, status, created_at, updated_at
+                    SELECT id, name, type, description, email_template, priority, 
+                           schedule_date, followup_days, selection_criteria, status, 
+                           created_at, updated_at
                     FROM campaigns 
                     WHERE id = :id
                 """), {"id": campaign_id})
@@ -124,13 +173,23 @@ class Campaign:
             with engine.connect() as conn:
                 with conn.begin():
                     insert_query = text("""
-                        INSERT INTO campaigns (name, description, status) 
-                        VALUES (:name, :description, :status)
+                        INSERT INTO campaigns (name, type, description, email_template, 
+                                             priority, schedule_date, followup_days, 
+                                             selection_criteria, status) 
+                        VALUES (:name, :type, :description, :email_template, 
+                               :priority, :schedule_date, :followup_days, 
+                               :selection_criteria, :status)
                     """)
                     conn.execute(insert_query, {
                         'name': campaign_data['name'],
+                        'type': campaign_data.get('type', 'cold_outreach'),
                         'description': campaign_data.get('description', ''),
-                        'status': campaign_data.get('status', 'active')
+                        'email_template': campaign_data.get('email_template', 'deep_research'),
+                        'priority': campaign_data.get('priority', 'medium'),
+                        'schedule_date': campaign_data.get('schedule_date'),
+                        'followup_days': campaign_data.get('followup_days', 3),
+                        'selection_criteria': campaign_data.get('selection_criteria', '{}'),
+                        'status': campaign_data.get('status', 'draft')
                     })
             current_app.logger.info(f"Successfully saved campaign: {campaign_data['name']}")
             return True
@@ -155,7 +214,13 @@ class Campaign:
                     update_query = text("""
                         UPDATE campaigns 
                         SET name = :name, 
+                            type = :type,
                             description = :description, 
+                            email_template = :email_template,
+                            priority = :priority,
+                            schedule_date = :schedule_date,
+                            followup_days = :followup_days,
+                            selection_criteria = :selection_criteria,
                             status = :status,
                             updated_at = CURRENT_TIMESTAMP
                         WHERE id = :id
@@ -163,7 +228,13 @@ class Campaign:
                     result = conn.execute(update_query, {
                         'id': campaign_id,
                         'name': campaign_data['name'],
+                        'type': campaign_data.get('type', ''),
                         'description': campaign_data.get('description', ''),
+                        'email_template': campaign_data.get('email_template', ''),
+                        'priority': campaign_data.get('priority', 'medium'),
+                        'schedule_date': campaign_data.get('schedule_date'),
+                        'followup_days': campaign_data.get('followup_days', 3),
+                        'selection_criteria': campaign_data.get('selection_criteria', '{}'),
                         'status': campaign_data.get('status', 'active')
                     })
                     
@@ -555,13 +626,23 @@ class Campaign:
                 with conn.begin():
                     # Insert campaign
                     insert_query = text("""
-                        INSERT INTO campaigns (name, description, status) 
-                        VALUES (:name, :description, :status)
+                        INSERT INTO campaigns (name, type, description, email_template, 
+                                             priority, schedule_date, followup_days, 
+                                             selection_criteria, status) 
+                        VALUES (:name, :type, :description, :email_template, 
+                               :priority, :schedule_date, :followup_days, 
+                               :selection_criteria, :status)
                         RETURNING id
                     """)
                     result = conn.execute(insert_query, {
                         'name': campaign_data['name'],
+                        'type': campaign_data.get('type', ''),
                         'description': campaign_data.get('description', ''),
+                        'email_template': campaign_data.get('email_template', ''),
+                        'priority': campaign_data.get('priority', 'medium'),
+                        'schedule_date': campaign_data.get('schedule_date'),
+                        'followup_days': campaign_data.get('followup_days', 3),
+                        'selection_criteria': campaign_data.get('selection_criteria', '{}'),
                         'status': campaign_data.get('status', 'active')
                     })
                     
@@ -599,11 +680,38 @@ class Campaign:
         return {
             'id': self.id,
             'name': self.name,
+            'type': self.type,
             'description': self.description,
+            'email_template': self.email_template,
+            'priority': self.priority,
+            'schedule_date': self.schedule_date.isoformat() if isinstance(self.schedule_date, datetime) else str(self.schedule_date) if self.schedule_date else None,
+            'followup_days': self.followup_days,
+            'selection_criteria': self.selection_criteria,
             'status': self.status,
-            'created_at': self.created_at.isoformat() if isinstance(self.created_at, datetime) else str(self.created_at),
-            'updated_at': self.updated_at.isoformat() if isinstance(self.updated_at, datetime) else str(self.updated_at)
-        } 
+            'created_at': self.created_at.isoformat() if isinstance(self.created_at, datetime) else str(self.created_at) if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if isinstance(self.updated_at, datetime) else str(self.updated_at) if self.updated_at else None
+        }
+    
+    def save(self):
+        """Save this campaign instance to the database."""
+        campaign_data = {
+            'name': self.name,
+            'type': self.type,
+            'description': self.description,
+            'email_template': self.email_template,
+            'priority': self.priority,
+            'schedule_date': self.schedule_date,
+            'followup_days': self.followup_days,
+            'selection_criteria': self.selection_criteria,
+            'status': self.status
+        }
+        return self.__class__.save(campaign_data)
+    
+    def delete(self):
+        """Delete this campaign instance from the database."""
+        if self.id:
+            return self.__class__.delete(self.id)
+        return False 
 
     @classmethod
     def delete_all_campaigns(cls) -> Dict[str, int]:

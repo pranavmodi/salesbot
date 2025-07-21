@@ -160,8 +160,12 @@ def create_campaign():
 def get_campaigns():
     """Get all campaigns."""
     try:
+        current_app.logger.info("Loading campaigns...")
         campaigns = Campaign.load_all()
-        return jsonify({'success': True, 'campaigns': [campaign.to_dict() for campaign in campaigns]})
+        current_app.logger.info(f"Loaded {len(campaigns)} campaigns")
+        campaign_dicts = [campaign.to_dict() for campaign in campaigns]
+        current_app.logger.info(f"Converted to {len(campaign_dicts)} campaign dicts")
+        return jsonify({'success': True, 'campaigns': campaign_dicts})
     except Exception as e:
         current_app.logger.error(f"Error getting campaigns: {str(e)}")
         return jsonify({'success': False, 'error': 'Failed to load campaigns'}), 500

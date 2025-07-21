@@ -755,6 +755,9 @@ function loadCampaigns() {
 function displayCampaigns(campaigns) {
     console.log('displayCampaigns() called with:', campaigns);
     
+    // Store campaigns globally for use in details modal
+    window.lastLoadedCampaigns = campaigns;
+    
     const activeCampaignsContainer = document.getElementById('activeCampaignsContainer');
     const draftCampaignsContainer = document.getElementById('draftCampaignsContainer');
     const completedCampaignsContainer = document.getElementById('completedCampaignsContainer');
@@ -944,20 +947,47 @@ function updateCampaignStats(campaigns) {
 
 // Campaign management operations
 function viewCampaignDetails(campaignId) {
-    console.log(`Viewing campaign details for ID: ${campaignId}`);
+    console.log('Loading campaign details for:', campaignId);
     
-    // Set campaign ID for details modal
+    // Show the modal immediately with loading state
+    const modal = new bootstrap.Modal(document.getElementById('campaignDetailsModal'));
+    modal.show();
+    
+    // Set loading state
+    setDetailsLoadingState(true);
+    
+    // Set campaign ID for controls
     setCampaignDetailsId(campaignId);
     
-    // Show the details modal
-    const detailsModal = document.getElementById('campaignDetailsModal');
-    if (detailsModal) {
-        const modal = new bootstrap.Modal(detailsModal);
-        modal.show();
-        
-        // Load campaign data
-        loadCampaignActivity(campaignId);
+    // Load campaign activity data
+    loadCampaignActivity(campaignId);
+    
+    // Fetch campaign data from campaigns list first (immediate display)
+    const campaignsData = getCurrentCampaignData(campaignId);
+    if (campaignsData) {
+        populateCampaignDetails(campaignsData);
     }
+    
+    // Then fetch detailed status (may have additional info)
+    fetch(`/api/campaigns/${campaignId}/status`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Merge status data with campaign data
+                const enhancedData = { ...campaignsData, ...data.status };
+                populateCampaignDetails(enhancedData);
+            } else {
+                console.error('Failed to load campaign status:', data.message);
+                // Keep displaying basic campaign data
+            }
+        })
+        .catch(error => {
+            console.error('Error loading campaign status:', error);
+            // Keep displaying basic campaign data
+        })
+        .finally(() => {
+            setDetailsLoadingState(false);
+        });
 }
 
 function setCampaignDetailsId(campaignId) {
@@ -967,12 +997,123 @@ function setCampaignDetailsId(campaignId) {
     }
 }
 
+function getCurrentCampaignData(campaignId) {
+    // Try to get campaign data from currently loaded campaigns
+    if (window.lastLoadedCampaigns) {
+        return window.lastLoadedCampaigns.find(c => c.id == campaignId);
+    }
+    return null;
+}
+
+function setDetailsLoadingState(isLoading) {
+    const loadingText = isLoading ? 'Loading...' : '';
+    const fields = [
+        'detailsCampaignName', 'detailsCampaignType', 'detailsEmailTemplate',
+        'detailsFollowupDays', 'detailsCampaignDescription', 'detailsCreatedAt',
+        'detailsUpdatedAt', 'detailsTotalContacts', 'detailsEmailsSent',
+        'detailsFailedEmails', 'detailsSuccessRate', 'detailsResponses',
+        'detailsActiveContacts', 'detailsFirstEmail', 'detailsLastEmail',
+        'detailsUniqueRecipients', 'detailsTotalEmails'
+    ];
+    
+    fields.forEach(fieldId => {
+        const element = document.getElementById(fieldId);
+        if (element && isLoading) {
+            element.textContent = loadingText;
+        }
+    });
+}
+
+function populateCampaignDetails(campaign) {
+    if (!campaign) return;
+    
+    // Update modal title
+    const titleElement = document.getElementById('campaignDetailsTitle');
+    if (titleElement) {
+        titleElement.textContent = `${campaign.name} - Details`;
+    }
+    
+    // Basic Information
+    const setElementText = (id, value) => {
+        const element = document.getElementById(id);
+        if (element) element.textContent = value;
+    };
+    
+    setElementText('detailsCampaignName', campaign.name || 'N/A');
+    setElementText('detailsCampaignType', (campaign.type || 'cold_outreach').replace('_', ' ').toUpperCase());
+    setElementText('detailsEmailTemplate', getEmailTemplateDisplayName(campaign.email_template || 'deep_research'));
+    setElementText('detailsFollowupDays', `${campaign.followup_days || 3} days`);
+    setElementText('detailsCampaignDescription', campaign.description || 'No description provided');
+    
+    // Dates
+    if (campaign.created_at) {
+        setElementText('detailsCreatedAt', new Date(campaign.created_at).toLocaleString());
+    }
+    if (campaign.updated_at) {
+        setElementText('detailsUpdatedAt', new Date(campaign.updated_at).toLocaleString());
+    }
+    
+    // Status badges
+    const statusElement = document.getElementById('detailsCampaignStatus');
+    if (statusElement) {
+        statusElement.className = `badge ${getStatusBadgeClass(campaign.status)}`;
+        statusElement.textContent = (campaign.status || 'unknown').toUpperCase();
+    }
+    
+    const priorityElement = document.getElementById('detailsCampaignPriority');
+    if (priorityElement) {
+        priorityElement.className = `badge ${getPriorityBadgeClass(campaign.priority)}`;
+        priorityElement.textContent = (campaign.priority || 'medium').toUpperCase();
+    }
+    
+    // Metrics
+    setElementText('detailsTotalContacts', campaign.total_contacts || campaign.target_contacts_count || 0);
+    setElementText('detailsEmailsSent', campaign.sent_emails || campaign.emails_sent || 0);
+    setElementText('detailsFailedEmails', campaign.failed_emails || 0);
+    setElementText('detailsSuccessRate', `${campaign.success_rate || 0}%`);
+    setElementText('detailsResponses', campaign.responses_received || 0);
+    setElementText('detailsActiveContacts', campaign.active_contacts || 0);
+    
+    // Timeline
+    setElementText('detailsFirstEmail', campaign.first_email_date ? 
+        new Date(campaign.first_email_date).toLocaleString() : 'No emails sent yet');
+    setElementText('detailsLastEmail', campaign.last_email_date ? 
+        new Date(campaign.last_email_date).toLocaleString() : 'No emails sent yet');
+    setElementText('detailsUniqueRecipients', campaign.unique_recipients || 0);
+    setElementText('detailsTotalEmails', campaign.total_emails || 0);
+}
+
+function getEmailTemplateDisplayName(template) {
+    const templates = {
+        'deep_research': 'Deep Research',
+        'quick_intro': 'Quick Introduction',
+        'follow_up': 'Follow Up',
+        'cold_outreach': 'Cold Outreach'
+    };
+    return templates[template] || template.replace('_', ' ').toUpperCase();
+}
+
+function getPriorityBadgeClass(priority) {
+    const priorityClasses = {
+        'high': 'bg-danger',
+        'medium': 'bg-warning',
+        'low': 'bg-success'
+    };
+    return priorityClasses[priority] || 'bg-secondary';
+}
+
 function deleteAllCampaigns() {
     if (!confirm('Are you sure you want to delete ALL campaigns? This action cannot be undone.')) {
         return;
     }
     
     const deleteBtn = document.getElementById('deleteAllCampaigns');
+    if (!deleteBtn) {
+        console.error('Delete all campaigns button not found');
+        showToast('errorToast', 'Delete button not found');
+        return;
+    }
+    
     const originalText = deleteBtn.innerHTML;
     
     deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Deleting...';
@@ -1015,8 +1156,204 @@ if (typeof module !== 'undefined' && module.exports) {
 
 // Campaign action functions
 function viewCampaignAnalytics(campaignId, campaignName) {
-    console.log(`Viewing analytics for campaign: ${campaignId} - ${campaignName}`);
-    showToast('infoToast', 'Campaign analytics feature coming soon!');
+    console.log('Loading campaign analytics for:', campaignId, campaignName);
+    
+    // Show the analytics modal immediately with loading state
+    const modal = new bootstrap.Modal(document.getElementById('campaignAnalyticsModal'));
+    modal.show();
+    
+    // Set modal title
+    const titleElement = document.getElementById('campaignAnalyticsTitle');
+    if (titleElement) {
+        titleElement.textContent = `${campaignName} - Analytics`;
+    }
+    
+    // Set loading state for analytics content
+    const analyticsContent = document.getElementById('campaignAnalyticsContent');
+    if (analyticsContent) {
+        analyticsContent.innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading analytics...</p>
+            </div>
+        `;
+    }
+    
+    // Fetch analytics data
+    fetch(`/api/campaigns/${campaignId}/analytics`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayCampaignAnalytics(data.analytics, campaignName);
+            } else {
+                throw new Error(data.error || 'Failed to load analytics');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading campaign analytics:', error);
+            if (analyticsContent) {
+                analyticsContent.innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                        <h5 class="text-danger">Failed to Load Analytics</h5>
+                        <p class="text-muted">${error.message}</p>
+                        <button class="btn btn-outline-primary" onclick="viewCampaignAnalytics(${campaignId}, '${campaignName}')">
+                            <i class="fas fa-refresh me-2"></i>Retry
+                        </button>
+                    </div>
+                `;
+            }
+        });
+}
+
+function displayCampaignAnalytics(analytics, campaignName) {
+    const analyticsContent = document.getElementById('campaignAnalyticsContent');
+    if (!analyticsContent) return;
+    
+    const html = `
+        <div class="row">
+            <!-- Overview Cards -->
+            <div class="col-12 mb-4">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6 class="card-subtitle mb-2">Total Sent</h6>
+                                        <h4 class="mb-0">${analytics.total_sent || 0}</h4>
+                                    </div>
+                                    <i class="fas fa-paper-plane fa-2x opacity-75"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6 class="card-subtitle mb-2">Opened</h6>
+                                        <h4 class="mb-0">${analytics.total_opened || 0}</h4>
+                                        <small class="opacity-75">${analytics.open_rate || 0}% rate</small>
+                                    </div>
+                                    <i class="fas fa-envelope-open fa-2x opacity-75"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6 class="card-subtitle mb-2">Replied</h6>
+                                        <h4 class="mb-0">${analytics.total_replied || 0}</h4>
+                                        <small class="opacity-75">${analytics.reply_rate || 0}% rate</small>
+                                    </div>
+                                    <i class="fas fa-reply fa-2x opacity-75"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-dark">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6 class="card-subtitle mb-2">Bounced</h6>
+                                        <h4 class="mb-0">${analytics.total_bounced || 0}</h4>
+                                        <small class="opacity-75">${analytics.bounce_rate || 0}% rate</small>
+                                    </div>
+                                    <i class="fas fa-exclamation-triangle fa-2x opacity-75"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Click Analytics -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="fas fa-mouse-pointer me-2"></i>Click Analytics</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <h4 class="text-primary">${analytics.total_clicks || 0}</h4>
+                                <small class="text-muted">Total Clicks</small>
+                            </div>
+                            <div class="col-6">
+                                <h4 class="text-success">${analytics.unique_clicks || 0}</h4>
+                                <small class="text-muted">Unique Clicks</small>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <div class="d-flex justify-content-between">
+                                <span>Click Rate</span>
+                                <span class="fw-bold">${analytics.click_rate || 0}%</span>
+                            </div>
+                            <div class="progress mt-1">
+                                <div class="progress-bar bg-info" style="width: ${analytics.click_rate || 0}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Performance Summary -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="fas fa-chart-bar me-2"></i>Performance Summary</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between">
+                                <span>Open Rate</span>
+                                <span class="fw-bold text-success">${analytics.open_rate || 0}%</span>
+                            </div>
+                            <div class="progress mt-1">
+                                <div class="progress-bar bg-success" style="width: ${analytics.open_rate || 0}%"></div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between">
+                                <span>Reply Rate</span>
+                                <span class="fw-bold text-info">${analytics.reply_rate || 0}%</span>
+                            </div>
+                            <div class="progress mt-1">
+                                <div class="progress-bar bg-info" style="width: ${analytics.reply_rate || 0}%"></div>
+                            </div>
+                        </div>
+                        <div class="mb-0">
+                            <div class="d-flex justify-content-between">
+                                <span>Bounce Rate</span>
+                                <span class="fw-bold text-warning">${analytics.bounce_rate || 0}%</span>
+                            </div>
+                            <div class="progress mt-1">
+                                <div class="progress-bar bg-warning" style="width: ${analytics.bounce_rate || 0}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        ${analytics.total_sent === 0 ? `
+            <div class="text-center py-4">
+                <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No Analytics Data Yet</h5>
+                <p class="text-muted">This campaign hasn't sent any emails yet. Analytics will appear once emails are sent.</p>
+            </div>
+        ` : ''}
+    `;
+    
+    analyticsContent.innerHTML = html;
 }
 
 function launchCampaign(campaignId) {
