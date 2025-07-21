@@ -694,18 +694,82 @@ class Campaign:
     
     def save(self):
         """Save this campaign instance to the database."""
-        campaign_data = {
-            'name': self.name,
-            'type': self.type,
-            'description': self.description,
-            'email_template': self.email_template,
-            'priority': self.priority,
-            'schedule_date': self.schedule_date,
-            'followup_days': self.followup_days,
-            'selection_criteria': self.selection_criteria,
-            'status': self.status
-        }
-        return self.__class__.save(campaign_data)
+        engine = self._get_db_engine()
+        if not engine:
+            current_app.logger.error("Failed to save campaign: Database engine not available.")
+            return False
+
+        try:
+            with engine.connect() as conn:
+                with conn.begin():
+                    if self.id:
+                        # Update existing campaign
+                        update_query = text("""
+                            UPDATE campaigns 
+                            SET name = :name, 
+                                type = :type,
+                                description = :description, 
+                                email_template = :email_template,
+                                priority = :priority,
+                                schedule_date = :schedule_date,
+                                followup_days = :followup_days,
+                                selection_criteria = :selection_criteria,
+                                status = :status,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE id = :id
+                        """)
+                        result = conn.execute(update_query, {
+                            'id': self.id,
+                            'name': self.name,
+                            'type': self.type,
+                            'description': self.description,
+                            'email_template': self.email_template,
+                            'priority': self.priority,
+                            'schedule_date': self.schedule_date,
+                            'followup_days': self.followup_days,
+                            'selection_criteria': self.selection_criteria,
+                            'status': self.status
+                        })
+                        
+                        if result.rowcount > 0:
+                            current_app.logger.info(f"Successfully updated campaign ID: {self.id}")
+                            return True
+                        else:
+                            current_app.logger.warning(f"No campaign found with ID: {self.id}")
+                            return False
+                    else:
+                        # Insert new campaign
+                        insert_query = text("""
+                            INSERT INTO campaigns (name, type, description, email_template, 
+                                                 priority, schedule_date, followup_days, 
+                                                 selection_criteria, status) 
+                            VALUES (:name, :type, :description, :email_template, 
+                                   :priority, :schedule_date, :followup_days, 
+                                   :selection_criteria, :status)
+                            RETURNING id
+                        """)
+                        result = conn.execute(insert_query, {
+                            'name': self.name,
+                            'type': self.type,
+                            'description': self.description,
+                            'email_template': self.email_template,
+                            'priority': self.priority,
+                            'schedule_date': self.schedule_date,
+                            'followup_days': self.followup_days,
+                            'selection_criteria': self.selection_criteria,
+                            'status': self.status
+                        })
+                        self.id = result.fetchone()[0]
+                        
+                        current_app.logger.info(f"Successfully saved new campaign: {self.name} with ID {self.id}")
+                        return True
+                        
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Database error saving campaign: {e}")
+            return False
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error saving campaign: {e}")
+            return False
     
     def delete(self):
         """Delete this campaign instance from the database."""

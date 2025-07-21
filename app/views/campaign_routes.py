@@ -418,3 +418,130 @@ def get_campaign_activity(campaign_id):
     except Exception as e:
         current_app.logger.error(f"Error getting campaign activity for {campaign_id}: {str(e)}")
         return jsonify({'success': False, 'message': 'Failed to retrieve campaign activity'}), 500
+
+@campaign_bp.route('/campaigns/<int:campaign_id>/execute-now', methods=['POST'])
+def execute_campaign_now(campaign_id):
+    """Execute a campaign immediately (test mode)."""
+    try:
+        campaign = Campaign.get_by_id(campaign_id)
+        if not campaign:
+            return jsonify({'success': False, 'message': 'Campaign not found'}), 404
+        
+        current_app.logger.info(f"Executing campaign {campaign_id} immediately (test mode)")
+        
+        # Import the test mode execution function
+        from app.services.campaign_scheduler import execute_campaign_job_test_mode
+        
+        # Execute in a thread to avoid blocking the response
+        import threading
+        execution_thread = threading.Thread(
+            target=execute_campaign_job_test_mode, 
+            args=[campaign_id]
+        )
+        execution_thread.start()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Campaign "{campaign.name}" execution started immediately (test mode)'
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error executing campaign immediately: {str(e)}")
+        return jsonify({'success': False, 'message': f'Failed to execute campaign: {str(e)}'}), 500
+
+@campaign_bp.route('/campaigns/<int:campaign_id>/launch', methods=['POST'])
+def launch_campaign(campaign_id):
+    """Launch a campaign for scheduled execution."""
+    try:
+        campaign = Campaign.get_by_id(campaign_id)
+        if not campaign:
+            return jsonify({'success': False, 'message': 'Campaign not found'}), 404
+        
+        # Schedule the campaign for execution
+        success = campaign_scheduler.schedule_campaign(campaign_id)
+        
+        if success:
+            current_app.logger.info(f"Campaign {campaign_id} launched successfully")
+            return jsonify({
+                'success': True,
+                'message': f'Campaign "{campaign.name}" launched successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to launch campaign'
+            }), 500
+        
+    except Exception as e:
+        current_app.logger.error(f"Error launching campaign: {str(e)}")
+        return jsonify({'success': False, 'message': f'Failed to launch campaign: {str(e)}'}), 500
+
+@campaign_bp.route('/campaigns/<int:campaign_id>/pause', methods=['POST'])
+def pause_campaign(campaign_id):
+    """Pause a running campaign."""
+    try:
+        campaign = Campaign.get_by_id(campaign_id)
+        if not campaign:
+            return jsonify({'success': False, 'message': 'Campaign not found'}), 404
+        
+        success = campaign_scheduler.pause_campaign(campaign_id)
+        
+        if success:
+            current_app.logger.info(f"Campaign {campaign_id} paused successfully")
+            return jsonify({
+                'success': True,
+                'message': f'Campaign "{campaign.name}" paused successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to pause campaign'
+            }), 500
+        
+    except Exception as e:
+        current_app.logger.error(f"Error pausing campaign: {str(e)}")
+        return jsonify({'success': False, 'message': f'Failed to pause campaign: {str(e)}'}), 500
+
+@campaign_bp.route('/campaigns/<int:campaign_id>/resume', methods=['POST'])
+def resume_campaign(campaign_id):
+    """Resume a paused campaign."""
+    try:
+        campaign = Campaign.get_by_id(campaign_id)
+        if not campaign:
+            return jsonify({'success': False, 'message': 'Campaign not found'}), 404
+        
+        success = campaign_scheduler.resume_campaign(campaign_id)
+        
+        if success:
+            current_app.logger.info(f"Campaign {campaign_id} resumed successfully")
+            return jsonify({
+                'success': True,
+                'message': f'Campaign "{campaign.name}" resumed successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to resume campaign'
+            }), 500
+        
+    except Exception as e:
+        current_app.logger.error(f"Error resuming campaign: {str(e)}")
+        return jsonify({'success': False, 'message': f'Failed to resume campaign: {str(e)}'}), 500
+
+@campaign_bp.route('/campaigns/delete-all', methods=['DELETE'])
+def delete_all_campaigns():
+    """Delete all campaigns and their associated data."""
+    try:
+        current_app.logger.info("Deleting all campaigns...")
+        result = Campaign.delete_all_campaigns()
+        
+        current_app.logger.info(f"Delete all campaigns result: {result}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'All campaigns deleted successfully',
+            'deleted_counts': result
+        })
+    except Exception as e:
+        current_app.logger.error(f"Error deleting all campaigns: {str(e)}")
+        return jsonify({'success': False, 'message': f'Failed to delete campaigns: {str(e)}'}), 500

@@ -145,66 +145,70 @@ def execute_campaign_job(campaign_id: int):
 def execute_campaign_job_test_mode(campaign_id: int):
     """Execute campaign immediately for testing - bypasses all time constraints."""
     from flask import current_app
+    from app import create_app
     
-    try:
-        current_app.logger.info(f"🚀 TEST MODE: Starting immediate execution of campaign {campaign_id}")
-        
-        # Get campaign details
-        campaign = Campaign.get_by_id(campaign_id)
-        if not campaign:
-            current_app.logger.error(f"Campaign {campaign_id} not found during test execution")
-            return
-        
-        # Update status to active
-        Campaign.update_status(campaign_id, 'active')
-        
-        # Get campaign settings
-        settings = Campaign.get_campaign_settings(campaign_id)
-        
-        # Get contacts that need to be processed
-        pending_contacts = Campaign.get_campaign_contacts(campaign_id, status='active')
-        
-        if not pending_contacts:
-            current_app.logger.info(f"No pending contacts for campaign {campaign_id}")
+    # Create application context for background job
+    app = create_app()
+    with app.app_context():
+        try:
+            current_app.logger.info(f"🚀 TEST MODE: Starting immediate execution of campaign {campaign_id}")
+            
+            # Get campaign details
+            campaign = Campaign.get_by_id(campaign_id)
+            if not campaign:
+                current_app.logger.error(f"Campaign {campaign_id} not found during test execution")
+                return
+            
+            # Update status to active
+            Campaign.update_status(campaign_id, 'active')
+            
+            # Get campaign settings
+            settings = Campaign.get_campaign_settings(campaign_id)
+            
+            # Get contacts that need to be processed
+            pending_contacts = Campaign.get_campaign_contacts(campaign_id, status='active')
+            
+            if not pending_contacts:
+                current_app.logger.info(f"No pending contacts for campaign {campaign_id}")
+                Campaign.update_status(campaign_id, 'completed')
+                return
+            
+            current_app.logger.info(f"🔥 TEST MODE: Processing {len(pending_contacts)} contacts immediately (no delays)")
+            
+            # Process all contacts immediately without any delays or restrictions
+            for i, contact in enumerate(pending_contacts, 1):
+                try:
+                    current_app.logger.info(f"🎯 TEST MODE: Processing contact {i}/{len(pending_contacts)}: {contact.get('email', 'unknown')}")
+                    
+                    # Send email to contact
+                    success = _send_campaign_email(campaign_id, contact, settings)
+                    
+                    if success:
+                        # Mark contact as completed
+                        Campaign.update_contact_status_in_campaign(
+                            campaign_id, contact['email'], 'completed'
+                        )
+                        current_app.logger.info(f"✅ TEST MODE: Email sent to {contact['email']} for campaign {campaign_id}")
+                    else:
+                        # Mark contact as failed
+                        Campaign.update_contact_status_in_campaign(
+                            campaign_id, contact['email'], 'failed'
+                        )
+                        current_app.logger.error(f"❌ TEST MODE: Failed to send email to {contact['email']} for campaign {campaign_id}")
+                    
+                    # NO DELAYS in test mode - process immediately
+                    
+                except Exception as contact_error:
+                    current_app.logger.error(f"💥 TEST MODE: Error processing contact {contact.get('email', 'unknown')}: {contact_error}")
+                    continue
+            
+            # Mark campaign as completed
             Campaign.update_status(campaign_id, 'completed')
-            return
-        
-        current_app.logger.info(f"🔥 TEST MODE: Processing {len(pending_contacts)} contacts immediately (no delays)")
-        
-        # Process all contacts immediately without any delays or restrictions
-        for i, contact in enumerate(pending_contacts, 1):
-            try:
-                current_app.logger.info(f"🎯 TEST MODE: Processing contact {i}/{len(pending_contacts)}: {contact.get('email', 'unknown')}")
-                
-                # Send email to contact
-                success = _send_campaign_email(campaign_id, contact, settings)
-                
-                if success:
-                    # Mark contact as completed
-                    Campaign.update_contact_status_in_campaign(
-                        campaign_id, contact['email'], 'completed'
-                    )
-                    current_app.logger.info(f"✅ TEST MODE: Email sent to {contact['email']} for campaign {campaign_id}")
-                else:
-                    # Mark contact as failed
-                    Campaign.update_contact_status_in_campaign(
-                        campaign_id, contact['email'], 'failed'
-                    )
-                    current_app.logger.error(f"❌ TEST MODE: Failed to send email to {contact['email']} for campaign {campaign_id}")
-                
-                # NO DELAYS in test mode - process immediately
-                
-            except Exception as contact_error:
-                current_app.logger.error(f"💥 TEST MODE: Error processing contact {contact.get('email', 'unknown')}: {contact_error}")
-                continue
-        
-        # Mark campaign as completed
-        Campaign.update_status(campaign_id, 'completed')
-        current_app.logger.info(f"🎉 TEST MODE: Campaign {campaign_id} completed immediately")
-        
-    except Exception as e:
-        current_app.logger.error(f"💥 TEST MODE: Error executing campaign {campaign_id}: {e}")
-        Campaign.update_status(campaign_id, 'failed')
+            current_app.logger.info(f"🎉 TEST MODE: Campaign {campaign_id} completed immediately")
+            
+        except Exception as e:
+            current_app.logger.error(f"💥 TEST MODE: Error executing campaign {campaign_id}: {e}")
+            Campaign.update_status(campaign_id, 'failed')
 
 def _send_campaign_email(campaign_id: int, contact: Dict, settings: Dict) -> bool:
     """Send email for a specific campaign contact."""
@@ -512,6 +516,68 @@ class CampaignScheduler:
         except Exception as e:
             current_app.logger.error(f"Error getting campaign status: {e}")
             return {'error': str(e)}
+    
+    def associate_contacts_with_campaign(self, campaign_id: int, target_contacts: List[Dict]) -> bool:
+        """Associate contacts with a campaign."""
+        try:
+            if not target_contacts:
+                current_app.logger.info(f"No contacts to associate with campaign {campaign_id}")
+                return True
+            
+            # Extract email addresses from contact dictionaries
+            contact_emails = []
+            for contact in target_contacts:
+                email = contact.get('email')
+                if email:
+                    contact_emails.append(email)
+            
+            if not contact_emails:
+                current_app.logger.warning(f"No valid email addresses found in contacts for campaign {campaign_id}")
+                return False
+            
+            # Use Campaign model's bulk add method
+            result = Campaign.bulk_add_contacts_to_campaign(campaign_id, contact_emails, status='active')
+            
+            current_app.logger.info(f"Associated {result['success']} contacts with campaign {campaign_id}, {result['failed']} failed")
+            
+            if result['errors']:
+                for error in result['errors']:
+                    current_app.logger.error(f"Contact association error: {error}")
+            
+            return result['success'] > 0
+            
+        except Exception as e:
+            current_app.logger.error(f"Error associating contacts with campaign {campaign_id}: {e}")
+            return False
+    
+    def cancel_campaign(self, campaign_id: int) -> bool:
+        """Cancel a scheduled campaign."""
+        try:
+            # Remove any scheduled jobs for this campaign
+            job_ids = [
+                f"campaign_{campaign_id}_immediate",
+                f"campaign_{campaign_id}_scheduled",
+                f"campaign_{campaign_id}_resume"
+            ]
+            
+            for job_id in job_ids:
+                try:
+                    self.scheduler.remove_job(job_id)
+                    current_app.logger.info(f"Removed job {job_id}")
+                except:
+                    pass  # Job might not exist
+            
+            # Update campaign status to cancelled
+            success = Campaign.update_status(campaign_id, 'cancelled')
+            
+            if success:
+                current_app.logger.info(f"Campaign {campaign_id} cancelled successfully")
+            
+            return success
+            
+        except Exception as e:
+            current_app.logger.error(f"Error cancelling campaign {campaign_id}: {e}")
+            return False
 
 # Global scheduler instance
 campaign_scheduler = CampaignScheduler() 

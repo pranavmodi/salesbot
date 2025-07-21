@@ -92,18 +92,28 @@ function resetCampaignModal() {
 }
 
 function showStep(stepNumber) {
-    // Hide all steps
-    const steps = document.querySelectorAll('.campaign-step');
-    steps.forEach(step => step.style.display = 'none');
+    console.log(`Showing step ${stepNumber}`);
     
-    // Show current step
+    // Hide all steps by adding d-none class
+    const steps = document.querySelectorAll('.step-content');
+    steps.forEach(step => {
+        step.classList.add('d-none');
+    });
+    
+    // Show current step by removing d-none class
     const currentStep = document.getElementById(`step${stepNumber}`);
     if (currentStep) {
-        currentStep.style.display = 'block';
+        currentStep.classList.remove('d-none');
+        console.log(`Step ${stepNumber} is now visible`);
+    } else {
+        console.error(`Step element step${stepNumber} not found`);
     }
     
     // Update step indicators
     updateStepIndicators(stepNumber);
+    
+    // Update button visibility
+    updateStepButtons(stepNumber);
     
     // Update navigation buttons
     updateNavigationButtons(stepNumber);
@@ -132,42 +142,82 @@ function updateStepIndicators(currentStep = 1) {
     });
 }
 
+function updateStepButtons(stepNumber) {
+    // This function can be used for step-specific button updates if needed
+    // Currently handled by updateNavigationButtons
+}
+
 function updateNavigationButtons(stepNumber) {
     const prevBtn = document.getElementById('prevStepBtn');
     const nextBtn = document.getElementById('nextStepBtn');
-    const createBtn = document.getElementById('createCampaignFinalBtn');
+    const launchBtn = document.getElementById('launchCampaignBtn');
     
     // Previous button
     if (prevBtn) {
-        prevBtn.style.display = stepNumber === 1 ? 'none' : 'inline-block';
+        prevBtn.disabled = stepNumber <= 1;
     }
     
-    // Next/Create buttons
-    if (nextBtn && createBtn) {
+    // Next/Launch buttons
+    if (nextBtn && launchBtn) {
         if (stepNumber === 4) {
             nextBtn.style.display = 'none';
-            createBtn.style.display = 'inline-block';
+            launchBtn.style.display = 'inline-block';
         } else {
             nextBtn.style.display = 'inline-block';
-            createBtn.style.display = 'none';
+            launchBtn.style.display = 'none';
         }
     }
 }
 
 function nextStep() {
-    const currentStep = document.querySelector('.campaign-step[style*="block"]');
+    // Find the currently visible step (one without d-none class)
+    let currentStep = document.querySelector('.step-content:not(.d-none)');
+    
+    // If still not found, check if any step elements exist at all
     if (!currentStep) {
-        console.error('No current step found');
-        return;
+        const allSteps = document.querySelectorAll('.step-content');
+        console.log(`Found ${allSteps.length} step-content elements:`, Array.from(allSteps).map(s => s.id));
+        
+        if (allSteps.length === 0) {
+            console.error('No step-content elements found in DOM');
+            return;
+        }
+        
+        console.warn('No visible step found, defaulting to step 1');
+        showStep(1);
+        
+        // Try again to find the visible step
+        currentStep = document.querySelector('.step-content:not(.d-none)');
+        if (!currentStep) {
+            console.error('Still no visible step found after showStep(1)');
+            return;
+        }
     }
     
+    continueNextStep(currentStep);
+}
+
+function continueNextStep(currentStep) {
     const stepNumber = parseInt(currentStep.id.replace('step', ''));
     console.log(`Attempting to move from step ${stepNumber}`);
     
     if (validateCurrentStep(stepNumber)) {
         console.log(`Step ${stepNumber} validation passed`);
         saveCurrentStepData(stepNumber);
-        showStep(stepNumber + 1);
+        
+        // Only move to next step if we're not on the last step (step 4)
+        if (stepNumber < 4) {
+            showStep(stepNumber + 1);
+            
+            // Load step-specific data
+            if (stepNumber + 1 === 4) {
+                populateReviewStep();
+            }
+        } else {
+            // We're on step 4, this should be handled by a "Launch Campaign" button
+            console.log('Reached final step - campaign should be submitted via Launch button');
+            showToast('infoToast', 'Click "Launch Campaign" to create your campaign');
+        }
     } else {
         console.log(`Step ${stepNumber} validation failed`);
         // Show validation error
@@ -176,7 +226,7 @@ function nextStep() {
 }
 
 function previousStep() {
-    const currentStep = document.querySelector('.campaign-step[style*="block"]');
+    const currentStep = document.querySelector('.step-content:not(.d-none)');
     if (!currentStep) return;
     
     const stepNumber = parseInt(currentStep.id.replace('step', ''));
@@ -238,14 +288,15 @@ function saveCurrentStepData(stepNumber) {
     switch(stepNumber) {
         case 1:
             currentCampaignData.name = document.getElementById('campaignName').value.trim();
+            currentCampaignData.type = document.getElementById('campaignType').value;
             currentCampaignData.description = document.getElementById('campaignDescription').value.trim();
             currentCampaignData.priority = document.getElementById('campaignPriority').value;
-            currentCampaignData.email_template = document.getElementById('campaignEmailTemplate').value;
             break;
         case 2:
             currentCampaignData.target_criteria = getFilterCriteria();
             break;
         case 3:
+            currentCampaignData.email_template = document.getElementById('emailTemplate').value;
             const selectionMethod = document.querySelector('input[name="selectionMethod"]:checked');
             currentCampaignData.selection_method = selectionMethod ? selectionMethod.value : 'auto';
             if (currentCampaignData.selection_method === 'manual') {
@@ -328,20 +379,36 @@ function setupStepValidation() {
 // Contact selection for campaigns
 function handleSelectionMethodChange() {
     const selectionMethod = document.querySelector('input[name="selectionMethod"]:checked');
-    const manualSelectionDiv = document.getElementById('manualSelectionDiv');
-    const autoSelectionDiv = document.getElementById('autoSelectionDiv');
+    
+    // Get all selection method content divs
+    const quickFilterOptions = document.getElementById('quickFilterOptions');
+    const manualSelectionOptions = document.getElementById('manualSelectionOptions');
+    const advancedFilterOptions = document.getElementById('advancedFilterOptions');
     
     if (!selectionMethod) return;
     
-    if (selectionMethod.value === 'manual') {
-        if (manualSelectionDiv) manualSelectionDiv.style.display = 'block';
-        if (autoSelectionDiv) autoSelectionDiv.style.display = 'none';
-        loadContactsForManualSelection();
-    } else {
-        if (manualSelectionDiv) manualSelectionDiv.style.display = 'none';
-        if (autoSelectionDiv) autoSelectionDiv.style.display = 'block';
-        updateContactCount();
+    // Hide all options first
+    if (quickFilterOptions) quickFilterOptions.classList.add('d-none');
+    if (manualSelectionOptions) manualSelectionOptions.classList.add('d-none');
+    if (advancedFilterOptions) advancedFilterOptions.classList.add('d-none');
+    
+    // Show the selected option
+    switch (selectionMethod.value) {
+        case 'quick':
+            if (quickFilterOptions) quickFilterOptions.classList.remove('d-none');
+            updateContactCount();
+            break;
+        case 'manual':
+            if (manualSelectionOptions) manualSelectionOptions.classList.remove('d-none');
+            loadContactsForManualSelection();
+            break;
+        case 'advanced':
+            if (advancedFilterOptions) advancedFilterOptions.classList.remove('d-none');
+            updateContactCount();
+            break;
     }
+    
+    console.log(`Selection method changed to: ${selectionMethod.value}`);
 }
 
 function loadCompaniesForCampaign() {
@@ -408,17 +475,25 @@ function getFilterCriteria() {
 }
 
 function updateSelectedContactsBadge(count = null) {
-    const badge = document.getElementById('selectedContactsBadge');
-    if (badge) {
-        const displayCount = count !== null ? count : selectedCampaignContacts.length;
-        badge.textContent = displayCount;
-        badge.style.display = displayCount > 0 ? 'inline' : 'none';
+    const badge = document.getElementById('selectedContactsCount');
+    if (!badge) {
+        console.error('Selected contacts count badge not found');
+        return;
     }
+    
+    const displayCount = count !== null ? count : selectedCampaignContacts.length;
+    badge.textContent = `${displayCount} contact${displayCount !== 1 ? 's' : ''} selected`;
+    badge.style.display = displayCount > 0 ? 'inline' : 'inline'; // Always show the badge
+    
+    console.log(`Updated contacts badge: ${displayCount} contacts selected`);
 }
 
 function loadContactsForManualSelection() {
-    const container = document.getElementById('manualContactSelection');
-    if (!container) return;
+    const container = document.getElementById('campaignContactsList');
+    if (!container) {
+        console.error('Campaign contacts list container not found');
+        return;
+    }
     
     container.innerHTML = `
         <div class="text-center py-3">
@@ -432,11 +507,19 @@ function loadContactsForManualSelection() {
     fetch('/api/contacts?limit=100')
         .then(response => response.json())
         .then(data => {
-            if (data.success) {
-                displayContactsForSelection(data.contacts || []);
+            // Handle both response formats: array or {success: true, contacts: [...]}
+            let contacts = [];
+            if (Array.isArray(data)) {
+                contacts = data;
+            } else if (data.success && data.contacts) {
+                contacts = data.contacts;
+            } else if (data.error) {
+                throw new Error(data.error);
             } else {
-                throw new Error(data.message || 'Failed to load contacts');
+                throw new Error('Failed to load contacts');
             }
+            
+            displayContactsForSelection(contacts);
         })
         .catch(error => {
             console.error('Error loading contacts for selection:', error);
@@ -450,8 +533,11 @@ function loadContactsForManualSelection() {
 }
 
 function searchContactsForCampaign() {
-    const searchInput = document.getElementById('campaignContactSearch');
-    if (!searchInput) return;
+    const searchInput = document.getElementById('contactSearchCampaign');
+    if (!searchInput) {
+        console.error('Contact search input not found');
+        return;
+    }
     
     const searchTerm = searchInput.value.trim();
     if (searchTerm.length < 2) {
@@ -459,7 +545,7 @@ function searchContactsForCampaign() {
         return;
     }
     
-    fetch(`/api/contacts/search?q=${encodeURIComponent(searchTerm)}`)
+    fetch(`/api/search_contacts?q=${encodeURIComponent(searchTerm)}`)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -472,26 +558,25 @@ function searchContactsForCampaign() {
 }
 
 function displayContactsForSelection(contacts) {
-    const container = document.getElementById('manualContactSelection');
-    if (!container) return;
+    const container = document.getElementById('campaignContactsList');
+    if (!container) {
+        console.error('Campaign contacts list container not found');
+        return;
+    }
     
     if (contacts.length === 0) {
         container.innerHTML = `
             <div class="text-center py-4">
                 <i class="fas fa-users fa-2x text-muted mb-3"></i>
                 <p class="text-muted">No contacts found</p>
+                <p class="text-muted small">Try adjusting your search terms</p>
             </div>
         `;
         return;
     }
     
-    let html = `
-        <div class="mb-3">
-            <input type="text" class="form-control" id="campaignContactSearch" 
-                   placeholder="Search contacts..." onkeyup="searchContactsForCampaign()">
-        </div>
-        <div class="contact-selection-list" style="max-height: 300px; overflow-y: auto;">
-    `;
+    // Don't create a new search input - use the existing one in the template
+    let html = `<div class="contact-selection-list">`;
     
     contacts.forEach(contact => {
         const displayName = contact.display_name || contact.full_name || 
@@ -608,7 +693,12 @@ function createCampaign() {
     // Save current step data
     saveCurrentStepData(4);
     
-    const createBtn = document.getElementById('createCampaignFinalBtn');
+    const createBtn = document.getElementById('launchCampaignBtn');
+    if (!createBtn) {
+        console.error('Launch campaign button not found');
+        return;
+    }
+    
     const originalText = createBtn.innerHTML;
     
     createBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Creating...';
@@ -654,7 +744,7 @@ function validateAllSteps() {
 
 function saveCampaignDraft() {
     // Save current step data
-    const currentStep = document.querySelector('.campaign-step[style*="block"]');
+    const currentStep = document.querySelector('.step-content:not(.d-none)');
     if (currentStep) {
         const stepNumber = parseInt(currentStep.id.replace('step', ''));
         saveCurrentStepData(stepNumber);
@@ -1081,6 +1171,53 @@ function populateCampaignDetails(campaign) {
         new Date(campaign.last_email_date).toLocaleString() : 'No emails sent yet');
     setElementText('detailsUniqueRecipients', campaign.unique_recipients || 0);
     setElementText('detailsTotalEmails', campaign.total_emails || 0);
+    
+    // Update campaign action buttons based on status
+    updateCampaignActionButtons(campaign);
+}
+
+function updateCampaignActionButtons(campaign) {
+    const status = campaign.status || 'draft';
+    
+    // Get button elements
+    const launchBtn = document.getElementById('launchCampaignBtn');
+    const pauseBtn = document.getElementById('pauseCampaignBtn');
+    const resumeBtn = document.getElementById('resumeCampaignBtn');
+    const editBtn = document.getElementById('editCampaignBtn');
+    const executeNowBtn = document.getElementById('executeNowBtn');
+    const resetBtn = document.getElementById('resetCampaignBtn');
+    
+    // Hide all buttons initially
+    [launchBtn, pauseBtn, resumeBtn, editBtn, executeNowBtn, resetBtn].forEach(btn => {
+        if (btn) btn.style.display = 'none';
+    });
+    
+    // Set onclick handlers with campaign ID
+    const campaignId = campaign.id;
+    if (launchBtn) launchBtn.onclick = () => launchCampaign(campaignId);
+    if (pauseBtn) pauseBtn.onclick = () => pauseCampaign(campaignId);
+    if (resumeBtn) resumeBtn.onclick = () => resumeCampaign(campaignId);
+    if (executeNowBtn) executeNowBtn.onclick = () => executeCampaignNow(campaignId);
+    
+    // Show buttons based on campaign status
+    if (status === 'draft') {
+        if (launchBtn) launchBtn.style.display = 'inline-block';
+        if (editBtn) editBtn.style.display = 'inline-block';
+    } else if (status === 'active' || status === 'scheduled') {
+        if (pauseBtn) pauseBtn.style.display = 'inline-block';
+    } else if (status === 'paused') {
+        if (resumeBtn) resumeBtn.style.display = 'inline-block';
+    }
+    
+    // Execute Now button - always show for testing purposes
+    if (executeNowBtn) {
+        executeNowBtn.style.display = 'inline-block';
+    }
+    
+    // Reset button - always show for testing purposes  
+    if (resetBtn) {
+        resetBtn.style.display = 'inline-block';
+    }
 }
 
 function getEmailTemplateDisplayName(template) {
@@ -1136,8 +1273,10 @@ function deleteAllCampaigns() {
         showToast('errorToast', 'Failed to delete campaigns: ' + error.message);
     })
     .finally(() => {
-        deleteBtn.innerHTML = originalText;
-        deleteBtn.disabled = false;
+        if (deleteBtn) {
+            deleteBtn.innerHTML = originalText;
+            deleteBtn.disabled = false;
+        }
     });
 }
 
@@ -1359,30 +1498,210 @@ function displayCampaignAnalytics(analytics, campaignName) {
 function launchCampaign(campaignId) {
     console.log(`Launching campaign: ${campaignId}`);
     if (confirm('Are you sure you want to launch this campaign? This will start sending emails to the selected contacts.')) {
-        // Implementation would go here
-        showToast('infoToast', 'Campaign launch feature coming soon!');
+        // Show loading state
+        const launchBtn = document.querySelector(`[onclick="launchCampaign(${campaignId})"]`);
+        const originalText = launchBtn?.innerHTML;
+        if (launchBtn) {
+            launchBtn.disabled = true;
+            launchBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Launching...';
+        }
+        
+        fetch(`/api/campaigns/${campaignId}/launch`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('successToast', `🚀 ${data.message}`);
+                
+                // Refresh campaign data after launch
+                setTimeout(() => {
+                    loadCampaigns();
+                    if (currentCampaignDetailsId == campaignId) {
+                        viewCampaignDetails(campaignId);
+                    }
+                }, 2000);
+                
+            } else {
+                showToast('errorToast', data.message || 'Failed to launch campaign');
+            }
+        })
+        .catch(error => {
+            console.error('Error launching campaign:', error);
+            showToast('errorToast', 'An error occurred while launching the campaign');
+        })
+        .finally(() => {
+            // Restore button state
+            if (launchBtn && originalText) {
+                launchBtn.disabled = false;
+                launchBtn.innerHTML = originalText;
+            }
+        });
     }
 }
 
 function pauseCampaign(campaignId) {
     console.log(`Pausing campaign: ${campaignId}`);
     if (confirm('Are you sure you want to pause this campaign?')) {
-        // Implementation would go here
-        showToast('infoToast', 'Campaign pause feature coming soon!');
+        // Show loading state
+        const pauseBtn = document.querySelector(`[onclick="pauseCampaign(${campaignId})"]`);
+        const originalText = pauseBtn?.innerHTML;
+        if (pauseBtn) {
+            pauseBtn.disabled = true;
+            pauseBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Pausing...';
+        }
+        
+        fetch(`/api/campaigns/${campaignId}/pause`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('successToast', `⏸️ ${data.message}`);
+                
+                // Refresh campaign data after pause
+                setTimeout(() => {
+                    loadCampaigns();
+                    if (currentCampaignDetailsId == campaignId) {
+                        viewCampaignDetails(campaignId);
+                    }
+                }, 1000);
+                
+            } else {
+                showToast('errorToast', data.message || 'Failed to pause campaign');
+            }
+        })
+        .catch(error => {
+            console.error('Error pausing campaign:', error);
+            showToast('errorToast', 'An error occurred while pausing the campaign');
+        })
+        .finally(() => {
+            // Restore button state
+            if (pauseBtn && originalText) {
+                pauseBtn.disabled = false;
+                pauseBtn.innerHTML = originalText;
+            }
+        });
     }
 }
 
 function resumeCampaign(campaignId) {
     console.log(`Resuming campaign: ${campaignId}`);
     if (confirm('Are you sure you want to resume this campaign?')) {
-        // Implementation would go here
-        showToast('infoToast', 'Campaign resume feature coming soon!');
+        // Show loading state
+        const resumeBtn = document.querySelector(`[onclick="resumeCampaign(${campaignId})"]`);
+        const originalText = resumeBtn?.innerHTML;
+        if (resumeBtn) {
+            resumeBtn.disabled = true;
+            resumeBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Resuming...';
+        }
+        
+        fetch(`/api/campaigns/${campaignId}/resume`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('successToast', `▶️ ${data.message}`);
+                
+                // Refresh campaign data after resume
+                setTimeout(() => {
+                    loadCampaigns();
+                    if (currentCampaignDetailsId == campaignId) {
+                        viewCampaignDetails(campaignId);
+                    }
+                }, 1000);
+                
+            } else {
+                showToast('errorToast', data.message || 'Failed to resume campaign');
+            }
+        })
+        .catch(error => {
+            console.error('Error resuming campaign:', error);
+            showToast('errorToast', 'An error occurred while resuming the campaign');
+        })
+        .finally(() => {
+            // Restore button state
+            if (resumeBtn && originalText) {
+                resumeBtn.disabled = false;
+                resumeBtn.innerHTML = originalText;
+            }
+        });
     }
+}
+
+function executeCampaignNow(campaignId) {
+    if (!confirm('⚠️ TEST MODE: This will execute the campaign IMMEDIATELY bypassing all time delays and business hour restrictions.\n\nAre you sure you want to proceed?')) {
+        return;
+    }
+    
+    console.log('🚀 TEST MODE: Executing campaign immediately:', campaignId);
+    
+    // Show loading state
+    const executeBtn = document.getElementById('executeNowBtn') || document.querySelector(`[onclick="executeCampaignNow(${campaignId})"]`);
+    const originalText = executeBtn?.innerHTML;
+    if (executeBtn) {
+        executeBtn.disabled = true;
+        executeBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Executing...';
+    }
+    
+    fetch(`/api/campaigns/${campaignId}/execute-now`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('successToast', `🚀 ${data.message}`);
+            
+            // Show additional info toast
+            setTimeout(() => {
+                showToast('successToast', '📧 Check the logs and email history for execution progress!');
+            }, 2000);
+            
+            // Refresh campaign data after a short delay to see the results
+            setTimeout(() => {
+                loadCampaigns();
+                if (currentCampaignDetailsId == campaignId) {
+                    viewCampaignDetails(campaignId);
+                }
+            }, 3000);
+            
+        } else {
+            showToast('errorToast', data.message || 'Failed to execute campaign immediately');
+        }
+    })
+    .catch(error => {
+        console.error('Error executing campaign immediately:', error);
+        showToast('errorToast', 'An error occurred while executing the campaign');
+    })
+    .finally(() => {
+        // Restore button state
+        if (executeBtn && originalText) {
+            executeBtn.disabled = false;
+            executeBtn.innerHTML = originalText;
+        }
+    });
 }
 
 // Global function assignments for HTML onclick handlers
 window.nextStep = nextStep;
 window.previousStep = previousStep;
+window.launchCampaign = launchCampaign;
+window.pauseCampaign = pauseCampaign;
+window.resumeCampaign = resumeCampaign;
+window.executeCampaignNow = executeCampaignNow;
 window.handleSelectionMethodChange = handleSelectionMethodChange;
 window.toggleContactSelection = toggleContactSelection;
 window.searchContactsForCampaign = searchContactsForCampaign;
