@@ -677,7 +677,7 @@ class Campaign:
 
     def to_dict(self) -> Dict:
         """Convert campaign to dictionary for JSON serialization."""
-        return {
+        base_dict = {
             'id': self.id,
             'name': self.name,
             'type': self.type,
@@ -691,6 +691,45 @@ class Campaign:
             'created_at': self.created_at.isoformat() if isinstance(self.created_at, datetime) else str(self.created_at) if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if isinstance(self.updated_at, datetime) else str(self.updated_at) if self.updated_at else None
         }
+        
+        # Add email statistics if campaign has an ID
+        if self.id:
+            try:
+                stats = self.get_campaign_stats(self.id)
+                base_dict.update({
+                    'emails_sent': stats.get('sent_emails', 0),
+                    'total_emails': stats.get('total_emails', 0),
+                    'failed_emails': stats.get('failed_emails', 0),
+                    'success_rate': stats.get('success_rate', 0),
+                    'target_contacts_count': stats.get('total_contacts', 0),
+                    'active_contacts': stats.get('active_contacts', 0),
+                    'responses_received': 0  # This would need to be calculated from a response tracking system
+                })
+            except Exception as e:
+                current_app.logger.warning(f"Failed to get campaign stats for campaign {self.id}: {e}")
+                # Provide default values if stats can't be retrieved
+                base_dict.update({
+                    'emails_sent': 0,
+                    'total_emails': 0,
+                    'failed_emails': 0,
+                    'success_rate': 0,
+                    'target_contacts_count': 0,
+                    'active_contacts': 0,
+                    'responses_received': 0
+                })
+        else:
+            # For new campaigns without ID, provide default values
+            base_dict.update({
+                'emails_sent': 0,
+                'total_emails': 0,
+                'failed_emails': 0,
+                'success_rate': 0,
+                'target_contacts_count': 0,
+                'active_contacts': 0,
+                'responses_received': 0
+            })
+            
+        return base_dict
     
     def save(self):
         """Save this campaign instance to the database."""

@@ -1039,14 +1039,16 @@ function updateCampaignStats(campaigns) {
     const activeCampaigns = campaigns.filter(c => c.status === 'active').length;
     const totalEmails = campaigns.reduce((sum, c) => sum + (c.emails_sent || 0), 0);
     
-    // Update stats in UI
+    // Update stats in UI (support multiple element IDs for different panes)
     const totalCampaignsElement = document.getElementById('totalCampaigns');
     const activeCampaignsElement = document.getElementById('activeCampaigns');
     const totalEmailsElement = document.getElementById('totalEmails');
+    const campaignEmailsSentElement = document.getElementById('campaignEmailsSent');
     
     if (totalCampaignsElement) totalCampaignsElement.textContent = totalCampaigns;
     if (activeCampaignsElement) activeCampaignsElement.textContent = activeCampaigns;
     if (totalEmailsElement) totalEmailsElement.textContent = totalEmails;
+    if (campaignEmailsSentElement) campaignEmailsSentElement.textContent = totalEmails;
 }
 
 // Campaign management operations
