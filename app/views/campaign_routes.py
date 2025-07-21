@@ -43,7 +43,13 @@ def create_campaign():
         priority = data.get('priority', 'medium')
         schedule_date = data.get('schedule_date')
         followup_days = data.get('followup_days', 3)
+        
+        # Handle both frontend formats: selection_criteria (object) or selection_method (string)
         selection_criteria = data.get('selection_criteria', {})
+        selection_method = data.get('selection_method')
+        if selection_method and not selection_criteria.get('type'):
+            selection_criteria = {'type': selection_method}
+            
         selected_contacts = data.get('selected_contacts', [])
         
         # Log campaign creation

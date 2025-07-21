@@ -81,6 +81,9 @@ function resetCampaignModal() {
     currentCampaignData = {};
     selectedCampaignContacts = [];
     
+    // Clear any stale campaign IDs
+    currentCampaignDetailsId = null;
+    
     // Reset contact selection
     updateSelectedContactsBadge(0);
     
@@ -88,7 +91,18 @@ function resetCampaignModal() {
     const errorElements = document.querySelectorAll('.text-danger');
     errorElements.forEach(el => el.textContent = '');
     
-    console.log('Campaign modal reset');
+    // Reset selection method to ensure clean state
+    const selectionMethodRadios = document.querySelectorAll('input[name="selectionMethod"]');
+    selectionMethodRadios.forEach(radio => {
+        if (radio.value === 'manual') {
+            radio.checked = true;
+        }
+    });
+    
+    // Trigger selection method change to show correct UI
+    handleSelectionMethodChange();
+    
+    console.log('Campaign modal reset with clean state');
 }
 
 function showStep(stepNumber) {
@@ -1189,15 +1203,41 @@ function updateCampaignActionButtons(campaign) {
     
     // Hide all buttons initially
     [launchBtn, pauseBtn, resumeBtn, editBtn, executeNowBtn, resetBtn].forEach(btn => {
-        if (btn) btn.style.display = 'none';
+        if (btn) {
+            btn.style.display = 'none';
+            // Clear any existing onclick handlers
+            btn.onclick = null;
+        }
     });
     
-    // Set onclick handlers with campaign ID
+    // Set onclick handlers with current campaign ID
     const campaignId = campaign.id;
-    if (launchBtn) launchBtn.onclick = () => launchCampaign(campaignId);
-    if (pauseBtn) pauseBtn.onclick = () => pauseCampaign(campaignId);
-    if (resumeBtn) resumeBtn.onclick = () => resumeCampaign(campaignId);
-    if (executeNowBtn) executeNowBtn.onclick = () => executeCampaignNow(campaignId);
+    console.log(`Setting up action buttons for campaign ${campaignId} with status ${status}`);
+    
+    if (launchBtn) {
+        launchBtn.onclick = () => {
+            console.log(`Launch button clicked for campaign ${campaignId}`);
+            launchCampaign(campaignId);
+        };
+    }
+    if (pauseBtn) {
+        pauseBtn.onclick = () => {
+            console.log(`Pause button clicked for campaign ${campaignId}`);
+            pauseCampaign(campaignId);
+        };
+    }
+    if (resumeBtn) {
+        resumeBtn.onclick = () => {
+            console.log(`Resume button clicked for campaign ${campaignId}`);
+            resumeCampaign(campaignId);
+        };
+    }
+    if (executeNowBtn) {
+        executeNowBtn.onclick = () => {
+            console.log(`Execute Now button clicked for campaign ${campaignId}`);
+            executeCampaignNow(campaignId);
+        };
+    }
     
     // Show buttons based on campaign status
     if (status === 'draft') {
@@ -1239,7 +1279,16 @@ function getPriorityBadgeClass(priority) {
     return priorityClasses[priority] || 'bg-secondary';
 }
 
+// Add a flag to prevent multiple simultaneous deletions
+let isDeletingCampaigns = false;
+
 function deleteAllCampaigns() {
+    // Prevent multiple simultaneous executions
+    if (isDeletingCampaigns) {
+        console.log('Delete already in progress, ignoring duplicate call');
+        return;
+    }
+    
     if (!confirm('Are you sure you want to delete ALL campaigns? This action cannot be undone.')) {
         return;
     }
@@ -1251,18 +1300,44 @@ function deleteAllCampaigns() {
         return;
     }
     
+    // Check if button is already in loading state
+    if (deleteBtn.disabled) {
+        console.log('Button already disabled, ignoring duplicate call');
+        return;
+    }
+    
+    // Set flag and capture original state
+    isDeletingCampaigns = true;
     const originalText = deleteBtn.innerHTML;
+    console.log('Starting campaign deletion, button original text:', originalText);
+    console.log('Button element:', deleteBtn);
     
     deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Deleting...';
     deleteBtn.disabled = true;
     
+    // Store button reference in a way that won't get lost
+    const buttonToRestore = deleteBtn;
+    
     fetch('/api/campaigns/delete-all', {
         method: 'DELETE'
     })
-    .then(response => response.json())
+    .then(response => {
+        console.log('Delete response status:', response.status);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
     .then(data => {
+        console.log('Delete response data:', data);
         if (data.success) {
             showToast('successToast', 'All campaigns deleted successfully!');
+            
+            // Clear any stale campaign state
+            currentCampaignDetailsId = null;
+            window.lastLoadedCampaigns = [];
+            
+            // Reload campaigns
             loadCampaigns();
         } else {
             throw new Error(data.message || 'Failed to delete campaigns');
@@ -1273,9 +1348,37 @@ function deleteAllCampaigns() {
         showToast('errorToast', 'Failed to delete campaigns: ' + error.message);
     })
     .finally(() => {
-        if (deleteBtn) {
-            deleteBtn.innerHTML = originalText;
-            deleteBtn.disabled = false;
+        console.log('FINALLY block executing - restoring delete button state');
+        console.log('buttonToRestore:', buttonToRestore);
+        console.log('originalText:', originalText);
+        
+        try {
+            // Always reset the flag
+            isDeletingCampaigns = false;
+            
+            if (buttonToRestore) {
+                // Use the captured original text, or fallback to default
+                const textToRestore = originalText.includes('spinner') ? 
+                    '<i class="fas fa-trash me-1"></i>Delete All' : originalText;
+                
+                buttonToRestore.innerHTML = textToRestore;
+                buttonToRestore.disabled = false;
+                console.log('✅ Button state restored successfully to:', textToRestore);
+            } else {
+                console.error('❌ buttonToRestore is null/undefined');
+            }
+        } catch (restoreError) {
+            console.error('❌ Error restoring button state:', restoreError);
+            // Always reset flag even on error
+            isDeletingCampaigns = false;
+            
+            // Fallback: try to find button again
+            const fallbackBtn = document.getElementById('deleteAllCampaigns');
+            if (fallbackBtn) {
+                fallbackBtn.innerHTML = '<i class="fas fa-trash me-1"></i>Delete All';
+                fallbackBtn.disabled = false;
+                console.log('✅ Fallback button restore successful');
+            }
         }
     });
 }
