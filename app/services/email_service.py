@@ -107,8 +107,13 @@ class EmailService:
             msg["To"] = recipient_email
             msg["Message-ID"] = make_msgid()
             
-            # Set content
-            msg.set_content(body)
+            # Set content - check if body contains HTML
+            if '<a href=' in body or '<html>' in body.lower():
+                # Set HTML content with plain text alternative
+                msg.set_content(body, subtype='html')
+            else:
+                # Set plain text content
+                msg.set_content(body)
             
             # Create SSL context
             context = ssl.create_default_context()

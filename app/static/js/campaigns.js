@@ -3,6 +3,7 @@
 // Global campaign-related variables
 let currentCampaignData = {};
 let selectedCampaignContacts = [];
+let currentCampaignDetailsId = null;
 
 // Initialize campaign functionality
 function initializeCampaigns() {
@@ -1250,6 +1251,10 @@ function viewCampaignDetails(campaignId) {
 }
 
 function setCampaignDetailsId(campaignId) {
+    // Set global variable for reference by other functions
+    currentCampaignDetailsId = campaignId;
+    
+    // Also set as data attribute on modal for consistency
     const modalElement = document.getElementById('campaignDetailsModal');
     if (modalElement) {
         modalElement.setAttribute('data-campaign-id', campaignId);
@@ -1411,6 +1416,10 @@ function updateCampaignActionButtons(campaign) {
     
     // Reset button - always show for testing purposes  
     if (resetBtn) {
+        resetBtn.onclick = () => {
+            console.log(`Reset button clicked for campaign ${campaignId}`);
+            resetCampaignForTesting(campaignId);
+        };
         resetBtn.style.display = 'inline-block';
     }
 }
@@ -2131,6 +2140,64 @@ function executeCampaignNow(campaignId) {
     });
 }
 
+function resetCampaignForTesting(campaignId) {
+    if (!confirm('🔄 TEST MODE: This will reset all campaign contacts back to "active" status, allowing you to re-test the campaign execution.\n\nThis will:\n- Reset all contacts to "active" status\n- Set campaign status to "ready"\n- Allow re-execution of the same campaign\n\nAre you sure you want to proceed?')) {
+        return;
+    }
+    
+    console.log('🔄 TEST MODE: Resetting campaign for testing:', campaignId);
+    
+    // Show loading state
+    const resetBtn = document.getElementById('resetCampaignBtn') || document.querySelector(`[onclick="resetCampaignForTesting(${campaignId})"]`);
+    const originalText = resetBtn?.innerHTML;
+    if (resetBtn) {
+        resetBtn.disabled = true;
+        resetBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Resetting...';
+    }
+    
+    fetch(`/api/campaigns/${campaignId}/reset`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('successToast', `🔄 ${data.message}`);
+            
+            // Show additional info about what was reset
+            if (data.reset_count > 0) {
+                setTimeout(() => {
+                    showToast('successToast', `📊 ${data.reset_count} contacts reset to active status. Campaign ready for re-testing!`);
+                }, 2000);
+            }
+            
+            // Refresh campaign data to show updated stats
+            setTimeout(() => {
+                loadCampaigns();
+                if (currentCampaignDetailsId == campaignId) {
+                    viewCampaignDetails(campaignId);
+                }
+            }, 3000);
+            
+        } else {
+            showToast('errorToast', data.message || 'Failed to reset campaign for testing');
+        }
+    })
+    .catch(error => {
+        console.error('Error resetting campaign for testing:', error);
+        showToast('errorToast', 'An error occurred while resetting the campaign');
+    })
+    .finally(() => {
+        // Restore button state
+        if (resetBtn && originalText) {
+            resetBtn.disabled = false;
+            resetBtn.innerHTML = originalText;
+        }
+    });
+}
+
 // Global function assignments for HTML onclick handlers
 window.nextStep = nextStep;
 window.previousStep = previousStep;
@@ -2149,4 +2216,5 @@ window.viewCampaignAnalytics = viewCampaignAnalytics;
 window.launchCampaign = launchCampaign;
 window.pauseCampaign = pauseCampaign;
 window.resumeCampaign = resumeCampaign;
+window.resetCampaignForTesting = resetCampaignForTesting;
 window.deleteAllCampaigns = deleteAllCampaigns;

@@ -537,6 +537,52 @@ def resume_campaign(campaign_id):
         current_app.logger.error(f"Error resuming campaign: {str(e)}")
         return jsonify({'success': False, 'message': f'Failed to resume campaign: {str(e)}'}), 500
 
+@campaign_bp.route('/campaigns/<int:campaign_id>/reset', methods=['POST'])
+def reset_campaign_for_testing(campaign_id):
+    """Reset a campaign for testing - sets all contacts back to 'active' status."""
+    try:
+        campaign = Campaign.get_by_id(campaign_id)
+        if not campaign:
+            return jsonify({'success': False, 'message': 'Campaign not found'}), 404
+        
+        current_app.logger.info(f"Resetting campaign {campaign_id} for testing")
+        
+        # Get current stats before reset
+        stats_before = Campaign.get_campaign_stats(campaign_id)
+        
+        # Reset all contacts to 'active' status
+        contacts = Campaign.get_campaign_contacts(campaign_id)
+        reset_count = 0
+        
+        for contact in contacts:
+            if contact.get('campaign_status') != 'active':
+                success = Campaign.update_contact_status_in_campaign(
+                    campaign_id, contact['email'], 'active'
+                )
+                if success:
+                    reset_count += 1
+                    current_app.logger.debug(f"Reset {contact['email']} to active")
+        
+        # Reset campaign status to 'ready'
+        Campaign.update_status(campaign_id, 'ready')
+        
+        # Get new stats after reset
+        stats_after = Campaign.get_campaign_stats(campaign_id)
+        
+        current_app.logger.info(f"Campaign {campaign_id} reset completed: {reset_count} contacts reset")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Campaign "{campaign.name}" reset for testing: {reset_count} contacts reset to active',
+            'reset_count': reset_count,
+            'stats_before': stats_before,
+            'stats_after': stats_after
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error resetting campaign {campaign_id}: {str(e)}")
+        return jsonify({'success': False, 'message': f'Failed to reset campaign: {str(e)}'}), 500
+
 @campaign_bp.route('/campaigns/delete-all', methods=['DELETE'])
 def delete_all_campaigns():
     """Delete all campaigns and their associated data."""

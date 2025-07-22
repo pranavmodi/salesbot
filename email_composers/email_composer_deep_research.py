@@ -64,7 +64,7 @@ class DeepResearchEmailComposer:
             6. Add a blank line
             7. Third paragraph (2-4 bullet points): Specific benefits relevant to their pain points. Use **bold** for key benefits. Reference similar outcomes from your proof points when relevant.
             8. Add a blank line
-            9. Fourth paragraph: Direct, specific call to action with calendar link. Reference exploring their specific challenge/opportunity.
+            9. Fourth paragraph: Direct, specific call to action with calendar link as linked text. Use format like "Worth exploring? <a href="CALENDAR_URL">Let's schedule 15 minutes</a>" instead of showing the full URL.
             10. Add a blank line
             11. Sign-off on its own line (e.g., "Best," - DO NOT include name here, it will be added later)
             12. Add a blank line, then include: "P.S. I put together a strategic analysis for [Company] that covers these opportunities in detail. You can review it here: [REPORT_LINK_PLACEHOLDER]"
@@ -178,11 +178,12 @@ class DeepResearchEmailComposer:
         print(f"🔍 DEBUG: Contains placeholder: {'[REPORT_LINK_PLACEHOLDER]' in body}")
         print(f"🔍 DEBUG: Report URL available: {report_url is not None}")
         
-        # Replace report link placeholder with actual URL
+        # Replace report link placeholder with HTML linked text
         if report_url and "[REPORT_LINK_PLACEHOLDER]" in body:
             print(f"🔗 PROGRESS: Embedding strategic report link in email")
-            body = body.replace("[REPORT_LINK_PLACEHOLDER]", report_url)
-            print(f"✅ PROGRESS: Strategic report link embedded successfully")
+            linked_text = f'<a href="{report_url}">strategic analysis report</a>'
+            body = body.replace("[REPORT_LINK_PLACEHOLDER]", linked_text)
+            print(f"✅ PROGRESS: Strategic report link embedded successfully as linked text")
         elif "[REPORT_LINK_PLACEHOLDER]" in body:
             print(f"⚠️ PROGRESS: No report URL available, using proof point fallback")
             # If no report URL available, fall back to generic message
@@ -193,9 +194,12 @@ class DeepResearchEmailComposer:
             print(f"🔍 DEBUG: No placeholder found in email body")
         
         body = body.strip() # Ensure no trailing newlines before adding signature
-        body += '\n\n' + self._signature()
+        body += '\n' + self._signature()
         
-        final_result = {"subject": subject, "body": body}
+        # Convert plain text formatting to HTML for proper email display
+        html_body = self._convert_to_html(body)
+        
+        final_result = {"subject": subject, "body": html_body}
         print(f"🎉 PROGRESS: Email composition completed for {company_name}")
         print(f"📧 PROGRESS: Final email ready for delivery")
         return final_result
@@ -657,9 +661,52 @@ class DeepResearchEmailComposer:
         return subj, body
 
     @staticmethod
+    def _convert_to_html(text: str) -> str:
+        """Convert plain text email to HTML format while preserving formatting."""
+        import re
+        
+        # Split into lines
+        lines = text.split('\n')
+        html_lines = []
+        
+        for line in lines:
+            # Skip empty lines for now, we'll add them back as <br> tags
+            if not line.strip():
+                html_lines.append('<br>')
+                continue
+                
+            # Convert **bold** to <strong>
+            line = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', line)
+            
+            # Convert *italic* to <em> 
+            line = re.sub(r'\*(.*?)\*', r'<em>\1</em>', line)
+            
+            # Add the line
+            html_lines.append(line)
+        
+        # Join lines with <br> tags for line breaks
+        html_content = '<br>'.join(html_lines)
+        
+        # Clean up multiple consecutive <br> tags and replace with paragraph breaks
+        html_content = re.sub(r'(<br>\s*){3,}', '<br><br>', html_content)
+        
+        # Wrap in basic HTML structure for better email client compatibility
+        html_email = f"""<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    {html_content}
+</body>
+</html>"""
+        
+        return html_email
+
+    @staticmethod
     def _signature() -> str:
-        """Generate email signature."""
-        return """Pranav Modi
-Founder, Possible Minds
-📧 pranav@possibleminds.in
-🌐 possibleminds.in""" 
+        """Generate email signature with HTML links."""
+        return """
+Pranav Modi
+Founder, <a href="https://possibleminds.in">Possible Minds</a>
+📧 <a href="mailto:pranav@possibleminds.in">pranav@possibleminds.in</a> | 🌐 <a href="https://possibleminds.in">possibleminds.in</a>""" 
