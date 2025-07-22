@@ -794,13 +794,11 @@ function saveCampaignDraft() {
 function loadCampaigns() {
     console.log('loadCampaigns() called');
     
-    // Check if we have the individual campaign containers
-    const activeCampaignsContainer = document.getElementById('activeCampaignsContainer');
-    const draftCampaignsContainer = document.getElementById('draftCampaignsContainer');
-    const completedCampaignsContainer = document.getElementById('completedCampaignsContainer');
+    // Check if we have the single campaign container
+    const allCampaignsContainer = document.getElementById('allCampaignsContainer');
     
-    if (!activeCampaignsContainer || !draftCampaignsContainer || !completedCampaignsContainer) {
-        console.error('Campaign containers not found');
+    if (!allCampaignsContainer) {
+        console.error('Campaign container not found');
         return;
     }
     
@@ -814,10 +812,8 @@ function loadCampaigns() {
         </div>
     `;
     
-    // Set loading state on all containers
-    activeCampaignsContainer.innerHTML = loadingHTML;
-    draftCampaignsContainer.innerHTML = loadingHTML;
-    completedCampaignsContainer.innerHTML = loadingHTML;
+    // Set loading state on the container
+    allCampaignsContainer.innerHTML = loadingHTML;
     
     console.log('Fetching campaigns from /api/campaigns...');
     fetch('/api/campaigns')
@@ -849,10 +845,8 @@ function loadCampaigns() {
                 </div>
             `;
             
-            // Set error state on all containers
-            activeCampaignsContainer.innerHTML = errorHTML;
-            draftCampaignsContainer.innerHTML = errorHTML;
-            completedCampaignsContainer.innerHTML = errorHTML;
+            // Set error state on the container
+            allCampaignsContainer.innerHTML = errorHTML;
         });
 }
 
@@ -862,12 +856,10 @@ function displayCampaigns(campaigns) {
     // Store campaigns globally for use in details modal
     window.lastLoadedCampaigns = campaigns;
     
-    const activeCampaignsContainer = document.getElementById('activeCampaignsContainer');
-    const draftCampaignsContainer = document.getElementById('draftCampaignsContainer');
-    const completedCampaignsContainer = document.getElementById('completedCampaignsContainer');
+    const allCampaignsContainer = document.getElementById('allCampaignsContainer');
     
-    if (!activeCampaignsContainer || !draftCampaignsContainer || !completedCampaignsContainer) {
-        console.error('Campaign containers not found in displayCampaigns');
+    if (!allCampaignsContainer) {
+        console.error('Campaign container not found in displayCampaigns');
         return;
     }
     
@@ -883,154 +875,96 @@ function displayCampaigns(campaigns) {
                 </button>
             </div>
         `;
-        activeCampaignsContainer.innerHTML = emptyStateHTML;
-        draftCampaignsContainer.innerHTML = '<div class="text-center text-muted py-4"><p>No draft campaigns found.</p></div>';
-        completedCampaignsContainer.innerHTML = '<div class="text-center text-muted py-4"><p>No completed campaigns found.</p></div>';
+        allCampaignsContainer.innerHTML = emptyStateHTML;
         return;
     }
     
-    // Separate campaigns by status
-    const activeCampaigns = campaigns.filter(c => c.status === 'active');
-    const pausedCampaigns = campaigns.filter(c => c.status === 'paused');
-    const completedCampaigns = campaigns.filter(c => c.status === 'completed');
-    const draftCampaigns = campaigns.filter(c => c.status === 'draft');
-    
-    console.log('Campaign counts by status:', {
-        active: activeCampaigns.length,
-        paused: pausedCampaigns.length,
-        completed: completedCampaigns.length,
-        draft: draftCampaigns.length
-    });
-    
-    // Display active campaigns (including paused ones in the active tab)
-    const allActiveCampaigns = [...activeCampaigns, ...pausedCampaigns];
-    if (allActiveCampaigns.length > 0) {
-        console.log('Adding active campaigns section');
-        activeCampaignsContainer.innerHTML = displayCampaignList(allActiveCampaigns, 'activeCampaigns', 'active');
-    } else {
-        activeCampaignsContainer.innerHTML = `
-            <div class="text-center text-muted py-4">
-                <i class="fas fa-bullhorn fa-3x mb-3"></i>
-                <p>No active campaigns yet. Create your first GTM campaign to get started!</p>
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createCampaignModal">
-                    <i class="fas fa-plus me-1"></i>Create Campaign
-                </button>
-            </div>
-        `;
-    }
-    
-    // Display draft campaigns
-    if (draftCampaigns.length > 0) {
-        console.log('Adding draft campaigns section');
-        draftCampaignsContainer.innerHTML = displayCampaignList(draftCampaigns, 'draftCampaigns', 'draft');
-    } else {
-        draftCampaignsContainer.innerHTML = `
-            <div class="text-center text-muted py-4">
-                <i class="fas fa-edit fa-3x mb-3"></i>
-                <p>No draft campaigns found.</p>
-            </div>
-        `;
-    }
-    
-    // Display completed campaigns
-    if (completedCampaigns.length > 0) {
-        console.log('Adding completed campaigns section');
-        completedCampaignsContainer.innerHTML = displayCampaignList(completedCampaigns, 'completedCampaigns', 'completed');
-    } else {
-        completedCampaignsContainer.innerHTML = `
-            <div class="text-center text-muted py-4">
-                <i class="fas fa-check fa-3x mb-3"></i>
-                <p>No completed campaigns found.</p>
-            </div>
-        `;
-    }
+    console.log('Displaying all campaigns in a single list');
+    // Display all campaigns regardless of status in a single list
+    allCampaignsContainer.innerHTML = displayCampaignList(campaigns, 'allCampaigns', 'all');
     
     console.log('Campaigns display completed');
 }
 
 function displayCampaignList(campaigns, containerId, type) {
     console.log(`displayCampaignList called for ${type} with ${campaigns.length} campaigns`);
-    let html = '<div class="row">';
+    
+    let html = `
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Campaign</th>
+                        <th>Status</th>
+                        <th>Type</th>
+                        <th>Targets</th>
+                        <th>Sent</th>
+                        <th>Response Rate</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
     
     campaigns.forEach(campaign => {
         const statusBadge = getStatusBadge(campaign.status);
-        const priorityBadge = getPriorityBadge('medium'); // Default since not in DB
         const createdDate = new Date(campaign.created_at).toLocaleDateString();
         const emailsSent = campaign.emails_sent || 0;
         const targetCount = campaign.target_contacts_count || 0;
         const responseRate = targetCount > 0 ? Math.round((campaign.responses_received || 0) / targetCount * 100) : 0;
         
         html += `
-            <div class="col-md-6 col-lg-4 mb-3">
-                <div class="card campaign-card h-100">
-                    <div class="card-header d-flex justify-content-between align-items-start">
-                        <div>
-                            <h6 class="card-title mb-1">${campaign.name}</h6>
-                            <small class="text-muted">${(campaign.type || 'unknown').replace('_', ' ').toUpperCase()}</small>
-                        </div>
-                        <div>
-                            ${statusBadge}
-                            ${priorityBadge}
-                        </div>
+            <tr>
+                <td>
+                    <div class="fw-semibold">${campaign.name}</div>
+                    <small class="text-muted">${campaign.description || 'No description'}</small>
+                </td>
+                <td>${statusBadge}</td>
+                <td>
+                    <span class="badge bg-secondary">${(campaign.type || 'unknown').replace('_', ' ').toUpperCase()}</span>
+                </td>
+                <td><span class="fw-semibold">${targetCount}</span></td>
+                <td><span class="fw-semibold text-success">${emailsSent}</span></td>
+                <td><span class="fw-semibold text-info">${responseRate}%</span></td>
+                <td>
+                    <span class="text-muted">${createdDate}</span>
+                    <br><small class="text-muted">${campaign.email_template || 'Not set'}</small>
+                </td>
+                <td>
+                    <div class="btn-group-vertical btn-group-sm" role="group">
+                        <button type="button" class="btn btn-outline-primary btn-sm mb-1" onclick="viewCampaignDetails('${campaign.id}')">
+                            <i class="fas fa-eye me-1"></i>View
+                        </button>
+                        <button type="button" class="btn btn-outline-info btn-sm mb-1" onclick="viewCampaignAnalytics('${campaign.id}', '${campaign.name.replace(/'/g, '&apos;')}')">
+                            <i class="fas fa-chart-line me-1"></i>Analytics
+                        </button>
+                        ${campaign.status === 'draft' ? 
+                            `<button type="button" class="btn btn-outline-success btn-sm mb-1" onclick="launchCampaign('${campaign.id}')">
+                                <i class="fas fa-rocket me-1"></i>Launch
+                            </button>` : ''
+                        }
+                        ${campaign.status === 'active' ? 
+                            `<button type="button" class="btn btn-outline-warning btn-sm mb-1" onclick="pauseCampaign(${campaign.id})">
+                                <i class="fas fa-pause me-1"></i>Pause
+                            </button>` : 
+                            campaign.status === 'paused' ?
+                            `<button type="button" class="btn btn-outline-success btn-sm mb-1" onclick="resumeCampaign(${campaign.id})">
+                                <i class="fas fa-play me-1"></i>Resume
+                            </button>` : ''
+                        }
                     </div>
-                    <div class="card-body">
-                        <p class="card-text small text-muted">${campaign.description || 'No description provided'}</p>
-                        
-                        <div class="campaign-metrics">
-                            <div class="row text-center">
-                                <div class="col-4">
-                                    <div class="metric-value">${targetCount}</div>
-                                    <div class="metric-label">Targets</div>
-                                </div>
-                                <div class="col-4">
-                                    <div class="metric-value">${emailsSent}</div>
-                                    <div class="metric-label">Sent</div>
-                                </div>
-                                <div class="col-4">
-                                    <div class="metric-value">${responseRate}%</div>
-                                    <div class="metric-label">Response</div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="campaign-details mt-3">
-                            <small class="text-muted">
-                                <i class="fas fa-calendar me-1"></i>Created: ${createdDate}<br>
-                                <i class="fas fa-envelope me-1"></i>Template: ${campaign.email_template || 'Not set'}<br>
-                                <i class="fas fa-clock me-1"></i>Follow-up: ${campaign.followup_days || 3} days
-                            </small>
-                        </div>
-                    </div>
-                    <div class="card-footer">
-                        <div class="btn-group w-100" role="group">
-                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="viewCampaignDetails('${campaign.id}')">
-                                <i class="fas fa-eye me-1"></i>View
-                            </button>
-                            <button type="button" class="btn btn-outline-info btn-sm" onclick="viewCampaignAnalytics('${campaign.id}', '${campaign.name.replace(/'/g, '&apos;')}')">
-                                <i class="fas fa-chart-line me-1"></i>Analytics
-                            </button>
-                            ${campaign.status === 'draft' ? 
-                                `<button type="button" class="btn btn-outline-success btn-sm" onclick="launchCampaign('${campaign.id}')">
-                                    <i class="fas fa-rocket me-1"></i>Launch
-                                </button>` : ''
-                            }
-                            ${campaign.status === 'active' ? 
-                                `<button type="button" class="btn btn-outline-warning btn-sm" onclick="pauseCampaign(${campaign.id})">
-                                    <i class="fas fa-pause me-1"></i>Pause
-                                </button>` : 
-                                campaign.status === 'paused' ?
-                                `<button type="button" class="btn btn-outline-success btn-sm" onclick="resumeCampaign(${campaign.id})">
-                                    <i class="fas fa-play me-1"></i>Resume
-                                </button>` : ''
-                            }
-                        </div>
-                    </div>
-                </div>
-            </div>
+                </td>
+            </tr>
         `;
     });
     
-    html += '</div>';
+    html += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    
     return html;
 }
 
