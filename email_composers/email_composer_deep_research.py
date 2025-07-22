@@ -92,43 +92,18 @@ class DeepResearchEmailComposer:
         proof = random.choice(self.proof_points) if self.proof_points else ""
 
         print(f"\n📧 CAMPAIGN: Starting email composition for {company_name}")
-        print(f"🔍 DEBUG: Lead data: {lead}")
 
         # Use global setting if auto_research not specified
         if auto_research is None:
             auto_research = AUTO_RESEARCH
 
-        print(f"🔍 DEBUG: Auto-research enabled: {auto_research}")
-        
-        # Progress logging for UI
-        if company_name:
-            print(f"📊 PROGRESS: Looking up company research for {company_name}")
-        else:
-            print(f"⚠️ PROGRESS: No company name provided, using generic template")
-
         # Try to get company research data (with optional auto-triggering)
         company_research, company_id = self._get_company_research_with_full_report(company_name, auto_trigger=auto_research)
-        
-        print(f"🔍 DEBUG: Research result - Company ID: {company_id}, Research length: {len(company_research) if company_research else 0}")
-        
-        # Progress logging for research result
-        if company_research:
-            print(f"✅ PROGRESS: Found company research data for {company_name}")
-        else:
-            print(f"⚠️ PROGRESS: No research data found, using generic insights")
         
         # Generate public report URL with tracking parameters
         report_url = None
         if company_id:
-            print(f"📊 PROGRESS: Publishing strategic report to possibleminds.in for {company_name}")
             report_url = self._get_or_publish_report_url(company_id, company_name, lead.get("email", ""), campaign_id)
-            if report_url:
-                print(f"✅ PROGRESS: Strategic report published and tracking URL ready")
-                print(f"🔍 DEBUG: Generated report URL: {report_url}")
-            else:
-                print(f"⚠️ PROGRESS: Report publishing failed, using fallback message")
-        else:
-            print(f"🔍 DEBUG: No company ID available, skipping report URL generation")
 
         user_prompt = f"""
         === Lead ===
@@ -156,8 +131,6 @@ class DeepResearchEmailComposer:
         """
 
         try:
-            print(f"🤖 PROGRESS: Generating personalized email content for {company_name}")
-            print(f"🔍 DEBUG: Using OpenAI model: {OPENAI_MODEL}")
             rsp = self.client.chat.completions.create(
                 model=OPENAI_MODEL,
                 temperature=0.7,
@@ -167,31 +140,20 @@ class DeepResearchEmailComposer:
                     {"role": "user", "content": user_prompt},
                 ],
             )
-            print(f"✅ PROGRESS: Email content generated successfully")
         except Exception as e:
-            print(f"🔴 PROGRESS: OpenAI email generation failed: {e}")
+            print(f"🔴 OpenAI email generation failed: {e}")
             return None
 
         subject, body = self._parse(rsp.choices[0].message.content)
         
-        print(f"🔍 DEBUG: Email body before placeholder replacement:")
-        print(f"🔍 DEBUG: Contains placeholder: {'[REPORT_LINK_PLACEHOLDER]' in body}")
-        print(f"🔍 DEBUG: Report URL available: {report_url is not None}")
-        
         # Replace report link placeholder with HTML linked text
         if report_url and "[REPORT_LINK_PLACEHOLDER]" in body:
-            print(f"🔗 PROGRESS: Embedding strategic report link in email")
             linked_text = f'<a href="{report_url}">strategic analysis report</a>'
             body = body.replace("[REPORT_LINK_PLACEHOLDER]", linked_text)
-            print(f"✅ PROGRESS: Strategic report link embedded successfully as linked text")
         elif "[REPORT_LINK_PLACEHOLDER]" in body:
-            print(f"⚠️ PROGRESS: No report URL available, using proof point fallback")
             # If no report URL available, fall back to generic message
             fallback_msg = "Happy to share how we helped Precise Imaging reduce appointment no-shows by 40% - similar healthcare operational challenges."
             body = body.replace("P.S. I put together a strategic analysis for [Company] that covers these opportunities in detail. You can review it here: [REPORT_LINK_PLACEHOLDER]", f"P.S. {fallback_msg}")
-            print(f"✅ PROGRESS: Fallback message applied successfully")
-        else:
-            print(f"🔍 DEBUG: No placeholder found in email body")
         
         body = body.strip() # Ensure no trailing newlines before adding signature
         body += '\n' + self._signature()
@@ -200,14 +162,10 @@ class DeepResearchEmailComposer:
         html_body = self._convert_to_html(body)
         
         final_result = {"subject": subject, "body": html_body}
-        print(f"🎉 PROGRESS: Email composition completed for {company_name}")
-        print(f"📧 PROGRESS: Final email ready for delivery")
         return final_result
 
     def _get_or_publish_report_url(self, company_id: int, company_name: str, recipient_email: str, campaign_id: int = None) -> str:
         """Publish report to possibleminds.in and return click tracking URL."""
-        print(f"🔍 DEBUG: Getting/publishing report for company_id: {company_id}")
-        
         try:
             # Import here to avoid circular imports
             from app.models.company import Company
@@ -215,20 +173,15 @@ class DeepResearchEmailComposer:
             # Get the company data to verify report exists
             company = Company.get_by_id(company_id)
             if not company or not company.markdown_report:
-                print(f"🔍 DEBUG: No markdown report available for company_id: {company_id}")
                 return ""
-            
-            print(f"🔍 DEBUG: Found markdown report, publishing to possibleminds.in...")
             
             # First, publish the report to possibleminds.in
             published_url = self._publish_report_to_netlify(company, recipient_email, campaign_id)
             
             if published_url:
-                print(f"🔍 DEBUG: Successfully published report, URL: {published_url}")
                 # The Netlify function already returns a tracked URL, so we can use it directly
                 return published_url
             else:
-                print(f"🔍 DEBUG: Failed to publish report, using fallback tracking URL")
                 # Fallback: generate click tracking URL even if publishing failed
                 tracked_url = self._generate_report_url_with_tracking(company_id, company_name, recipient_email, campaign_id)
                 return tracked_url
@@ -242,8 +195,6 @@ class DeepResearchEmailComposer:
         try:
             from datetime import datetime
             
-            print(f"📊 PROGRESS: Preparing strategic report for publication")
-            
             # Prepare payload for Netlify function
             payload = {
                 "company_id": f"comp_{company.id}",
@@ -254,27 +205,7 @@ class DeepResearchEmailComposer:
                 "markdown_report": company.markdown_report
             }
             
-            # Log the raw content being published
-            print(f"📝 RAW CONTENT LOGGING: Publishing content to possibleminds.in")
-            print(f"📝 Company: {company.company_name}")
-            print(f"📝 Website: {company.website_url or 'N/A'}")
-            print(f"📝 Recipient: {recipient_email}")
-            print(f"📝 Content Length: {len(company.markdown_report) if company.markdown_report else 0} characters")
-            print(f"📝 RAW MARKDOWN CONTENT START:")
-            print(f"{'='*80}")
-            print(f"{company.markdown_report}")
-            print(f"{'='*80}")
-            print(f"📝 RAW MARKDOWN CONTENT END")
-            
-            # Convert payload to JSON string (raw body for signature)
             raw_body = json.dumps(payload, separators=(',', ':'))
-            
-            # Also log the complete JSON payload being sent
-            print(f"📝 COMPLETE JSON PAYLOAD START:")
-            print(f"{'-'*80}")
-            print(f"{json.dumps(payload, indent=2)}")
-            print(f"{'-'*80}")
-            print(f"📝 COMPLETE JSON PAYLOAD END")
             
             headers = {"Content-Type": "application/json"}
             
@@ -286,12 +217,6 @@ class DeepResearchEmailComposer:
                     hashlib.sha256
                 ).hexdigest()
                 headers["X-Hub-Signature-256"] = f"sha256={signature}"
-                print(f"🔐 PROGRESS: Added webhook signature for secure publishing")
-            else:
-                print(f"⚠️ PROGRESS: No NETLIFY_WEBHOOK_SECRET found, publishing without signature")
-            
-            print(f"🌐 PROGRESS: Publishing report to possibleminds.in...")
-            print(f"🔍 DEBUG: Publishing to: {NETLIFY_PUBLISH_URL}")
             
             # Make the request to publish (using raw JSON string)
             response = requests.post(
@@ -301,135 +226,87 @@ class DeepResearchEmailComposer:
                 timeout=30
             )
             
-            print(f"🔍 DEBUG: Netlify response status: {response.status_code}")
-            
-            # Log the complete response from possibleminds.in
-            print(f"📝 POSSIBLEMINDS.IN RESPONSE START:")
-            print(f"{'~'*80}")
-            print(f"Status Code: {response.status_code}")
-            print(f"Response Headers: {dict(response.headers)}")
-            print(f"Response Body: {response.text}")
-            print(f"{'~'*80}")
-            print(f"📝 POSSIBLEMINDS.IN RESPONSE END")
-            
             if response.status_code == 200:
                 result = response.json()
                 # Extract publishUrl from the nested data structure
                 public_url = result.get('data', {}).get('publishUrl') or result.get('public_url')
                 
-                print(f"🔍 DEBUG: Netlify response data: {result}")
-                print(f"🔍 DEBUG: Extracted publishUrl: {public_url}")
-                
-                # Log the successful publishing details
-                print(f"📝 PUBLISHING SUCCESS LOG:")
-                print(f"📝 Company: {company.company_name}")
-                print(f"📝 Published URL: {public_url}")
-                print(f"📝 Tracking will be added to: {public_url}")
-                
                 if public_url:
-                    print(f"✅ PROGRESS: Report published successfully to possibleminds.in")
-                    print(f"🔗 PROGRESS: Creating click tracking URL that routes through /.netlify/functions/click-tracking")
-                    
                     # Extract company slug from the public URL for click tracking
-                    # Example: https://possibleminds.in/reports/ola-ola -> ola-ola
                     import re
                     slug_match = re.search(r'/reports/([^/?]+)', public_url)
                     company_slug = slug_match.group(1) if slug_match else company.company_name.lower().replace(' ', '-').replace('&', 'and')
                     
                     # Create click tracking URL that routes through the tracking function first
                     tracking_params = {
-                        'slug': company_slug,  # Use slug parameter as expected by click tracking
+                        'slug': company_slug,
                         'utm_source': 'email',
                         'utm_medium': 'outreach',
                         'utm_campaign': 'deep_research',
                         'utm_content': 'strategic_analysis',
                         'company': company.company_name.lower().replace(' ', '_'),
                         'recipient': recipient_email.split('@')[0] if recipient_email else 'unknown',
-                        'campaign_id': campaign_id if campaign_id else 'unknown'  # Use actual campaign_id
+                        'campaign_id': campaign_id if campaign_id else 'unknown'
                     }
                     
                     base_tracking_url = "https://possibleminds.in/.netlify/functions/click-tracking"
                     url_params = urllib.parse.urlencode(tracking_params)
                     tracked_url = f"{base_tracking_url}?{url_params}"
                     
-                    print(f"✅ PROGRESS: Click tracking URL ready - will route through tracking function first")
-                    print(f"🔍 DEBUG: Click tracking URL: {tracked_url}")
-                    print(f"🔍 DEBUG: After click tracking, user will be redirected to: {public_url}")
                     return tracked_url
                 else:
-                    print(f"❌ PROGRESS: Failed to extract public URL from response")
-                    print(f"🔍 DEBUG: Response data: {result}")
                     return ""
             else:
-                print(f"❌ PROGRESS: Report publishing failed (HTTP {response.status_code})")
-                print(f"🔍 DEBUG: Response: {response.text}")
+                print(f"❌ Report publishing failed (HTTP {response.status_code}): {response.text}")
                 return ""
                 
         except Exception as e:
-            print(f"❌ PROGRESS: Report publishing error: {e}")
+            print(f"❌ Report publishing error: {e}")
             return ""
 
     def _get_company_research_with_full_report(self, company_name: str, auto_trigger: bool = True) -> tuple[str, int]:
         """Get company research data and ensure full report is available. Returns (research_text, company_id)."""
         if not company_name:
-            print(f"🔍 DEBUG: No company name provided")
             return "", None
             
-        print(f"🔍 DEBUG: Looking up company: {company_name}")
-        
         try:
             # Import here to avoid circular imports
             from app.models.company import Company
             
             # Try to find company by name
             companies = Company.get_companies_by_name(company_name)
-            print(f"🔍 DEBUG: Found {len(companies)} companies matching '{company_name}'")
             
             # If company not found and auto-trigger enabled, create company and start research
             if not companies and auto_trigger:
-                print(f"🔍 Starting auto-research for {company_name}...")
                 return self._trigger_full_deep_research(company_name)
             elif not companies:
-                print(f"🔍 DEBUG: No companies found and auto-trigger disabled")
                 return "", None
             
             company = companies[0]  # Take first match
-            print(f"🔍 DEBUG: Using company ID: {company.id}")
-            print(f"🔍 DEBUG: Company has markdown_report: {hasattr(company, 'markdown_report') and bool(company.markdown_report)}")
-            print(f"🔍 DEBUG: Company research_status: {getattr(company, 'research_status', 'unknown')}")
             
             # Check if we have a published markdown report (full research completed)
             if hasattr(company, 'markdown_report') and company.markdown_report:
-                print(f"📊 Using full research report for {company_name}")
                 # Use basic research for email context, but we have the full report published
                 research_text = company.research_step_1_basic or company.company_research or company.markdown_report[:500] + "..."
                 return research_text, company.id
             
             # Check if we have basic research but need full report
             elif hasattr(company, 'research_step_1_basic') and company.research_step_1_basic:
-                print(f"🔍 DEBUG: Company has basic research: {len(company.research_step_1_basic)} chars")
                 if auto_trigger:
-                    print(f"🔍 Upgrading to full research for {company_name}...")
                     return self._trigger_full_deep_research(company_name, company.id)
                 else:
-                    print(f"📊 Using basic research for {company_name}")
                     return company.research_step_1_basic, company.id
             
             # Check if we have old-style company research but need full report
             elif hasattr(company, 'company_research') and company.company_research:
-                print(f"🔍 DEBUG: Company has old-style research: {len(company.company_research)} chars")
                 if auto_trigger:
-                    print(f"🔍 Upgrading to full research for {company_name}...")
                     return self._trigger_full_deep_research(company_name, company.id)
                 else:
-                    print(f"📊 Using existing research for {company_name}")
                     return company.company_research, company.id
             
             else:
                 # Company exists but no research data - trigger if auto_trigger enabled
-                print(f"🔍 DEBUG: Company exists but no research data found")
                 if auto_trigger:
-                    print(f"🔍 Starting research for {company_name}...")
                     return self._trigger_full_deep_research(company_name, company.id)
                 else:
                     return "", company.id
@@ -445,28 +322,17 @@ class DeepResearchEmailComposer:
             from deepresearch.ai_research_service import AIResearchService
             from app.models.company import Company
             
-            print(f"🚀 Researching {company_name}...")
-            
             # If no company_id provided, we need to create the company first
             if company_id is None:
-                # Create basic company record
-                company_data = {
-                    'company_name': company_name,
-                    'website_url': '',  # Will be filled if domain info available
-                    'company_research': ''
-                }
+                company_data = {'company_name': company_name, 'website_url': '', 'company_research': ''}
                 
                 if Company.save(company_data):
-                    # Get the newly created company
                     companies = Company.get_companies_by_name(company_name)
                     if companies:
                         company_id = companies[0].id
-                        print(f"✅ Created company record for {company_name}")
                     else:
-                        print(f"❌ Failed to retrieve created company: {company_name}")
                         return ""
                 else:
-                    print(f"❌ Failed to create company record for: {company_name}")
                     return ""
             
             # Perform basic research using AI service
@@ -474,14 +340,10 @@ class DeepResearchEmailComposer:
             research_result = ai_service.research_company(company_name, "")
             
             if research_result:
-                # Update company with research data
                 Company.update_research_step(company_id, 1, research_result)
                 Company.update_research_status(company_id, 'completed')
-                
-                print(f"✅ Research completed for {company_name}")
                 return research_result
             else:
-                print(f"❌ Research failed for {company_name}")
                 return ""
                 
         except Exception as e:
@@ -495,23 +357,14 @@ class DeepResearchEmailComposer:
             from deepresearch.step_by_step_researcher import StepByStepResearcher
             from app.models.company import Company
             
-            print(f"🚀 Starting deep research for {company_name}...")
-            
             # If no company_id provided, we need to create the company first
             if company_id is None:
-                # Create basic company record
-                company_data = {
-                    'company_name': company_name,
-                    'website_url': '',  # Will be filled if domain info available
-                    'company_research': ''
-                }
+                company_data = {'company_name': company_name, 'website_url': '', 'company_research': ''}
                 
                 if Company.save(company_data):
-                    # Get the newly created company
                     companies = Company.get_companies_by_name(company_name)
                     if companies:
                         company_id = companies[0].id
-                        print(f"✅ Created company record for {company_name}")
                     else:
                         return "", None
                 else:
@@ -522,8 +375,6 @@ class DeepResearchEmailComposer:
             result = researcher.start_deep_research(company_id, force_refresh=False)
             
             if result.get('success'):
-                print(f"⏳ Waiting for research completion...")
-                
                 # Wait for research to complete with polling (max 60 seconds)
                 max_wait_time = 60
                 poll_interval = 3
@@ -533,31 +384,23 @@ class DeepResearchEmailComposer:
                     time.sleep(poll_interval)
                     elapsed_time += poll_interval
                     
-                    # Check if research is completed
                     company = Company.get_by_id(company_id)
                     if company and company.research_status == 'completed' and company.markdown_report:
-                        print(f"✅ Full research completed for {company_name}")
-                        # Use basic research for email context
                         research_text = company.research_step_1_basic or company.company_research or "Research completed - see full report for details."
                         return research_text, company_id
                     elif company and company.research_step_1_basic:
-                        print(f"📊 Basic research available for {company_name}")
                         return company.research_step_1_basic, company_id
                     elif company and company.research_status == 'failed':
-                        print(f"❌ Research failed for {company_name}")
                         break
                 
                 # Timeout or failure - try to get whatever research is available
                 company = Company.get_by_id(company_id)
                 if company and (company.research_step_1_basic or company.company_research):
                     research_text = company.research_step_1_basic or company.company_research
-                    print(f"⚠️ Using partial research for {company_name}")
                     return research_text, company_id
                 else:
-                    print(f"❌ No research data available for {company_name}")
                     return "", company_id
             else:
-                print(f"❌ Failed to start research for {company_name}")
                 return "", company_id
                 
         except Exception as e:
@@ -569,23 +412,15 @@ class DeepResearchEmailComposer:
         import time
         import uuid
         
-        print(f"🔍 DEBUG: Generating report URL for company_id: {company_id}")
-        
         if not company_id:
-            print(f"🔍 DEBUG: No company_id provided, returning empty URL")
             return ""
         
         try:
-            # Base click tracking URL for possibleminds.in
             base_url = "https://possibleminds.in/.netlify/functions/click-tracking"
-            print(f"🔍 DEBUG: Base URL: {base_url}")
-            
-            # Generate company slug from company name
             company_slug = company_name.lower().replace(' ', '-').replace('&', 'and') if company_name else f"company-{company_id}"
             
-            # Tracking parameters matching possibleminds.in format
             tracking_params = {
-                'slug': company_slug,  # Use slug parameter as expected by click tracking
+                'slug': company_slug,
                 'utm_source': 'email',
                 'utm_medium': 'outreach',
                 'utm_campaign': 'deep_research',
@@ -597,18 +432,14 @@ class DeepResearchEmailComposer:
                 'timestamp': int(time.time())
             }
             
-            # Build URL with tracking parameters
             url_params = urllib.parse.urlencode(tracking_params)
             tracked_url = f"{base_url}?{url_params}"
             
-            print(f"🔍 DEBUG: Final tracked URL: {tracked_url}")
             return tracked_url
             
         except Exception as e:
             print(f"❌ Error generating report URL: {e}")
-            # Return basic URL without tracking as fallback
             fallback_url = f"https://possibleminds.in/.netlify/functions/click-tracking?company_id={company_id}&utm_source=email"
-            print(f"🔍 DEBUG: Using fallback URL: {fallback_url}")
             return fallback_url
 
     @staticmethod
