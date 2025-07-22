@@ -890,69 +890,148 @@ function displayCampaignList(campaigns, containerId, type) {
     console.log(`displayCampaignList called for ${type} with ${campaigns.length} campaigns`);
     
     let html = `
-        <div class="table-responsive">
-            <table class="table table-hover">
-                <thead class="table-light">
-                    <tr>
-                        <th>Campaign</th>
-                        <th>Status</th>
-                        <th>Type</th>
-                        <th>Targets</th>
-                        <th>Sent</th>
-                        <th>Response Rate</th>
-                        <th>Created</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
+        <div class="campaign-list-container">
+            <div class="table-responsive shadow-sm rounded">
+                <table class="table table-hover table-striped mb-0 campaign-table">
+                    <thead class="table-dark">
+                        <tr>
+                            <th scope="col" class="border-0 ps-4">
+                                <i class="fas fa-bullhorn me-2"></i>Campaign
+                            </th>
+                            <th scope="col" class="border-0 text-center">
+                                <i class="fas fa-signal me-2"></i>Status
+                            </th>
+                            <th scope="col" class="border-0 text-center">
+                                <i class="fas fa-tag me-2"></i>Type
+                            </th>
+                            <th scope="col" class="border-0 text-center">
+                                <i class="fas fa-users me-2"></i>Targets
+                            </th>
+                            <th scope="col" class="border-0 text-center">
+                                <i class="fas fa-paper-plane me-2"></i>Sent
+                            </th>
+                            <th scope="col" class="border-0 text-center">
+                                <i class="fas fa-chart-line me-2"></i>Response
+                            </th>
+                            <th scope="col" class="border-0 text-center">
+                                <i class="fas fa-calendar me-2"></i>Created
+                            </th>
+                            <th scope="col" class="border-0 text-center pe-4">
+                                <i class="fas fa-cogs me-2"></i>Actions
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
     `;
     
-    campaigns.forEach(campaign => {
+    campaigns.forEach((campaign, index) => {
         const statusBadge = getStatusBadge(campaign.status);
         const createdDate = new Date(campaign.created_at).toLocaleDateString();
         const emailsSent = campaign.emails_sent || 0;
         const targetCount = campaign.target_contacts_count || 0;
         const responseRate = targetCount > 0 ? Math.round((campaign.responses_received || 0) / targetCount * 100) : 0;
         
+        // Get status icon and color
+        const statusIcon = getStatusIcon(campaign.status);
+        const rowClass = campaign.status === 'active' ? 'table-success-subtle' : 
+                        campaign.status === 'paused' ? 'table-warning-subtle' : 
+                        campaign.status === 'draft' ? 'table-info-subtle' : 
+                        campaign.status === 'completed' ? 'table-secondary-subtle' : '';
+        
         html += `
-            <tr>
-                <td>
-                    <div class="fw-semibold">${campaign.name}</div>
-                    <small class="text-muted">${campaign.description || 'No description'}</small>
+            <tr class="campaign-row ${rowClass}" data-campaign-id="${campaign.id}">
+                <td class="ps-4 py-3">
+                    <div class="d-flex align-items-center">
+                        <div class="campaign-avatar me-3">
+                            <div class="avatar-circle bg-primary text-white d-flex align-items-center justify-content-center">
+                                ${campaign.name.charAt(0).toUpperCase()}
+                            </div>
+                        </div>
+                        <div class="campaign-info">
+                            <h6 class="campaign-name mb-1 fw-bold text-dark">${campaign.name}</h6>
+                            <p class="campaign-desc mb-0 text-muted small">${campaign.description || 'No description provided'}</p>
+                            <div class="campaign-meta mt-1">
+                                <small class="text-primary">
+                                    <i class="fas fa-envelope me-1"></i>${campaign.email_template || 'Default'}
+                                </small>
+                                <small class="text-muted ms-2">
+                                    <i class="fas fa-clock me-1"></i>${campaign.followup_days || 3} days follow-up
+                                </small>
+                            </div>
+                        </div>
+                    </div>
                 </td>
-                <td>${statusBadge}</td>
-                <td>
-                    <span class="badge bg-secondary">${(campaign.type || 'unknown').replace('_', ' ').toUpperCase()}</span>
+                <td class="text-center py-3">
+                    <div class="status-container">
+                        ${statusIcon}
+                        ${statusBadge}
+                    </div>
                 </td>
-                <td><span class="fw-semibold">${targetCount}</span></td>
-                <td><span class="fw-semibold text-success">${emailsSent}</span></td>
-                <td><span class="fw-semibold text-info">${responseRate}%</span></td>
-                <td>
-                    <span class="text-muted">${createdDate}</span>
-                    <br><small class="text-muted">${campaign.email_template || 'Not set'}</small>
+                <td class="text-center py-3">
+                    <span class="badge badge-type bg-gradient bg-secondary text-white px-3 py-2">
+                        ${(campaign.type || 'unknown').replace('_', ' ').toUpperCase()}
+                    </span>
                 </td>
-                <td>
-                    <div class="btn-group-vertical btn-group-sm" role="group">
-                        <button type="button" class="btn btn-outline-primary btn-sm mb-1" onclick="viewCampaignDetails('${campaign.id}')">
-                            <i class="fas fa-eye me-1"></i>View
-                        </button>
-                        <button type="button" class="btn btn-outline-info btn-sm mb-1" onclick="viewCampaignAnalytics('${campaign.id}', '${campaign.name.replace(/'/g, '&apos;')}')">
-                            <i class="fas fa-chart-line me-1"></i>Analytics
-                        </button>
-                        ${campaign.status === 'draft' ? 
-                            `<button type="button" class="btn btn-outline-success btn-sm mb-1" onclick="launchCampaign('${campaign.id}')">
-                                <i class="fas fa-rocket me-1"></i>Launch
-                            </button>` : ''
-                        }
-                        ${campaign.status === 'active' ? 
-                            `<button type="button" class="btn btn-outline-warning btn-sm mb-1" onclick="pauseCampaign(${campaign.id})">
-                                <i class="fas fa-pause me-1"></i>Pause
-                            </button>` : 
-                            campaign.status === 'paused' ?
-                            `<button type="button" class="btn btn-outline-success btn-sm mb-1" onclick="resumeCampaign(${campaign.id})">
-                                <i class="fas fa-play me-1"></i>Resume
-                            </button>` : ''
-                        }
+                <td class="text-center py-3">
+                    <div class="metric-container">
+                        <span class="metric-number fw-bold text-dark fs-5">${targetCount}</span>
+                        <div class="metric-label text-muted small">contacts</div>
+                    </div>
+                </td>
+                <td class="text-center py-3">
+                    <div class="metric-container">
+                        <span class="metric-number fw-bold text-success fs-5">${emailsSent}</span>
+                        <div class="metric-label text-muted small">emails</div>
+                    </div>
+                </td>
+                <td class="text-center py-3">
+                    <div class="metric-container">
+                        <span class="metric-number fw-bold ${responseRate > 15 ? 'text-success' : responseRate > 5 ? 'text-warning' : 'text-danger'} fs-5">
+                            ${responseRate}%
+                        </span>
+                        <div class="metric-label text-muted small">response</div>
+                    </div>
+                </td>
+                <td class="text-center py-3">
+                    <div class="date-container">
+                        <span class="date-text fw-semibold text-dark">${createdDate}</span>
+                        <div class="date-relative text-muted small">${getRelativeDate(campaign.created_at)}</div>
+                    </div>
+                </td>
+                <td class="text-center py-3 pe-4">
+                    <div class="action-buttons">
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-outline-primary btn-sm rounded-pill me-1" 
+                                    onclick="viewCampaignDetails('${campaign.id}')" 
+                                    title="View Campaign Details">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-info btn-sm rounded-pill me-1" 
+                                    onclick="viewCampaignAnalytics('${campaign.id}', '${campaign.name.replace(/'/g, '&apos;')}')"
+                                    title="View Analytics">
+                                <i class="fas fa-chart-line"></i>
+                            </button>
+                            ${campaign.status === 'draft' ? 
+                                `<button type="button" class="btn btn-success btn-sm rounded-pill" 
+                                         onclick="launchCampaign('${campaign.id}')"
+                                         title="Launch Campaign">
+                                    <i class="fas fa-rocket"></i>
+                                </button>` : ''
+                            }
+                            ${campaign.status === 'active' ? 
+                                `<button type="button" class="btn btn-warning btn-sm rounded-pill" 
+                                         onclick="pauseCampaign(${campaign.id})"
+                                         title="Pause Campaign">
+                                    <i class="fas fa-pause"></i>
+                                </button>` : 
+                                campaign.status === 'paused' ?
+                                `<button type="button" class="btn btn-success btn-sm rounded-pill" 
+                                         onclick="resumeCampaign(${campaign.id})"
+                                         title="Resume Campaign">
+                                    <i class="fas fa-play"></i>
+                                </button>` : ''
+                            }
+                        </div>
                     </div>
                 </td>
             </tr>
@@ -960,9 +1039,149 @@ function displayCampaignList(campaigns, containerId, type) {
     });
     
     html += `
-                </tbody>
-            </table>
+                    </tbody>
+                </table>
+            </div>
         </div>
+        
+        <style>
+        .campaign-list-container {
+            margin-top: 20px;
+        }
+        
+        .campaign-table {
+            border: none;
+            font-size: 0.9rem;
+        }
+        
+        .campaign-table th {
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 1rem 0.75rem;
+            background: linear-gradient(135deg, #343a40 0%, #495057 100%);
+        }
+        
+        .campaign-row {
+            border-left: 4px solid transparent;
+            transition: all 0.2s ease;
+        }
+        
+        .campaign-row:hover {
+            transform: translateX(2px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-left-color: #007bff;
+        }
+        
+        .campaign-row.table-success-subtle {
+            border-left-color: #28a745;
+            background-color: rgba(40, 167, 69, 0.05);
+        }
+        
+        .campaign-row.table-warning-subtle {
+            border-left-color: #ffc107;
+            background-color: rgba(255, 193, 7, 0.05);
+        }
+        
+        .campaign-row.table-info-subtle {
+            border-left-color: #17a2b8;
+            background-color: rgba(23, 162, 184, 0.05);
+        }
+        
+        .campaign-row.table-secondary-subtle {
+            border-left-color: #6c757d;
+            background-color: rgba(108, 117, 125, 0.05);
+        }
+        
+        .avatar-circle {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            font-weight: bold;
+            font-size: 1.1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .campaign-name {
+            color: #2c3e50;
+            font-size: 1rem;
+        }
+        
+        .campaign-desc {
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .campaign-meta small {
+            font-size: 0.75rem;
+        }
+        
+        .status-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .status-icon {
+            font-size: 1.2rem;
+            margin-bottom: 2px;
+        }
+        
+        .badge-type {
+            font-size: 0.75rem;
+            font-weight: 500;
+            border-radius: 15px;
+        }
+        
+        .metric-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .metric-number {
+            line-height: 1;
+        }
+        
+        .metric-label {
+            font-size: 0.7rem;
+            margin-top: 2px;
+        }
+        
+        .date-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .date-relative {
+            font-size: 0.7rem;
+            margin-top: 2px;
+        }
+        
+        .action-buttons .btn {
+            width: 32px;
+            height: 32px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+        
+        .action-buttons .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .action-buttons .btn i {
+            font-size: 0.8rem;
+        }
+        </style>
     `;
     
     return html;
@@ -1204,6 +1423,42 @@ function getEmailTemplateDisplayName(template) {
         'cold_outreach': 'Cold Outreach'
     };
     return templates[template] || template.replace('_', ' ').toUpperCase();
+}
+
+function getStatusIcon(status) {
+    const icons = {
+        'active': '<i class="fas fa-play-circle text-success status-icon"></i>',
+        'paused': '<i class="fas fa-pause-circle text-warning status-icon"></i>',
+        'draft': '<i class="fas fa-edit text-info status-icon"></i>',
+        'completed': '<i class="fas fa-check-circle text-secondary status-icon"></i>',
+        'scheduled': '<i class="fas fa-clock text-primary status-icon"></i>'
+    };
+    return icons[status] || '<i class="fas fa-question-circle text-muted status-icon"></i>';
+}
+
+function getStatusBadge(status) {
+    const badges = {
+        'active': '<span class="badge bg-success">Active</span>',
+        'paused': '<span class="badge bg-warning">Paused</span>',
+        'draft': '<span class="badge bg-info">Draft</span>',
+        'completed': '<span class="badge bg-secondary">Completed</span>',
+        'scheduled': '<span class="badge bg-primary">Scheduled</span>'
+    };
+    return badges[status] || '<span class="badge bg-muted">Unknown</span>';
+}
+
+function getRelativeDate(dateString) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now - date);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 1) return 'Today';
+    if (diffDays === 2) return 'Yesterday';
+    if (diffDays <= 7) return `${diffDays} days ago`;
+    if (diffDays <= 30) return `${Math.ceil(diffDays / 7)} weeks ago`;
+    if (diffDays <= 365) return `${Math.ceil(diffDays / 30)} months ago`;
+    return `${Math.ceil(diffDays / 365)} years ago`;
 }
 
 function getPriorityBadgeClass(priority) {
