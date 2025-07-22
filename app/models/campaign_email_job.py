@@ -85,9 +85,9 @@ class CampaignEmailJob:
                         insert_query = text("""
                             INSERT INTO campaign_email_jobs 
                             (campaign_id, contact_email, contact_data, campaign_settings, 
-                             scheduled_time, status, attempts)
+                             scheduled_time, status, attempts, created_at, updated_at)
                             VALUES (:campaign_id, :contact_email, :contact_data, :campaign_settings,
-                                   :scheduled_time, :status, :attempts)
+                                   :scheduled_time, :status, :attempts, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                             RETURNING id
                         """)
                         result = conn.execute(insert_query, {
@@ -108,6 +108,33 @@ class CampaignEmailJob:
             return False
         except Exception as e:
             current_app.logger.error(f"Unexpected error saving email job: {e}")
+            return False
+
+    @classmethod
+    def mark_as_processing(cls, job_id: int) -> bool:
+        """Atomically mark a job as 'processing' to prevent race conditions."""
+        engine = cls._get_db_engine()
+        if not engine:
+            return False
+        
+        try:
+            with engine.connect() as conn:
+                with conn.begin():
+                    query = text("""
+                        UPDATE campaign_email_jobs 
+                        SET status = 'processing', 
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :job_id AND status = 'pending'
+                    """)
+                    result = conn.execute(query, {"job_id": job_id})
+                    # rowcount tells us if the update was successful
+                    return result.rowcount > 0
+                    
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Database error marking job as processing: {e}")
+            return False
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error marking job as processing: {e}")
             return False
 
     @classmethod
@@ -241,4 +268,21 @@ class CampaignEmailJob:
             return 0
         except Exception as e:
             current_app.logger.error(f"Unexpected error cleaning up old jobs: {e}")
+            return 0
+
+    @classmethod
+    def count_all_pending_jobs(cls) -> int:
+        """Count all jobs with 'pending' status, regardless of scheduled time."""
+        engine = cls._get_db_engine()
+        if not engine:
+            return 0
+        
+        try:
+            with engine.connect() as conn:
+                query = text("SELECT COUNT(*) FROM campaign_email_jobs WHERE status = 'pending'")
+                result = conn.execute(query)
+                count = result.scalar()
+                return count or 0
+        except Exception as e:
+            current_app.logger.error(f"Error counting all pending jobs: {e}")
             return 0

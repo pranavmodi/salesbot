@@ -618,6 +618,55 @@ def delete_all_campaigns():
     """Delete all campaigns and their associated data."""
     try:
         current_app.logger.info("Deleting all campaigns...")
+        
+        # Log pending emails before deletion
+        from app.models.campaign_email_job import CampaignEmailJob
+        from sqlalchemy import create_engine, text
+        import os
+        
+        database_url = os.getenv("DATABASE_URL")
+        if database_url:
+            try:
+                engine = create_engine(database_url)
+                with engine.connect() as conn:
+                    # Get all pending email jobs with campaign info
+                    pending_jobs_query = text("""
+                        SELECT cej.campaign_id, cej.contact_email, cej.scheduled_time, c.name as campaign_name
+                        FROM campaign_email_jobs cej
+                        JOIN campaigns c ON cej.campaign_id = c.id
+                        WHERE cej.status = 'pending'
+                        ORDER BY cej.scheduled_time ASC
+                    """)
+                    
+                    result = conn.execute(pending_jobs_query)
+                    pending_jobs = result.fetchall()
+                    
+                    if pending_jobs:
+                        current_app.logger.warning(f"🚨 DELETING {len(pending_jobs)} PENDING EMAILS:")
+                        
+                        # Group by campaign for cleaner logging
+                        campaigns_with_pending = {}
+                        for job in pending_jobs:
+                            campaign_name = job.campaign_name
+                            if campaign_name not in campaigns_with_pending:
+                                campaigns_with_pending[campaign_name] = []
+                            campaigns_with_pending[campaign_name].append({
+                                'email': job.contact_email,
+                                'scheduled': job.scheduled_time
+                            })
+                        
+                        for campaign_name, emails in campaigns_with_pending.items():
+                            current_app.logger.warning(f"📧 Campaign '{campaign_name}': {len(emails)} pending emails")
+                            for email_info in emails[:3]:  # Show first 3 emails
+                                current_app.logger.warning(f"   • {email_info['email']} (scheduled: {email_info['scheduled']})")
+                            if len(emails) > 3:
+                                current_app.logger.warning(f"   • ... and {len(emails) - 3} more")
+                    else:
+                        current_app.logger.info("✅ No pending emails to cancel")
+                        
+            except Exception as e:
+                current_app.logger.error(f"Error checking pending emails: {e}")
+        
         result = Campaign.delete_all_campaigns()
         
         current_app.logger.info(f"Delete all campaigns result: {result}")

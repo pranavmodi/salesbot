@@ -10,6 +10,10 @@ from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR
 import os
 import logging
 
+# Reduce APScheduler logging noise
+logging.getLogger('apscheduler.executors.default').setLevel(logging.WARNING)
+logging.getLogger('apscheduler.scheduler').setLevel(logging.WARNING)
+
 from app.models.campaign import Campaign
 from app.models.contact import Contact
 from app.models.campaign_email_job import CampaignEmailJob
@@ -18,11 +22,13 @@ from app.services.email_service import EmailService
 # Static event listeners to avoid serialization issues
 def job_executed_listener(event):
     """Handle job execution events."""
-    try:
-        from flask import current_app
-        current_app.logger.info(f"Job {event.job_id} executed successfully")
-    except:
-        print(f"Job {event.job_id} executed successfully")
+    # Only log non-background job executions to reduce noise
+    if not event.job_id.startswith('process_pending_emails'):
+        try:
+            from flask import current_app
+            current_app.logger.info(f"Job {event.job_id} executed successfully")
+        except:
+            pass  # Silent in case of context issues
 
 def job_error_listener(event):
     """Handle job error events."""
@@ -113,11 +119,37 @@ def execute_campaign_job(campaign_id: int):
                     # Schedule the individual email in database
                     run_time = datetime.now() + timedelta(seconds=cumulative_delay)
                     
+                    # Create a serializable version of the contact data
+                    serializable_contact = {
+                        'id': contact.get('id'),
+                        'email': contact.get('email'),
+                        'first_name': contact.get('first_name'),
+                        'last_name': contact.get('last_name'),
+                        'full_name': contact.get('full_name'),
+                        'job_title': contact.get('job_title'),
+                        'company_name': contact.get('company_name'),
+                        'company_domain': contact.get('company_domain'),
+                        'linkedin_profile': contact.get('linkedin_profile'),
+                        'location': contact.get('location'),
+                        'company_id': contact.get('company_id')
+                    }
+
+                    # Create a clean, serializable version of settings
+                    serializable_settings = {
+                        'email_frequency': settings.get('email_frequency'),
+                        'random_delay': settings.get('random_delay'),
+                        'timezone': settings.get('timezone'),
+                        'daily_email_limit': settings.get('daily_email_limit'),
+                        'respect_business_hours': settings.get('respect_business_hours'),
+                        'business_hours': settings.get('business_hours'),
+                        'email_template': settings.get('email_template')
+                    }
+
                     email_job = CampaignEmailJob(
                         campaign_id=campaign_id,
                         contact_email=contact['email'],
-                        contact_data=contact,
-                        campaign_settings=settings,
+                        contact_data=serializable_contact,
+                        campaign_settings=serializable_settings,
                         scheduled_time=run_time,
                         status='pending'
                     )
@@ -312,27 +344,31 @@ def process_pending_email_jobs():
             pending_jobs = CampaignEmailJob.get_pending_jobs(limit=50)
             
             if not pending_jobs:
-                return
+                return  # Silent return when no jobs
             
-            current_app.logger.info(f"Processing {len(pending_jobs)} pending email jobs")
+            current_app.logger.info(f"Found {len(pending_jobs)} pending email jobs to process.")
             
             for job in pending_jobs:
-                try:
-                    current_app.logger.info(f"Executing email job {job.id} for {job.contact_email} (campaign {job.campaign_id})")
-                    
-                    # Execute the email job
-                    success = _execute_email_job(job)
-                    
-                    if success:
-                        CampaignEmailJob.mark_as_executed(job.id)
-                        current_app.logger.info(f"Email job {job.id} completed successfully")
-                    else:
-                        CampaignEmailJob.mark_as_failed(job.id, "Email execution failed")
-                        current_app.logger.error(f"Email job {job.id} failed")
+                # Attempt to lock the job for processing to prevent race conditions
+                if CampaignEmailJob.mark_as_processing(job.id):
+                    try:
+                        current_app.logger.info(f"Processing email job {job.id} for {job.contact_email}")
+                        # Execute the email job
+                        success = _execute_email_job(job)
                         
-                except Exception as e:
-                    CampaignEmailJob.mark_as_failed(job.id, str(e))
-                    current_app.logger.error(f"Error executing email job {job.id}: {e}")
+                        if success:
+                            CampaignEmailJob.mark_as_executed(job.id)
+                            current_app.logger.info(f"✅ Email sent to {job.contact_email} (campaign {job.campaign_id})")
+                        else:
+                            CampaignEmailJob.mark_as_failed(job.id, "Email execution failed")
+                            current_app.logger.error(f"❌ Email failed for {job.contact_email} (campaign {job.campaign_id})")
+                            
+                    except Exception as e:
+                        CampaignEmailJob.mark_as_failed(job.id, str(e))
+                        current_app.logger.error(f"Error executing email job {job.id}: {e}")
+                else:
+                    # Job was likely picked up by another worker, so we skip it
+                    current_app.logger.debug(f"Skipping job {job.id}, already being processed by another worker.")
                     
         except Exception as e:
             current_app.logger.error(f"Error processing pending email jobs: {e}")
@@ -639,6 +675,26 @@ class CampaignScheduler:
     def _setup_background_jobs(self):
         """Setup recurring background jobs."""
         try:
+            # Remove existing job if it exists
+            try:
+                self.scheduler.remove_job('process_pending_emails')
+            except:
+                pass
+            
+            # Count pending emails in queue
+            try:
+                ready_jobs = CampaignEmailJob.get_pending_jobs(limit=1000)
+                ready_count = len(ready_jobs)
+                
+                total_pending_count = CampaignEmailJob.count_all_pending_jobs()
+                
+                if total_pending_count > 0:
+                    current_app.logger.info(f"📧 Email queue: {ready_count} ready now, {total_pending_count} total pending.")
+                else:
+                    current_app.logger.info("📧 Email queue: Empty")
+            except Exception as e:
+                current_app.logger.warning(f"Could not check email queue: {e}")
+            
             # Add recurring job to process pending email jobs every 30 seconds
             self.scheduler.add_job(
                 func=process_pending_email_jobs,
@@ -646,10 +702,11 @@ class CampaignScheduler:
                 seconds=30,
                 id='process_pending_emails',
                 replace_existing=True,
-                max_instances=1  # Prevent overlapping executions
+                max_instances=1,  # Prevent overlapping executions
+                coalesce=True    # Merge missed executions
             )
             
-            current_app.logger.info("Background email processor job scheduled")
+            current_app.logger.info("Background email processor scheduled (30s interval)")
             
         except Exception as e:
             current_app.logger.error(f"Failed to setup background jobs: {e}")
