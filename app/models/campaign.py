@@ -12,7 +12,7 @@ class Campaign:
     
     def __init__(self, name=None, type=None, description='', email_template=None, 
                  priority='medium', schedule_date=None, followup_days=3, 
-                 selection_criteria=None, **kwargs):
+                 selection_criteria=None, campaign_settings=None, **kwargs):
         # Handle both dict-style and keyword initialization
         if isinstance(name, dict):
             data = name
@@ -25,6 +25,7 @@ class Campaign:
             self.schedule_date = data.get('schedule_date')
             self.followup_days = data.get('followup_days', 3)
             self.selection_criteria = data.get('selection_criteria', '{}')
+            self.campaign_settings = data.get('campaign_settings', '{}')
             self.status = data.get('status', 'draft')  # draft, active, paused, completed
             self.created_at = data.get('created_at')
             self.updated_at = data.get('updated_at')
@@ -39,6 +40,7 @@ class Campaign:
             self.schedule_date = schedule_date
             self.followup_days = followup_days
             self.selection_criteria = selection_criteria or '{}'
+            self.campaign_settings = campaign_settings or '{}'
             self.status = kwargs.get('status', 'draft')
             self.created_at = kwargs.get('created_at')
             self.updated_at = kwargs.get('updated_at')
@@ -80,8 +82,8 @@ class Campaign:
                 current_app.logger.info("Loading campaigns with full schema...")
                 result = conn.execute(text("""
                     SELECT id, name, type, description, email_template, priority, 
-                           schedule_date, followup_days, selection_criteria, status, 
-                           created_at, updated_at
+                           schedule_date, followup_days, selection_criteria, campaign_settings, 
+                           status, created_at, updated_at
                     FROM campaigns 
                     ORDER BY created_at DESC
                 """))
@@ -572,15 +574,33 @@ class Campaign:
 
     @classmethod
     def get_campaign_settings(cls, campaign_id: int) -> Dict:
-        """Get campaign settings from campaign_settings table or return defaults."""
+        """Get campaign settings, merging any stored settings with defaults."""
         engine = cls._get_db_engine()
         if not engine:
             return cls._get_default_settings()
             
         try:
             with engine.connect() as conn:
-                # First check if we have a campaign_settings table
-                # For now, return default settings since we're transitioning from JSON
+                # Check if the campaign has stored settings in the campaign_settings column
+                result = conn.execute(text("""
+                    SELECT campaign_settings 
+                    FROM campaigns 
+                    WHERE id = :campaign_id
+                """), {"campaign_id": campaign_id})
+                
+                row = result.fetchone()
+                if row and row[0]:
+                    try:
+                        # Merge stored settings with defaults
+                        stored_settings = json.loads(row[0])
+                        default_settings = cls._get_default_settings()
+                        # Update defaults with stored settings
+                        default_settings.update(stored_settings)
+                        return default_settings
+                    except (json.JSONDecodeError, TypeError):
+                        current_app.logger.warning(f"Invalid JSON in campaign_settings for campaign {campaign_id}")
+                
+                # Return defaults if no settings found or invalid JSON
                 return cls._get_default_settings()
                     
         except SQLAlchemyError as e:
@@ -596,6 +616,7 @@ class Campaign:
         return {
             'email_template': 'deep_research',  # Changed default to deep_research
             'email_frequency': {'value': 30, 'unit': 'minutes'},
+            'random_delay': {'min_minutes': 1, 'max_minutes': 5},
             'timezone': 'America/Los_Angeles',
             'daily_email_limit': 50,
             'respect_business_hours': True,
@@ -753,6 +774,7 @@ class Campaign:
                                 schedule_date = :schedule_date,
                                 followup_days = :followup_days,
                                 selection_criteria = :selection_criteria,
+                                campaign_settings = :campaign_settings,
                                 status = :status,
                                 updated_at = CURRENT_TIMESTAMP
                             WHERE id = :id
@@ -767,6 +789,7 @@ class Campaign:
                             'schedule_date': self.schedule_date,
                             'followup_days': self.followup_days,
                             'selection_criteria': self.selection_criteria,
+                            'campaign_settings': self.campaign_settings,
                             'status': self.status
                         })
                         
@@ -781,10 +804,10 @@ class Campaign:
                         insert_query = text("""
                             INSERT INTO campaigns (name, type, description, email_template, 
                                                  priority, schedule_date, followup_days, 
-                                                 selection_criteria, status) 
+                                                 selection_criteria, campaign_settings, status) 
                             VALUES (:name, :type, :description, :email_template, 
                                    :priority, :schedule_date, :followup_days, 
-                                   :selection_criteria, :status)
+                                   :selection_criteria, :campaign_settings, :status)
                             RETURNING id
                         """)
                         result = conn.execute(insert_query, {
@@ -796,6 +819,7 @@ class Campaign:
                             'schedule_date': self.schedule_date,
                             'followup_days': self.followup_days,
                             'selection_criteria': self.selection_criteria,
+                            'campaign_settings': self.campaign_settings,
                             'status': self.status
                         })
                         self.id = result.fetchone()[0]

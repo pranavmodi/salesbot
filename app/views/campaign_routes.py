@@ -42,7 +42,27 @@ def create_campaign():
         email_template = data.get('email_template')
         priority = data.get('priority', 'medium')
         schedule_date = data.get('schedule_date')
+        # Convert empty string to None for database
+        if schedule_date == '':
+            schedule_date = None
         followup_days = data.get('followup_days', 3)
+        
+        # Extract campaign settings
+        campaign_settings = {
+            'email_frequency': data.get('email_frequency', {'value': 30, 'unit': 'minutes'}),
+            'random_delay': data.get('random_delay', {'min_minutes': 1, 'max_minutes': 5}),
+            'timezone': data.get('timezone', 'America/Los_Angeles'),
+            'daily_email_limit': data.get('daily_email_limit', 50),
+            'respect_business_hours': data.get('respect_business_hours', True),
+            'business_hours': data.get('business_hours', {
+                'start_time': '09:00',
+                'end_time': '17:00',
+                'days': {
+                    'monday': True, 'tuesday': True, 'wednesday': True,
+                    'thursday': True, 'friday': True, 'saturday': False, 'sunday': False
+                }
+            })
+        }
         
         # Handle both frontend formats: selection_criteria (object) or selection_method (string)
         selection_criteria = data.get('selection_criteria', {})
@@ -135,22 +155,32 @@ def create_campaign():
             priority=priority,
             schedule_date=schedule_date,
             followup_days=followup_days,
-            selection_criteria=json.dumps(selection_criteria) # Store as JSON string
+            selection_criteria=json.dumps(selection_criteria), # Store as JSON string
+            campaign_settings=json.dumps(campaign_settings) # Store settings as JSON string
         )
-        new_campaign.save()
+        
+        # Save campaign and check if successful
+        save_success = new_campaign.save()
+        if not save_success:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to save campaign to database'
+            }), 500
+        
+        if not new_campaign.id:
+            return jsonify({
+                'success': False,
+                'message': 'Campaign saved but ID not returned'
+            }), 500
         
         # Associate contacts with the campaign
         campaign_scheduler.associate_contacts_with_campaign(new_campaign.id, target_contacts)
-        
-        # Schedule the campaign if a schedule date is provided
-        if schedule_date:
-            campaign_scheduler.schedule_campaign(new_campaign.id, schedule_date)
             
-        current_app.logger.info(f"Campaign '{campaign_name}' created and scheduled successfully.")
+        current_app.logger.info(f"Campaign '{campaign_name}' created successfully as draft with ID {new_campaign.id}")
         
         return jsonify({
             'success': True,
-            'message': f'Campaign \'{campaign_name}\' created and scheduled successfully.',
+            'message': f'Campaign \'{campaign_name}\' created successfully as draft.',
             'campaign_id': new_campaign.id,
             'contacts_count': len(target_contacts)
         })

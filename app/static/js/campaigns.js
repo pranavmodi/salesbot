@@ -165,21 +165,21 @@ function updateStepButtons(stepNumber) {
 function updateNavigationButtons(stepNumber) {
     const prevBtn = document.getElementById('prevStepBtn');
     const nextBtn = document.getElementById('nextStepBtn');
-    const launchBtn = document.getElementById('launchCampaignBtn');
+    const saveBtn = document.getElementById('saveCampaignBtn');
     
     // Previous button
     if (prevBtn) {
         prevBtn.disabled = stepNumber <= 1;
     }
     
-    // Next/Launch buttons
-    if (nextBtn && launchBtn) {
+    // Next/Save buttons
+    if (nextBtn && saveBtn) {
         if (stepNumber === 4) {
             nextBtn.style.display = 'none';
-            launchBtn.style.display = 'inline-block';
+            saveBtn.style.display = 'inline-block';
         } else {
             nextBtn.style.display = 'inline-block';
-            launchBtn.style.display = 'none';
+            saveBtn.style.display = 'none';
         }
     }
 }
@@ -312,6 +312,41 @@ function saveCurrentStepData(stepNumber) {
             break;
         case 3:
             currentCampaignData.email_template = document.getElementById('emailTemplate').value;
+            currentCampaignData.schedule_date = document.getElementById('scheduleDate').value;
+            currentCampaignData.followup_days = parseInt(document.getElementById('followupDays').value) || 3;
+            
+            // Email sending settings
+            currentCampaignData.email_frequency = {
+                value: parseInt(document.getElementById('emailFrequencyValue').value) || 30,
+                unit: document.getElementById('emailFrequencyUnit').value || 'minutes'
+            };
+            currentCampaignData.timezone = document.getElementById('campaignTimezone').value;
+            currentCampaignData.daily_email_limit = parseInt(document.getElementById('dailyEmailLimit').value) || 50;
+            
+            // Random delay settings
+            currentCampaignData.random_delay = {
+                min_minutes: parseInt(document.getElementById('randomDelayMin').value) || 1,
+                max_minutes: parseInt(document.getElementById('randomDelayMax').value) || 5
+            };
+            
+            // Business hours settings
+            currentCampaignData.respect_business_hours = document.getElementById('respectBusinessHours').checked;
+            if (currentCampaignData.respect_business_hours) {
+                currentCampaignData.business_hours = {
+                    start_time: document.getElementById('businessStartTime').value || '09:00',
+                    end_time: document.getElementById('businessEndTime').value || '17:00',
+                    days: {
+                        monday: document.getElementById('businessMon').checked,
+                        tuesday: document.getElementById('businessTue').checked,
+                        wednesday: document.getElementById('businessWed').checked,
+                        thursday: document.getElementById('businessThu').checked,
+                        friday: document.getElementById('businessFri').checked,
+                        saturday: document.getElementById('businessSat').checked,
+                        sunday: document.getElementById('businessSun').checked
+                    }
+                };
+            }
+            
             const selectionMethod = document.querySelector('input[name="selectionMethod"]:checked');
             currentCampaignData.selection_method = selectionMethod ? selectionMethod.value : 'auto';
             if (currentCampaignData.selection_method === 'manual') {
@@ -708,15 +743,15 @@ function createCampaign() {
     // Save current step data
     saveCurrentStepData(4);
     
-    const createBtn = document.getElementById('launchCampaignBtn');
+    const createBtn = document.getElementById('saveCampaignBtn');
     if (!createBtn) {
-        console.error('Launch campaign button not found');
+        console.error('Save campaign button not found');
         return;
     }
     
     const originalText = createBtn.innerHTML;
     
-    createBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Creating...';
+    createBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Saving...';
     createBtn.disabled = true;
     
     fetch('/api/campaigns', {
@@ -729,7 +764,7 @@ function createCampaign() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showToast('successToast', 'Campaign created successfully!');
+            showToast('successToast', 'Campaign saved successfully! You can launch it from the campaign list.');
             
             // Close modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('createCampaignModal'));
@@ -740,12 +775,12 @@ function createCampaign() {
             // Reload campaigns
             loadCampaigns();
         } else {
-            throw new Error(data.message || 'Failed to create campaign');
+            throw new Error(data.message || 'Failed to save campaign');
         }
     })
     .catch(error => {
         console.error('Error creating campaign:', error);
-        showToast('errorToast', 'Failed to create campaign: ' + error.message);
+        showToast('errorToast', 'Failed to save campaign: ' + error.message);
     })
     .finally(() => {
         createBtn.innerHTML = originalText;
