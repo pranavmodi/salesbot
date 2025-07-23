@@ -559,6 +559,9 @@ def _compose_fallback_email(campaign: Campaign, contact: Dict, settings: Dict) -
             composer = AltSubjectEmailComposer()
         elif template_type == "deep_research":
             composer = DeepResearchEmailComposer()
+        elif template_type == "possible_minds":
+            from email_composers.email_composer_possible_minds import PossibleMindsEmailComposer
+            composer = PossibleMindsEmailComposer()
         else:
             composer = WarmEmailComposer()
         

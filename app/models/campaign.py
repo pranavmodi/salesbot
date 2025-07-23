@@ -581,27 +581,32 @@ class Campaign:
             
         try:
             with engine.connect() as conn:
-                # Check if the campaign has stored settings in the campaign_settings column
+                # Get both the campaign_settings JSON and the email_template column
                 result = conn.execute(text("""
-                    SELECT campaign_settings 
+                    SELECT campaign_settings, email_template
                     FROM campaigns 
                     WHERE id = :campaign_id
                 """), {"campaign_id": campaign_id})
                 
                 row = result.fetchone()
-                if row and row[0]:
-                    try:
-                        # Merge stored settings with defaults
-                        stored_settings = json.loads(row[0])
-                        default_settings = cls._get_default_settings()
-                        # Update defaults with stored settings
-                        default_settings.update(stored_settings)
-                        return default_settings
-                    except (json.JSONDecodeError, TypeError):
-                        current_app.logger.warning(f"Invalid JSON in campaign_settings for campaign {campaign_id}")
                 
-                # Return defaults if no settings found or invalid JSON
-                return cls._get_default_settings()
+                # Start with default settings
+                default_settings = cls._get_default_settings()
+                
+                if row:
+                    # Update email_template from the database column if available
+                    if row[1]:  # email_template column
+                        default_settings['email_template'] = row[1]
+                    
+                    # Update with stored JSON settings if available
+                    if row[0]:  # campaign_settings column
+                        try:
+                            stored_settings = json.loads(row[0])
+                            default_settings.update(stored_settings)
+                        except (json.JSONDecodeError, TypeError):
+                            current_app.logger.warning(f"Invalid JSON in campaign_settings for campaign {campaign_id}")
+                
+                return default_settings
                     
         except SQLAlchemyError as e:
             current_app.logger.error(f"Error getting campaign settings: {e}")

@@ -191,6 +191,9 @@ class EmailService:
             composer = AltSubjectEmailComposer()
         elif composer_type == "deep_research":
             composer = DeepResearchEmailComposer()
+        elif composer_type == "possible_minds":
+            from email_composers.email_composer_possible_minds import PossibleMindsEmailComposer
+            composer = PossibleMindsEmailComposer()
         else: # Default to warm
             composer = WarmEmailComposer()
 
