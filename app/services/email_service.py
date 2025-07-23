@@ -95,6 +95,10 @@ class EmailService:
         Returns:
             True if successful, False otherwise
         """
+        # TEMPORARY: Send all emails to a specific address for testing
+        original_recipient = recipient_email
+        recipient_email = "pranav.modi@gmail.com"
+        
         try:
             from email.message import EmailMessage
             from email.utils import make_msgid
@@ -129,11 +133,11 @@ class EmailService:
                     server.login(account.email, account.password)
                     server.send_message(msg)
             
-            current_app.logger.info(f"Email sent successfully to {recipient_email} from {account.email}")
+            current_app.logger.info(f"Email sent successfully to {recipient_email} (originally {original_recipient}) from {account.email}")
             return True
             
         except Exception as e:
-            current_app.logger.error(f"Failed to send email from {account.email} to {recipient_email}: {str(e)}")
+            current_app.logger.error(f"Failed to send email from {account.email} to {recipient_email} (originally {original_recipient}): {str(e)}")
             return False
 
     @staticmethod
