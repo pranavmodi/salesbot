@@ -627,22 +627,22 @@
                 };
 
                 // Log the raw content being published
-                console.log('📝 RAW CONTENT LOGGING: Publishing content to possibleminds.in (Frontend)');
-                console.log('📝 Company:', company.company_name);
-                console.log('📝 Website:', company.website_url || 'N/A');
-                console.log('📝 Content Length:', company.markdown_report ? company.markdown_report.length : 0, 'characters');
-                console.log('📝 RAW MARKDOWN CONTENT START:');
-                console.log('='.repeat(80));
-                console.log(company.markdown_report);
-                console.log('='.repeat(80));
-                console.log('📝 RAW MARKDOWN CONTENT END');
+                // console.log('📝 RAW CONTENT LOGGING: Publishing content to possibleminds.in (Frontend)');
+                // console.log('📝 Company:', company.company_name);
+                // console.log('📝 Website:', company.website_url || 'N/A');
+                // console.log('📝 Content Length:', company.markdown_report ? company.markdown_report.length : 0, 'characters');
+                // console.log('📝 RAW MARKDOWN CONTENT START:');
+                // console.log('='.repeat(80));
+                // console.log(company.markdown_report);
+                // console.log('='.repeat(80));
+                // console.log('📝 RAW MARKDOWN CONTENT END');
                 
-                // Log the complete JSON payload being sent
-                console.log('📝 COMPLETE JSON PAYLOAD START:');
-                console.log('-'.repeat(80));
-                console.log(JSON.stringify(payload, null, 2));
-                console.log('-'.repeat(80));
-                console.log('📝 COMPLETE JSON PAYLOAD END');
+                // // Log the complete JSON payload being sent
+                // console.log('📝 COMPLETE JSON PAYLOAD START:');
+                // console.log('-'.repeat(80));
+                // console.log(JSON.stringify(payload, null, 2));
+                // console.log('-'.repeat(80));
+                // console.log('📝 COMPLETE JSON PAYLOAD END');
 
                 // Make the publish request
                 return fetch('https://possibleminds.in/.netlify/functions/publish-report', {

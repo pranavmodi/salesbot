@@ -73,31 +73,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    console.log("Companies page script loaded.");
-
-    // Delegated event listener for Deep Research buttons
-    document.body.addEventListener('click', function(event) {
-        const button = event.target.closest('.deep-research-btn');
-        if (button) {
-            event.preventDefault();
-            const companyId = button.dataset.companyId;
-            const companyName = button.dataset.companyName;
-
-            console.log(`Deep Research button clicked for: ${companyName} (${companyId})`);
-
-            const modalElement = document.getElementById('deepResearchModal');
-            const modalTitle = document.getElementById('deepResearchCompanyName');
-
-            if (modalElement && modalTitle) {
-                modalTitle.textContent = companyName;
-                new bootstrap.Modal(modalElement).show();
-            } else {
-                console.error("Deep research modal components not found.");
-            }
-        }
-    });
-});
-</script>
-{% endblock %} 
+{# Company functionality is handled by companies.js #}
+{% endblock %}

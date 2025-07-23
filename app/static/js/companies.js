@@ -21,6 +21,47 @@ function setupCompanyEventListeners() {
     if (saveCompanyBtn) {
         saveCompanyBtn.addEventListener('click', saveCompany);
     }
+    
+    // Setup company details modal
+    setupCompanyDetailsModal();
+}
+
+// Setup company details modal functionality
+function setupCompanyDetailsModal() {
+    console.log('Setting up company details modal...');
+    
+    // Company details modal event listener - triggered when modal is shown
+    const companyDetailModal = document.getElementById('companyDetailModal');
+    if (companyDetailModal) {
+        console.log('Company detail modal found, adding event listener');
+        
+        companyDetailModal.addEventListener('show.bs.modal', function(event) {
+            console.log('Company modal show event triggered');
+            
+            // Get the button that triggered the modal
+            const button = event.relatedTarget;
+            const companyId = button ? button.dataset.companyId : null;
+            
+            console.log(`Modal triggered for company ID: ${companyId}`);
+            
+            if (companyId) {
+                loadCompanyDetails(companyId);
+            } else {
+                console.error("No company ID found on button");
+                const contentDiv = document.getElementById('company-details-content');
+                if (contentDiv) {
+                    contentDiv.innerHTML = `
+                        <div class="alert alert-danger" role="alert">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Error: No company ID provided
+                        </div>
+                    `;
+                }
+            }
+        });
+    } else {
+        console.error('Company detail modal not found');
+    }
 }
 
 // Company search functionality
@@ -421,6 +462,25 @@ function loadCompanyDetails(companyId) {
     console.log(`Loading company details for ID: ${companyId}`);
     currentCompanyId = companyId;
     
+    // Reset modal content to loading state
+    const modalContent = document.getElementById('company-details-content');
+    const modalTitle = document.getElementById('companyDetailModalLabel');
+    
+    if (modalContent) {
+        modalContent.innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading company details...</p>
+            </div>
+        `;
+    }
+    
+    if (modalTitle) {
+        modalTitle.textContent = 'Loading Company Details...';
+    }
+    
     fetch(`/api/companies/${companyId}`)
         .then(response => response.json())
         .then(data => {
@@ -431,110 +491,128 @@ function loadCompanyDetails(companyId) {
         })
         .catch(error => {
             console.error('Error loading company details:', error);
-            showToast('errorToast', 'Failed to load company details: ' + error.message);
+            if (modalContent) {
+                modalContent.innerHTML = `
+                    <div class="alert alert-danger" role="alert">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Failed to load company details: ${error.message}
+                    </div>
+                `;
+            }
         });
 }
 
 function displayCompanyDetails(company) {
-    const modal = document.getElementById('companyModal');
-    const modalTitle = modal.querySelector('.modal-title');
-    const modalBody = modal.querySelector('#companyDetails');
+    const modalContent = document.getElementById('company-details-content');
+    const modalTitle = document.getElementById('companyDetailModalLabel');
     
-    modalTitle.textContent = `Company Details - ${company.name || 'Unknown Company'}`;
+    if (!modalContent) {
+        console.error('Modal content div not found');
+        return;
+    }
     
-    modalBody.innerHTML = `
+    // Update modal title
+    if (modalTitle) {
+        modalTitle.textContent = company.company_name || 'Company Details';
+    }
+    
+    // Format the research content
+    const researchContent = company.company_research ? 
+        company.company_research.replace(/\n/g, '<br>') : 
+        '<em class="text-muted">No research available yet. Click the Research button to generate AI-powered insights.</em>';
+    
+    // Create the company details HTML
+    modalContent.innerHTML = `
         <div class="row">
-            <div class="col-md-6">
-                <h6 class="text-muted mb-3">Basic Information</h6>
-                <div class="mb-2">
-                    <strong>Company Name:</strong> 
-                    <span id="companyNameDisplay">${company.name || 'Not provided'}</span>
-                    <input type="text" class="form-control d-none" id="companyNameEdit" value="${company.name || ''}">
-                </div>
-                <div class="mb-2">
-                    <strong>Industry:</strong> 
-                    <span id="industryDisplay">${company.industry || 'Not provided'}</span>
-                    <input type="text" class="form-control d-none" id="industryEdit" value="${company.industry || ''}">
-                </div>
-                <div class="mb-2">
-                    <strong>Website:</strong> 
-                    <span id="websiteDisplay">
-                        ${company.website ? 
-                            `<a href="${company.website}" target="_blank" class="text-decoration-none">
-                                <i class="fas fa-external-link-alt me-1"></i>${company.website}
-                            </a>` : 'Not provided'}
-                    </span>
-                    <input type="url" class="form-control d-none" id="websiteEdit" value="${company.website || ''}">
-                </div>
-                <div class="mb-2">
-                    <strong>Location:</strong> 
-                    <span id="locationDisplay">${company.location || 'Not provided'}</span>
-                    <input type="text" class="form-control d-none" id="locationEdit" value="${company.location || ''}">
-                </div>
-                <div class="mb-2">
-                    <strong>Employee Count:</strong> 
-                    <span id="employeeCountDisplay">${company.employee_count || 'Unknown'}</span>
-                    <input type="number" class="form-control d-none" id="employeeCountEdit" value="${company.employee_count || ''}">
-                </div>
-            </div>
-            <div class="col-md-6">
-                <h6 class="text-muted mb-3">Contact Information</h6>
-                <div class="mb-2">
-                    <strong>Contact Count:</strong> 
-                    <span class="badge bg-primary">${company.contact_count || 0}</span>
-                </div>
-                <div class="mb-2">
-                    <strong>Primary Contact:</strong> 
-                    ${company.primary_contact_email ? 
-                        `<a href="mailto:${company.primary_contact_email}" class="text-decoration-none">
-                            ${company.primary_contact_email}
-                        </a>` : 'Not specified'}
-                </div>
-                <div class="mb-2">
-                    <strong>Phone:</strong> 
-                    <span id="phoneDisplay">${company.phone || 'Not provided'}</span>
-                    <input type="tel" class="form-control d-none" id="phoneEdit" value="${company.phone || ''}">
-                </div>
-            </div>
-        </div>
-        
-        <hr>
-        
-        <div class="row">
-            <div class="col-12">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h6 class="text-muted mb-0">Research Notes</h6>
-                    <div class="btn-group btn-group-sm">
-                        <button type="button" class="btn btn-outline-primary" 
-                                id="editCompanyBtn" onclick="toggleCompanyEditMode()">
-                            <i class="fas fa-edit me-1"></i>Edit
-                        </button>
-                        <button type="button" class="btn btn-outline-success" 
-                                onclick="researchSingleCompany(${company.id}, '${company.name}', this)">
-                            <i class="fas fa-search me-1"></i>Research
-                        </button>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-building me-2"></i>Company Information
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row">
+                            <dt class="col-4">Name:</dt>
+                            <dd class="col-8">${company.company_name || 'N/A'}</dd>
+                            
+                            <dt class="col-4">Website:</dt>
+                            <dd class="col-8">
+                                ${company.website_url ? 
+                                    `<a href="${company.website_url}" target="_blank" class="text-decoration-none">
+                                        ${company.website_url} <i class="fas fa-external-link-alt ms-1"></i>
+                                    </a>` : 
+                                    'N/A'
+                                }
+                            </dd>
+                            
+                            <dt class="col-4">Created:</dt>
+                            <dd class="col-8">${company.created_at ? new Date(company.created_at).toLocaleDateString() : 'N/A'}</dd>
+                            
+                            <dt class="col-4">Updated:</dt>
+                            <dd class="col-8">${company.updated_at ? new Date(company.updated_at).toLocaleDateString() : 'N/A'}</dd>
+                        </dl>
+                        
+                        ${company.needs_research ? 
+                            `<div class="alert alert-warning mt-3">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <strong>Research Needed:</strong> This company hasn't been researched yet.
+                            </div>` : 
+                            `<div class="alert alert-success mt-3">
+                                <i class="fas fa-check-circle me-2"></i>
+                                <strong>Research Complete:</strong> AI insights available.
+                            </div>`
+                        }
                     </div>
                 </div>
-                
-                <div id="researchNotesDisplay" class="p-3 bg-light rounded">
-                    ${company.research_notes || 'No research notes available'}
-                </div>
-                <textarea class="form-control d-none" id="researchNotesEdit" rows="6">${company.research_notes || ''}</textarea>
-                
-                <div class="d-none mt-3" id="editControls">
-                    <button type="button" class="btn btn-success me-2" onclick="saveCompanyInModal()">
-                        <i class="fas fa-save me-1"></i>Save Changes
-                    </button>
-                    <button type="button" class="btn btn-secondary" onclick="cancelCompanyEdit()">
-                        <i class="fas fa-times me-1"></i>Cancel
-                    </button>
+            </div>
+            
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-chart-line me-2"></i>Company Research & Insights
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div style="max-height: 400px; overflow-y: auto;">
+                            ${researchContent}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     `;
     
-    const bootstrapModal = new bootstrap.Modal(modal);
-    bootstrapModal.show();
+    // Show research action buttons
+    const researchActions = document.getElementById('companyResearchActions');
+    if (researchActions) {
+        researchActions.style.display = 'block';
+        
+        // Set up action buttons
+        const deepResearchBtn = document.getElementById('deepResearchModalBtn');
+        const triggerResearchBtn = document.getElementById('triggerResearchBtn');
+        const forceRefreshBtn = document.getElementById('forceRefreshBtn');
+        const viewReportBtn = document.getElementById('viewReportBtn');
+        
+        if (deepResearchBtn) {
+            deepResearchBtn.onclick = () => triggerDeepResearch(company.id, company.company_name);
+        }
+        
+        if (triggerResearchBtn) {
+            triggerResearchBtn.onclick = () => triggerQuickResearch(company.id);
+        }
+        
+        if (forceRefreshBtn) {
+            forceRefreshBtn.onclick = () => loadCompanyDetails(company.id);
+        }
+        
+        // Show view report button if research is available
+        if (viewReportBtn && company.company_research) {
+            viewReportBtn.style.display = 'block';
+            viewReportBtn.onclick = () => viewCompanyReport(company.id);
+        }
+    }
 }
 
 // Company editing functionality
