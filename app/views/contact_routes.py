@@ -408,6 +408,7 @@ def get_unsent_leads():
         }), 500
 
 @contact_bp.route('/search_contacts', methods=['GET'])
+@contact_bp.route('/contacts/search', methods=['GET'])
 def search_contacts():
     """Search contacts by query."""
     try:

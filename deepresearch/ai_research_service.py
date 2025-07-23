@@ -105,50 +105,51 @@ Follow the exact structure provided in your system prompt. Begin now."""
         """Generate executive-level strategic recommendations based on research."""
         logger.info(f"Generating strategic recommendations for: {company_name}")
         
-        system_prompt = f"""You are a master business strategist, expert at writing reports for important executives. Think from first principles and come up with a high level strategy to improve {company_name}'s standing in the industry. 
+        system_prompt = f"""You are a McKinsey senior partner writing a strategic brief for {company_name}'s executive team. Create a crisp, data-driven analysis that identifies their key strategic imperatives and explains how AI agents can help achieve them.
 
-Based on the provided analysis, create a comprehensive strategic report with the following structure:
+Structure your response as follows:
 
-# Strategic Analysis: {company_name}
+Based on our analysis of {company_name}'s market position, competitive landscape, and operational context, we have identified the following strategic imperatives:
 
-## Executive Summary
-Provide a 2-3 sentence high-level summary of the strategic opportunity and recommended direction.
+### Strategic Imperative 1: [Clear, action-oriented imperative]
 
-## Industry Position & Competitive Landscape
-Analyze the company's current market position, key competitors, and industry dynamics that affect strategic decisions.
+**Context:** [1-2 concise sentences on why this is critical now]
 
-## Strategic Recommendations
-Provide 3-5 high-impact strategic recommendations that would significantly improve the company's market position. For each recommendation:
-- State the recommendation clearly
-- Explain the strategic rationale
-- Identify key success metrics
-- Estimate implementation timeline
+**AI Agent Opportunity:** [Specific ways AI agents can accelerate this imperative - be concrete about the agent capabilities]
 
-## AI Agents: Strategic Priority Assessment
-Evaluate whether AI agents should be among the top priorities for this organization:
+**Expected Impact:** [Quantifiable business outcome with specific metrics/percentages]
 
-### Priority Level: [HIGH/MEDIUM/LOW]
-Provide clear justification for the priority level based on:
-- Current business challenges that AI could address
-- Industry adoption trends
-- Competitive advantage potential
-- ROI potential
+### Strategic Imperative 2: [Clear, action-oriented imperative]
 
-### AI Agent Implementation Strategy
-If AI agents are recommended, provide:
-- Specific use cases most relevant to this company
-- Implementation approach (pilot → scale)
-- Expected business impact and metrics
-- Integration considerations with existing systems
-- Change management requirements
+**Context:** [1-2 concise sentences on why this is critical now]
 
-## Implementation Roadmap
-Provide a high-level 12-18 month roadmap prioritizing the most critical strategic initiatives.
+**AI Agent Opportunity:** [Specific ways AI agents can accelerate this imperative - be concrete about the agent capabilities]
 
-## Risk Assessment & Mitigation
-Identify key risks to strategy execution and mitigation approaches.
+**Expected Impact:** [Quantifiable business outcome with specific metrics/percentages]
 
-Use professional executive language, data-driven insights, and actionable recommendations. Keep the total length around 800-1000 words."""
+## AI Agent Recommendations
+
+Based on {company_name}'s strategic priorities, we recommend focusing AI agent implementation on:
+
+**Priority 1:** [Specific AI agent application]
+
+- **Use Case:** [Concrete business application with specific details]
+- **Business Impact:** [Expected ROI/efficiency gain with numbers]
+
+**Priority 2:** [Specific AI agent application]
+
+- **Use Case:** [Concrete business application with specific details]
+- **Business Impact:** [Expected ROI/efficiency gain with numbers]
+
+## Expected Business Impact
+
+Implementation of these AI agent solutions can deliver:
+
+- [Specific metric/improvement with percentage/dollar amounts]
+- [Specific metric/improvement with percentage/dollar amounts]  
+- [Competitive advantage gained - be specific]
+
+Keep the tone professional and consultative. Use data-driven insights with specific numbers. Be concrete about AI agent applications. Total length: 400-500 words maximum."""
 
         user_prompt = f"""Based on the following research analysis of {company_name}, generate strategic recommendations:
 

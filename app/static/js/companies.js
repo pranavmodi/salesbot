@@ -158,10 +158,10 @@ function displayCompanySearchResults(companies, searchTerm) {
                 <thead class="table-light">
                     <tr>
                         <th>Company Name</th>
-                        <th>Industry</th>
-                        <th>Location</th>
-                        <th>Employee Count</th>
-                        <th>Contact Count</th>
+                        <th>Website</th>
+                        <th>Research Status</th>
+                        <th>Created</th>
+                        <th>Updated</th>
                         <th style="width: 120px;">Actions</th>
                     </tr>
                 </thead>
@@ -174,29 +174,29 @@ function displayCompanySearchResults(companies, searchTerm) {
                 <td>
                     <div class="d-flex align-items-center">
                         <div class="company-avatar me-2">
-                            ${company.name ? company.name[0].toUpperCase() : '?'}
+                            ${company.company_name ? company.company_name[0].toUpperCase() : '?'}
                         </div>
                         <div>
-                            <strong>${company.name || 'Unknown Company'}</strong>
-                            ${company.website ? `<br><small class="text-muted">
-                                <a href="${company.website}" target="_blank" class="text-decoration-none">
-                                    <i class="fas fa-external-link-alt me-1"></i>${company.website}
+                            <strong>${company.company_name || 'Unknown Company'}</strong>
+                            ${company.website_url ? `<br><small class="text-muted">
+                                <a href="${company.website_url}" target="_blank" class="text-decoration-none">
+                                    <i class="fas fa-external-link-alt me-1"></i>${company.website_url}
                                 </a>
                             </small>` : ''}
                         </div>
                     </div>
                 </td>
                 <td>
-                    <span>${company.industry || 'Not specified'}</span>
+                    <span>${company.website_url ? `<a href="${company.website_url}" target="_blank">${company.website_url}</a>` : 'Not specified'}</span>
                 </td>
                 <td>
-                    <span class="text-muted">${company.location || 'Not specified'}</span>
+                    <span class="badge ${company.company_research ? 'bg-success' : 'bg-warning'}">${company.company_research ? 'Researched' : 'Pending'}</span>
                 </td>
                 <td>
-                    <span>${company.employee_count || 'Unknown'}</span>
+                    <span class="text-muted">${company.created_at ? new Date(company.created_at).toLocaleDateString() : 'Unknown'}</span>
                 </td>
                 <td>
-                    <span class="badge bg-primary">${company.contact_count || 0}</span>
+                    <span class="text-muted">${company.updated_at ? new Date(company.updated_at).toLocaleDateString() : 'Unknown'}</span>
                 </td>
                 <td>
                     <div class="btn-group btn-group-sm" role="group">
@@ -206,7 +206,7 @@ function displayCompanySearchResults(companies, searchTerm) {
                             <i class="fas fa-eye"></i>
                         </button>
                         <button type="button" class="btn btn-outline-success btn-sm" 
-                                onclick="researchSingleCompany(${company.id}, '${company.name}', this)" 
+                                onclick="researchSingleCompany(${company.id}, '${company.company_name}', this)" 
                                 title="Research Company">
                             <i class="fas fa-search"></i>
                         </button>
@@ -283,10 +283,10 @@ function displayCompaniesTable(companies, pagination) {
                 <thead class="table-light">
                     <tr>
                         <th>Company Name</th>
-                        <th>Industry</th>
-                        <th>Location</th>
-                        <th>Employee Count</th>
-                        <th>Contact Count</th>
+                        <th>Website</th>
+                        <th>Research Status</th>
+                        <th>Created</th>
+                        <th>Updated</th>
                         <th style="width: 120px;">Actions</th>
                     </tr>
                 </thead>
@@ -299,29 +299,29 @@ function displayCompaniesTable(companies, pagination) {
                 <td>
                     <div class="d-flex align-items-center">
                         <div class="company-avatar me-2" style="width: 36px; height: 36px; font-size: 0.875rem;">
-                            ${company.name ? company.name[0].toUpperCase() : '?'}
+                            ${company.company_name ? company.company_name[0].toUpperCase() : '?'}
                         </div>
                         <div>
-                            <strong>${company.name || 'Unknown Company'}</strong>
-                            ${company.website ? `<br><small class="text-muted">
-                                <a href="${company.website}" target="_blank" class="text-decoration-none">
-                                    <i class="fas fa-external-link-alt me-1"></i>${company.website}
+                            <strong>${company.company_name || 'Unknown Company'}</strong>
+                            ${company.website_url ? `<br><small class="text-muted">
+                                <a href="${company.website_url}" target="_blank" class="text-decoration-none">
+                                    <i class="fas fa-external-link-alt me-1"></i>${company.website_url}
                                 </a>
                             </small>` : ''}
                         </div>
                     </div>
                 </td>
                 <td>
-                    <span>${company.industry || 'Not specified'}</span>
+                    <span>${company.website_url ? `<a href="${company.website_url}" target="_blank">${company.website_url}</a>` : 'Not specified'}</span>
                 </td>
                 <td>
-                    <span class="text-muted">${company.location || 'Not specified'}</span>
+                    <span class="badge ${company.company_research ? 'bg-success' : 'bg-warning'}">${company.company_research ? 'Researched' : 'Pending'}</span>
                 </td>
                 <td>
-                    <span>${company.employee_count || 'Unknown'}</span>
+                    <span class="text-muted">${company.created_at ? new Date(company.created_at).toLocaleDateString() : 'Unknown'}</span>
                 </td>
                 <td>
-                    <span class="badge bg-primary">${company.contact_count || 0}</span>
+                    <span class="text-muted">${company.updated_at ? new Date(company.updated_at).toLocaleDateString() : 'Unknown'}</span>
                 </td>
                 <td>
                     <div class="btn-group btn-group-sm" role="group">
@@ -331,7 +331,7 @@ function displayCompaniesTable(companies, pagination) {
                             <i class="fas fa-eye"></i>
                         </button>
                         <button type="button" class="btn btn-outline-success btn-sm" 
-                                onclick="researchSingleCompany(${company.id}, '${company.name}', this)" 
+                                onclick="researchSingleCompany(${company.id}, '${company.company_name}', this)" 
                                 title="Research Company">
                             <i class="fas fa-search"></i>
                         </button>

@@ -28,31 +28,57 @@ class ReportGenerator:
         logger.info(f"ReportGenerator initialized with reports directory: {self.reports_dir}")
 
     def generate_markdown_report(self, company_name: str, research_content: str, strategic_content: str) -> str:
-        """Generate combined research and strategic analysis markdown content."""
-        logger.info(f"Generating markdown report for: {company_name}")
+        """Generate McKinsey-style client-facing strategic report."""
+        logger.info(f"Generating client-facing strategic report for: {company_name}")
         
-        # Combine research and strategic analysis
-        full_report = f"""# Deep Research Analysis: {company_name}
+        # Create polished client report with better formatting
+        formatted_content = self._format_strategic_content(strategic_content)
+        
+        full_report = f"""# Strategic Analysis: {company_name}
 
-*Generated on {time.strftime('%Y-%m-%d %H:%M:%S')}*
+## Executive Summary
 
----
-
-## Company Research Analysis
-
-{research_content}
+Based on comprehensive market analysis and competitive intelligence, we have identified key strategic imperatives and AI agent opportunities that can accelerate **{company_name}'s** growth and operational excellence.
 
 ---
 
-{strategic_content}
+{formatted_content}
 
 ---
 
-*This analysis was generated using AI-powered research and strategic analysis tools. All recommendations should be validated with current market data and company-specific context.*
-"""
+*Strategic analysis prepared by [Possible Minds](https://possibleminds.in)* | *Generated on {time.strftime('%B %d, %Y')}*"""
         
         logger.info(f"Successfully generated markdown report for: {company_name}")
         return full_report
+
+    def _format_strategic_content(self, content: str) -> str:
+        """Format strategic content for better readability."""
+        # Add proper spacing and visual hierarchy
+        formatted = content
+        
+        # Add spacing after strategic imperatives headers
+        formatted = formatted.replace('### Strategic Imperative', '\n### 🎯 Strategic Imperative')
+        
+        # Format AI Agent Recommendations section
+        formatted = formatted.replace('## AI Agent Recommendations', '\n## 🤖 AI Agent Recommendations')
+        
+        # Format Expected Business Impact section  
+        formatted = formatted.replace('## Expected Business Impact', '\n## 📈 Expected Business Impact')
+        
+        # Add better formatting for context/opportunity/impact sections
+        formatted = formatted.replace('**Context:**', '\n**📋 Context:**')
+        formatted = formatted.replace('**AI Agent Opportunity:**', '\n**🚀 AI Agent Opportunity:**')
+        formatted = formatted.replace('**Expected Impact:**', '\n**💰 Expected Impact:**')
+        
+        # Add spacing for priority items
+        formatted = formatted.replace('**Priority 1:**', '\n**🥇 Priority 1:**')
+        formatted = formatted.replace('**Priority 2:**', '\n🥈 **Priority 2:**')
+        
+        # Clean up extra newlines and ensure proper spacing
+        import re
+        formatted = re.sub(r'\n{3,}', '\n\n', formatted)
+        
+        return formatted.strip()
 
     def write_markdown_report(self, company_name: str, company_research: str, strategic_analysis: str) -> bool:
         """Write combined research and strategic analysis to markdown file."""
