@@ -14,12 +14,16 @@ function initializeCompanies() {
 function setupCompanyEventListeners() {
     const researchBtn = document.getElementById('researchCompanies');
     const saveCompanyBtn = document.getElementById('saveCompanyBtn');
+    const cleanAllResearchBtn = document.getElementById('cleanAllResearchBtn');
     
     if (researchBtn) {
         researchBtn.addEventListener('click', researchCompanies);
     }
     if (saveCompanyBtn) {
         saveCompanyBtn.addEventListener('click', saveCompany);
+    }
+    if (cleanAllResearchBtn) {
+        cleanAllResearchBtn.addEventListener('click', cleanAllResearch);
     }
     
     // Setup company details modal
@@ -388,6 +392,44 @@ function generateCompaniesPagination(currentPage, totalPages) {
     `;
     
     return paginationHTML;
+}
+
+// Clean all research functionality
+function cleanAllResearch() {
+    if (!confirm('Are you sure you want to clean ALL research data from ALL companies? This action cannot be undone.')) {
+        return;
+    }
+    
+    const cleanBtn = document.getElementById('cleanAllResearchBtn');
+    const originalText = cleanBtn.innerHTML;
+    
+    cleanBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Cleaning...';
+    cleanBtn.disabled = true;
+    
+    fetch('/api/companies/clean-all-research', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('successToast', 'All research data has been cleaned successfully!');
+            
+            // Reload companies to show updated data
+            setTimeout(() => {
+                changeCompaniesPage(1);
+            }, 1000);
+        } else {
+            throw new Error(data.message || 'Failed to clean research data');
+        }
+    })
+    .catch(error => {
+        console.error('Error cleaning research data:', error);
+        showToast('errorToast', 'Failed to clean research data: ' + error.message);
+    })
+    .finally(() => {
+        cleanBtn.innerHTML = originalText;
+        cleanBtn.disabled = false;
+    });
 }
 
 // Company research functionality

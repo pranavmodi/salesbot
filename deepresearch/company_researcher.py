@@ -75,19 +75,26 @@ class CompanyResearcher:
                     logger.info(f"Generating strategic analysis for: {company_name}")
                     strategic_analysis = self.ai_service.generate_strategic_recommendations(company_name, research)
                     
+                    # Generate strategic imperatives and agent recommendations
+                    logger.info(f"Generating strategic imperatives and agent recommendations for: {company_name}")
+                    strategic_imperatives, agent_recommendations = self.ai_service.generate_strategic_imperatives_and_agent_recommendations(company_name, research)
+                    
                     if strategic_analysis:
                         # Generate markdown report content
                         markdown_content = self.report_generator.generate_markdown_report(company_name, research, strategic_analysis)
                         
-                        # Update database with markdown report
-                        if self.db_service.update_company_research(company_id, research, markdown_content):
-                            logger.info(f"📊 Successfully updated database with markdown report for: {company_name}")
+                        # Update database with markdown report and new fields
+                        if self.db_service.update_company_research(company_id, research, markdown_content, strategic_imperatives, agent_recommendations):
+                            logger.info(f"📊 Successfully updated database with markdown report and strategic data for: {company_name}")
                         else:
                             logger.warning(f"⚠️ Failed to update database with markdown report for: {company_name}")
                         
                         # Note: Markdown report is now only stored in database, not as disk file
                     else:
                         logger.warning(f"⚠️ Failed to generate strategic analysis for: {company_name}")
+                        # Still save strategic imperatives and agent recommendations even if strategic analysis failed
+                        if strategic_imperatives or agent_recommendations:
+                            self.db_service.update_company_research(company_id, research, None, strategic_imperatives, agent_recommendations)
                 
                 return True
             else:
@@ -162,9 +169,16 @@ class CompanyResearcher:
                 strategic_analysis = None
                 markdown_content = None
                 
+                strategic_imperatives = None
+                agent_recommendations = None
+                
                 if generate_reports:
                     logger.info(f"Generating strategic analysis for: {company['company_name']}")
                     strategic_analysis = self.ai_service.generate_strategic_recommendations(company['company_name'], research)
+                    
+                    # Generate strategic imperatives and agent recommendations
+                    logger.info(f"Generating strategic imperatives and agent recommendations for: {company['company_name']}")
+                    strategic_imperatives, agent_recommendations = self.ai_service.generate_strategic_imperatives_and_agent_recommendations(company['company_name'], research)
                     
                     if strategic_analysis:
                         # Generate markdown report content
@@ -181,12 +195,12 @@ class CompanyResearcher:
                     if company['company_name'].lower() in all_existing:
                         # Get company by name to find ID (we'll need to add this method)
                         save_success = self.db_service.update_existing_company_by_name(
-                            company['company_name'], website_url, research, markdown_content
+                            company['company_name'], website_url, research, markdown_content, strategic_imperatives, agent_recommendations
                         )
                 else:
                     # Normal insert for new company
                     save_success = self.db_service.save_company_research(
-                        company['company_name'], website_url, research, markdown_content
+                        company['company_name'], website_url, research, markdown_content, strategic_imperatives, agent_recommendations
                     )
                 
                 if save_success:

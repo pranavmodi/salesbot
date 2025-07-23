@@ -52,6 +52,9 @@ class CompanyResearchCleaner:
                     FROM companies 
                     WHERE company_research IS NOT NULL 
                       AND company_research != ''
+                      OR markdown_report IS NOT NULL
+                      OR strategic_imperatives IS NOT NULL  
+                      OR agent_recommendations IS NOT NULL
                 """))
                 
                 count = result.fetchone().count
@@ -74,10 +77,26 @@ class CompanyResearchCleaner:
                 with conn.begin():
                     result = conn.execute(text("""
                         UPDATE companies 
-                        SET company_research = NULL, 
+                        SET company_research = NULL,
+                            markdown_report = NULL,
+                            strategic_imperatives = NULL,
+                            agent_recommendations = NULL,
+                            research_step_1_basic = NULL,
+                            research_step_2_strategic = NULL,
+                            research_step_3_report = NULL,
+                            research_status = NULL,
+                            research_started_at = NULL,
+                            research_completed_at = NULL,
+                            research_error = NULL,
                             updated_at = CURRENT_TIMESTAMP
                         WHERE company_research IS NOT NULL 
                            OR company_research != ''
+                           OR markdown_report IS NOT NULL
+                           OR strategic_imperatives IS NOT NULL  
+                           OR agent_recommendations IS NOT NULL
+                           OR research_step_1_basic IS NOT NULL
+                           OR research_step_2_strategic IS NOT NULL
+                           OR research_step_3_report IS NOT NULL
                     """))
                     
                     rows_affected = result.rowcount
@@ -111,7 +130,17 @@ class CompanyResearchCleaner:
                     # Clear the research data
                     result = conn.execute(text("""
                         UPDATE companies 
-                        SET company_research = NULL, 
+                        SET company_research = NULL,
+                            markdown_report = NULL,
+                            strategic_imperatives = NULL,
+                            agent_recommendations = NULL,
+                            research_step_1_basic = NULL,
+                            research_step_2_strategic = NULL,
+                            research_step_3_report = NULL,
+                            research_status = NULL,
+                            research_started_at = NULL,
+                            research_completed_at = NULL,
+                            research_error = NULL,
                             updated_at = CURRENT_TIMESTAMP
                         WHERE id = :company_id
                     """), {"company_id": company_id})
@@ -139,7 +168,17 @@ class CompanyResearchCleaner:
                 with conn.begin():
                     result = conn.execute(text("""
                         UPDATE companies 
-                        SET company_research = NULL, 
+                        SET company_research = NULL,
+                            markdown_report = NULL,
+                            strategic_imperatives = NULL,
+                            agent_recommendations = NULL,
+                            research_step_1_basic = NULL,
+                            research_step_2_strategic = NULL,
+                            research_step_3_report = NULL,
+                            research_status = NULL,
+                            research_started_at = NULL,
+                            research_completed_at = NULL,
+                            research_error = NULL,
                             updated_at = CURRENT_TIMESTAMP
                         WHERE LOWER(company_name) = LOWER(:company_name)
                     """), {"company_name": company_name})

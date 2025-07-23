@@ -375,3 +375,57 @@ def get_research_step(company_id, step):
             'success': False,
             'message': f'Failed to get research step: {str(e)}'
         }), 500
+
+@company_bp.route('/companies/clean-all-research', methods=['POST'])
+def clean_all_research():
+    """Clean all research data from all companies."""
+    try:
+        current_app.logger.info("Starting to clean all research data from companies")
+        
+        # Import and use the cleaner directly instead of running the script
+        import sys
+        import os
+        
+        # Add the scripts directory to the path
+        scripts_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'scripts')
+        if scripts_path not in sys.path:
+            sys.path.append(scripts_path)
+        
+        from clear_company_research import CompanyResearchCleaner
+        
+        cleaner = CompanyResearchCleaner()
+        
+        # Get count before clearing
+        count_before = cleaner.get_companies_with_research_count()
+        current_app.logger.info(f"Found {count_before} companies with research data")
+        
+        if count_before == 0:
+            return jsonify({
+                'success': True,
+                'message': 'No research data found to clean',
+                'companies_affected': 0
+            })
+        
+        # Perform the clearing
+        success = cleaner.clear_all_research()
+        
+        if success:
+            current_app.logger.info(f"Successfully cleaned research data from {count_before} companies")
+            return jsonify({
+                'success': True,
+                'message': f'Successfully cleaned research data from {count_before} companies',
+                'companies_affected': count_before
+            })
+        else:
+            current_app.logger.error("Failed to clean research data")
+            return jsonify({
+                'success': False,
+                'message': 'Failed to clean research data - database operation failed'
+            }), 500
+            
+    except Exception as e:
+        current_app.logger.error(f"Error cleaning all research data: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Failed to clean research data: {str(e)}'
+        }), 500

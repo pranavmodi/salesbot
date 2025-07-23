@@ -139,7 +139,8 @@ class DatabaseService:
             logger.error(f"Unexpected error fetching companies without research: {e}")
             return []
 
-    def save_company_research(self, company_name: str, website_url: str, research: str, markdown_report: str = None) -> bool:
+    def save_company_research(self, company_name: str, website_url: str, research: str, markdown_report: str = None, 
+                            strategic_imperatives: str = None, agent_recommendations: str = None) -> bool:
         """Save company research to the companies table."""
         logger.info(f"Saving research for: {company_name}")
         
@@ -147,15 +148,17 @@ class DatabaseService:
             'company_name': company_name,
             'website_url': website_url,
             'company_research': research,
-            'markdown_report': markdown_report
+            'markdown_report': markdown_report,
+            'strategic_imperatives': strategic_imperatives,
+            'agent_recommendations': agent_recommendations
         }
         
         try:
             with self.engine.connect() as conn:
                 with conn.begin():
                     insert_query = text("""
-                        INSERT INTO companies (company_name, website_url, company_research, markdown_report) 
-                        VALUES (:company_name, :website_url, :company_research, :markdown_report)
+                        INSERT INTO companies (company_name, website_url, company_research, markdown_report, strategic_imperatives, agent_recommendations) 
+                        VALUES (:company_name, :website_url, :company_research, :markdown_report, :strategic_imperatives, :agent_recommendations)
                     """)
                     conn.execute(insert_query, company_data)
             
@@ -169,34 +172,39 @@ class DatabaseService:
             logger.error(f"Unexpected error saving company {company_name}: {e}")
             return False
 
-    def update_company_research(self, company_id: int, research: str, markdown_report: str = None) -> bool:
+    def update_company_research(self, company_id: int, research: str, markdown_report: str = None, 
+                              strategic_imperatives: str = None, agent_recommendations: str = None) -> bool:
         """Update existing company research in the companies table."""
         logger.info(f"Updating research for company ID: {company_id}")
         
         try:
             with self.engine.connect() as conn:
                 with conn.begin():
+                    update_params = {
+                        'research': research,
+                        'company_id': company_id
+                    }
+                    
+                    update_fields = ['company_research = :research']
+                    
                     if markdown_report is not None:
-                        update_query = text("""
-                            UPDATE companies 
-                            SET company_research = :research, markdown_report = :markdown_report, updated_at = CURRENT_TIMESTAMP
-                            WHERE id = :company_id
-                        """)
-                        result = conn.execute(update_query, {
-                            'research': research,
-                            'markdown_report': markdown_report,
-                            'company_id': company_id
-                        })
-                    else:
-                        update_query = text("""
-                            UPDATE companies 
-                            SET company_research = :research, updated_at = CURRENT_TIMESTAMP
-                            WHERE id = :company_id
-                        """)
-                        result = conn.execute(update_query, {
-                            'research': research,
-                            'company_id': company_id
-                        })
+                        update_fields.append('markdown_report = :markdown_report')
+                        update_params['markdown_report'] = markdown_report
+                    
+                    if strategic_imperatives is not None:
+                        update_fields.append('strategic_imperatives = :strategic_imperatives')
+                        update_params['strategic_imperatives'] = strategic_imperatives
+                    
+                    if agent_recommendations is not None:
+                        update_fields.append('agent_recommendations = :agent_recommendations')
+                        update_params['agent_recommendations'] = agent_recommendations
+                    
+                    update_query = text(f"""
+                        UPDATE companies 
+                        SET {', '.join(update_fields)}, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :company_id
+                    """)
+                    result = conn.execute(update_query, update_params)
                     
                     if result.rowcount > 0:
                         logger.info(f"Successfully updated research for company ID: {company_id}")
@@ -219,7 +227,7 @@ class DatabaseService:
         try:
             with self.engine.connect() as conn:
                 result = conn.execute(text("""
-                    SELECT id, company_name, website_url, company_research, markdown_report
+                    SELECT id, company_name, website_url, company_research, markdown_report, strategic_imperatives, agent_recommendations
                     FROM companies 
                     WHERE id = :company_id
                 """), {"company_id": company_id})
@@ -231,7 +239,9 @@ class DatabaseService:
                         'company_name': row.company_name,
                         'website_url': row.website_url,
                         'company_research': row.company_research,
-                        'markdown_report': row.markdown_report
+                        'markdown_report': row.markdown_report,
+                        'strategic_imperatives': row.strategic_imperatives,
+                        'agent_recommendations': row.agent_recommendations
                     }
                 else:
                     logger.warning(f"No company found with ID: {company_id}")
@@ -302,37 +312,40 @@ class DatabaseService:
             logger.error(f"Unexpected error fetching companies with reports: {e}")
             return []
 
-    def update_existing_company_by_name(self, company_name: str, website_url: str, research: str, markdown_report: str = None) -> bool:
+    def update_existing_company_by_name(self, company_name: str, website_url: str, research: str, markdown_report: str = None, 
+                                      strategic_imperatives: str = None, agent_recommendations: str = None) -> bool:
         """Update existing company research by company name."""
         logger.info(f"Updating existing company by name: {company_name}")
         
         try:
             with self.engine.connect() as conn:
                 with conn.begin():
+                    update_params = {
+                        'website_url': website_url,
+                        'research': research,
+                        'company_name': company_name
+                    }
+                    
+                    update_fields = ['website_url = :website_url', 'company_research = :research']
+                    
                     if markdown_report is not None:
-                        update_query = text("""
-                            UPDATE companies 
-                            SET website_url = :website_url, company_research = :research, 
-                                markdown_report = :markdown_report, updated_at = CURRENT_TIMESTAMP
-                            WHERE LOWER(company_name) = LOWER(:company_name)
-                        """)
-                        result = conn.execute(update_query, {
-                            'website_url': website_url,
-                            'research': research,
-                            'markdown_report': markdown_report,
-                            'company_name': company_name
-                        })
-                    else:
-                        update_query = text("""
-                            UPDATE companies 
-                            SET website_url = :website_url, company_research = :research, updated_at = CURRENT_TIMESTAMP
-                            WHERE LOWER(company_name) = LOWER(:company_name)
-                        """)
-                        result = conn.execute(update_query, {
-                            'website_url': website_url,
-                            'research': research,
-                            'company_name': company_name
-                        })
+                        update_fields.append('markdown_report = :markdown_report')
+                        update_params['markdown_report'] = markdown_report
+                    
+                    if strategic_imperatives is not None:
+                        update_fields.append('strategic_imperatives = :strategic_imperatives')
+                        update_params['strategic_imperatives'] = strategic_imperatives
+                    
+                    if agent_recommendations is not None:
+                        update_fields.append('agent_recommendations = :agent_recommendations')
+                        update_params['agent_recommendations'] = agent_recommendations
+                    
+                    update_query = text(f"""
+                        UPDATE companies 
+                        SET {', '.join(update_fields)}, updated_at = CURRENT_TIMESTAMP
+                        WHERE LOWER(company_name) = LOWER(:company_name)
+                    """)
+                    result = conn.execute(update_query, update_params)
                     
                     if result.rowcount > 0:
                         logger.info(f"Successfully updated existing company: {company_name}")

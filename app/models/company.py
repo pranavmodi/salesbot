@@ -15,6 +15,8 @@ class Company:
         self.website_url = data.get('website_url', '')
         self.company_research = data.get('company_research', '')
         self.markdown_report = data.get('markdown_report', '')
+        self.strategic_imperatives = data.get('strategic_imperatives', '')
+        self.agent_recommendations = data.get('agent_recommendations', '')
         
         # Research step tracking fields
         self.research_status = data.get('research_status', 'pending')  # pending, in_progress, completed, failed
@@ -53,6 +55,7 @@ class Company:
             with engine.connect() as conn:
                 result = conn.execute(text("""
                     SELECT id, company_name, website_url, company_research, markdown_report,
+                           strategic_imperatives, agent_recommendations,
                            research_status, research_step_1_basic, research_step_2_strategic, 
                            research_step_3_report, research_started_at, research_completed_at, 
                            research_error, created_at, updated_at
@@ -97,6 +100,7 @@ class Company:
                 offset = (page - 1) * per_page
                 result = conn.execute(text("""
                     SELECT id, company_name, website_url, company_research, markdown_report,
+                           strategic_imperatives, agent_recommendations,
                            research_status, research_step_1_basic, research_step_2_strategic, 
                            research_step_3_report, research_started_at, research_completed_at, 
                            research_error, created_at, updated_at
@@ -136,6 +140,7 @@ class Company:
             with engine.connect() as conn:
                 result = conn.execute(text("""
                     SELECT id, company_name, website_url, company_research, markdown_report,
+                           strategic_imperatives, agent_recommendations,
                            research_status, research_step_1_basic, research_step_2_strategic, 
                            research_step_3_report, research_started_at, research_completed_at, 
                            research_error, created_at, updated_at
@@ -168,6 +173,7 @@ class Company:
             with engine.connect() as conn:
                 result = conn.execute(text("""
                     SELECT id, company_name, website_url, company_research, markdown_report,
+                           strategic_imperatives, agent_recommendations,
                            research_status, research_step_1_basic, research_step_2_strategic, 
                            research_step_3_report, research_started_at, research_completed_at, 
                            research_error, created_at, updated_at
@@ -199,6 +205,7 @@ class Company:
             with engine.connect() as conn:
                 result = conn.execute(text("""
                     SELECT id, company_name, website_url, company_research, markdown_report,
+                           strategic_imperatives, agent_recommendations,
                            research_status, research_step_1_basic, research_step_2_strategic, 
                            research_step_3_report, research_started_at, research_completed_at, 
                            research_error, created_at, updated_at
@@ -500,6 +507,8 @@ class Company:
             'website_url': self.website_url,
             'company_research': self.company_research,
             'markdown_report': self.markdown_report,
+            'strategic_imperatives': self.strategic_imperatives,
+            'agent_recommendations': self.agent_recommendations,
             'research_status': self.research_status,
             'research_step_1_basic': self.research_step_1_basic,
             'research_step_2_strategic': self.research_step_2_strategic,
@@ -521,7 +530,8 @@ class Company:
         try:
             with engine.connect() as conn:
                 query = text("""
-                    SELECT id, company_name, website_url, company_research, markdown_report
+                    SELECT id, company_name, website_url, company_research, markdown_report,
+                           strategic_imperatives, agent_recommendations
                     FROM companies 
                     WHERE LOWER(company_name) LIKE LOWER(:company_name)
                     ORDER BY company_name
@@ -536,7 +546,9 @@ class Company:
                         'company_name': row.company_name,
                         'website_url': row.website_url,
                         'company_research': row.company_research,
-                        'markdown_report': row.markdown_report
+                        'markdown_report': row.markdown_report,
+                        'strategic_imperatives': row.strategic_imperatives,
+                        'agent_recommendations': row.agent_recommendations
                     })
                 
                 return companies

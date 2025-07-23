@@ -166,7 +166,9 @@ Founder, <a href="https://possibleminds.in">Possible Minds</a>
                 "company_website": company.website_url or "",
                 "contact_id": f"contact_{recipient_email.split('@')[0]}",
                 "generated_date": datetime.now().strftime("%Y-%m-%d"),
-                "markdown_report": company.markdown_report
+                "markdown_report": company.markdown_report,
+                "strategic_imperatives": company.strategic_imperatives or "Strategic imperatives analysis pending - comprehensive assessment of business priorities and transformation opportunities.",
+                "agent_recommendations": company.agent_recommendations or "AI agent recommendations analysis pending - tailored automation solutions and intelligent system implementations."
             }
             
             raw_body = json.dumps(payload, separators=(',', ':'))
