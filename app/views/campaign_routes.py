@@ -38,9 +38,7 @@ def create_campaign():
         # Get campaign data
         campaign_name = data.get('name')
         campaign_type = data.get('type')
-        description = data.get('description', '')
         email_template = data.get('email_template')
-        priority = data.get('priority', 'medium')
         schedule_date = data.get('schedule_date')
         # Convert empty string to None for database
         if schedule_date == '':
@@ -150,9 +148,7 @@ def create_campaign():
         new_campaign = Campaign(
             name=campaign_name,
             type=campaign_type,
-            description=description,
             email_template=email_template,
-            priority=priority,
             schedule_date=schedule_date,
             followup_days=followup_days,
             selection_criteria=json.dumps(selection_criteria), # Store as JSON string
@@ -387,19 +383,38 @@ def get_campaign_analytics(campaign_id):
         # Calculate additional metrics if available
         unique_emails = len(set(click.get('contact_email', '') for click in clicks if click.get('contact_email')))
         
-        current_app.logger.info(f"PossibleMinds analytics for campaign {campaign_id}: {total_clicks} clicks, {unique_visitors} unique visitors")
+        # Get campaign statistics (email counts, etc.)
+        campaign_stats = Campaign.get_campaign_stats(campaign_id)
+        current_app.logger.info(f"Campaign stats for {campaign_id}: {campaign_stats}")
+        
+        # Calculate click rate if we have email data
+        click_rate = 0
+        if campaign_stats.get('sent_emails', 0) > 0:
+            click_rate = round((total_clicks / campaign_stats['sent_emails'] * 100), 2)
+        
+        current_app.logger.info(f"Campaign {campaign_id} analytics: {total_clicks} clicks, {unique_visitors} unique visitors, {campaign_stats.get('sent_emails', 0)} emails sent")
         
         return jsonify({
             'success': True,
             'campaign_id': campaign_id,
             'campaign_name': campaign.name,
+            'performance_metrics': {
+                'total_contacts': campaign_stats.get('total_contacts', 0),
+                'total_emails': campaign_stats.get('sent_emails', 0),  # Use sent_emails for "emails sent" metric
+                'total_clicks': total_clicks,
+                'unique_recipients': campaign_stats.get('unique_recipients', 0),
+                'click_rate': f"{click_rate}%" if click_rate > 0 else "0%",
+                'success_rate': campaign_stats.get('success_rate', 0)
+            },
             'analytics': {
                 'total_clicks': total_clicks,
                 'unique_clicks': unique_emails,
                 'unique_visitors': unique_visitors,
-                'click_rate': 0,  # Would need email send data to calculate
+                'unique_recipients': unique_emails,
+                'click_rate': f"{click_rate}%" if click_rate > 0 else "0%",
                 'source': 'possibleminds',
-                'raw_data': analytics_data
+                'raw_data': analytics_data,
+                'companies_clicked': list(set(click.get('company_name', 'Unknown') for click in clicks if click.get('company_name')))
             }
         })
         

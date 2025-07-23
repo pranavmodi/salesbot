@@ -9,6 +9,9 @@ import json
 class CampaignEmailJob:
     """Model for persistent campaign email job scheduling."""
     
+    # Shared database engine with connection pooling
+    _engine = None
+    
     def __init__(self, campaign_id=None, contact_email=None, contact_data=None, 
                  campaign_settings=None, scheduled_time=None, **kwargs):
         self.id = kwargs.get('id')
@@ -40,18 +43,27 @@ class CampaignEmailJob:
         except (json.JSONDecodeError, TypeError):
             return {}
 
-    @staticmethod
-    def _get_db_engine():
-        """Get database engine from environment."""
-        database_url = os.getenv("DATABASE_URL")
-        if not database_url:
-            current_app.logger.error("DATABASE_URL not configured.")
-            return None
-        try:
-            return create_engine(database_url)
-        except Exception as e:
-            current_app.logger.error(f"Error creating database engine: {e}")
-            return None
+    @classmethod
+    def _get_db_engine(cls):
+        """Get shared database engine with connection pooling."""
+        if cls._engine is None:
+            database_url = os.getenv("DATABASE_URL")
+            if not database_url:
+                current_app.logger.error("DATABASE_URL not configured.")
+                return None
+            try:
+                # Configure connection pooling to limit concurrent connections
+                cls._engine = create_engine(
+                    database_url,
+                    pool_size=5,          # Maximum number of permanent connections
+                    max_overflow=10,      # Maximum number of overflow connections
+                    pool_pre_ping=True,   # Verify connections before use
+                    pool_recycle=3600     # Recycle connections every hour
+                )
+            except Exception as e:
+                current_app.logger.error(f"Error creating database engine: {e}")
+                return None
+        return cls._engine
 
     def save(self) -> bool:
         """Save this email job to the database."""
@@ -269,6 +281,17 @@ class CampaignEmailJob:
         except Exception as e:
             current_app.logger.error(f"Unexpected error cleaning up old jobs: {e}")
             return 0
+    
+    @classmethod
+    def close_engine(cls):
+        """Close the shared database engine and all connections."""
+        if cls._engine:
+            try:
+                cls._engine.dispose()
+                cls._engine = None
+                current_app.logger.info("Database engine disposed successfully")
+            except Exception as e:
+                current_app.logger.error(f"Error disposing database engine: {e}")
 
     @classmethod
     def count_all_pending_jobs(cls) -> int:

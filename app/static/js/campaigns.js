@@ -304,8 +304,6 @@ function saveCurrentStepData(stepNumber) {
         case 1:
             currentCampaignData.name = document.getElementById('campaignName').value.trim();
             currentCampaignData.type = document.getElementById('campaignType').value;
-            currentCampaignData.description = document.getElementById('campaignDescription').value.trim();
-            currentCampaignData.priority = document.getElementById('campaignPriority').value;
             break;
         case 2:
             currentCampaignData.target_criteria = getFilterCriteria();
@@ -1308,7 +1306,7 @@ function setDetailsLoadingState(isLoading) {
     const loadingText = isLoading ? 'Loading...' : '';
     const fields = [
         'detailsCampaignName', 'detailsCampaignType', 'detailsEmailTemplate',
-        'detailsFollowupDays', 'detailsCampaignDescription', 'detailsCreatedAt',
+        'detailsFollowupDays', 'detailsCreatedAt',
         'detailsUpdatedAt', 'detailsTotalContacts', 'detailsEmailsSent',
         'detailsFailedEmails', 'detailsSuccessRate', 'detailsResponses',
         'detailsActiveContacts', 'detailsFirstEmail', 'detailsLastEmail',
@@ -1342,7 +1340,6 @@ function populateCampaignDetails(campaign) {
     setElementText('detailsCampaignType', (campaign.type || 'cold_outreach').replace('_', ' ').toUpperCase());
     setElementText('detailsEmailTemplate', getEmailTemplateDisplayName(campaign.email_template || 'deep_research'));
     setElementText('detailsFollowupDays', `${campaign.followup_days || 3} days`);
-    setElementText('detailsCampaignDescription', campaign.description || 'No description provided');
     
     // Dates
     if (campaign.created_at) {
@@ -1357,12 +1354,6 @@ function populateCampaignDetails(campaign) {
     if (statusElement) {
         statusElement.className = `badge ${getStatusBadgeClass(campaign.status)}`;
         statusElement.textContent = (campaign.status || 'unknown').toUpperCase();
-    }
-    
-    const priorityElement = document.getElementById('detailsCampaignPriority');
-    if (priorityElement) {
-        priorityElement.className = `badge ${getPriorityBadgeClass(campaign.priority)}`;
-        priorityElement.textContent = (campaign.priority || 'medium').toUpperCase();
     }
     
     // Metrics
@@ -1505,14 +1496,6 @@ function getRelativeDate(dateString) {
     return `${Math.ceil(diffDays / 365)} years ago`;
 }
 
-function getPriorityBadgeClass(priority) {
-    const priorityClasses = {
-        'high': 'bg-danger',
-        'medium': 'bg-warning',
-        'low': 'bg-success'
-    };
-    return priorityClasses[priority] || 'bg-secondary';
-}
 
 // Add a flag to prevent multiple simultaneous deletions
 let isDeletingCampaigns = false;

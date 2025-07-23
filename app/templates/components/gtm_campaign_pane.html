@@ -143,37 +143,6 @@
                             </div>
                         </div>
                         
-                        <div class="mb-4">
-                            <label for="campaignDescription" class="form-label fw-semibold">Campaign Description</label>
-                            <textarea class="form-control" id="campaignDescription" rows="4" 
-                                      placeholder="Describe the goals and strategy of your campaign..."></textarea>
-                            <div class="form-text">Optional: Provide additional context for this campaign</div>
-                        </div>
-
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-4">
-                                    <label for="campaignGoal" class="form-label fw-semibold">Primary Goal</label>
-                                    <select class="form-select" id="campaignGoal">
-                                        <option value="leads">Generate Leads</option>
-                                        <option value="meetings">Book Meetings</option>
-                                        <option value="sales">Drive Sales</option>
-                                        <option value="awareness">Build Awareness</option>
-                                        <option value="engagement">Increase Engagement</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-4">
-                                    <label for="campaignPriority" class="form-label fw-semibold">Priority Level</label>
-                                    <select class="form-select" id="campaignPriority">
-                                        <option value="medium">🔸 Medium Priority</option>
-                                        <option value="high">🔥 High Priority</option>
-                                        <option value="low">📝 Low Priority</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
                     </div>
 
                     <!-- Step 2: Contact Selection -->
@@ -639,22 +608,12 @@
                                                 </div>
                                             </div>
                                             <div class="row mt-3">
-                                                <div class="col-6">
-                                                    <div class="review-item">
-                                                        <strong>Priority:</strong>
-                                                        <span id="reviewPriority">Medium</span>
-                                                    </div>
-                                                </div>
-                                                <div class="col-6">
+                                                <div class="col-12">
                                                     <div class="review-item">
                                                         <strong>Follow-up:</strong>
                                                         <span id="reviewFollowup">3 days</span>
                                                     </div>
                                                 </div>
-                                            </div>
-                                            <div class="mt-3" id="reviewDescription">
-                                                <strong>Description:</strong>
-                                                <p class="text-muted mb-0" id="reviewDescriptionText">No description provided</p>
                                             </div>
                                             
                                             <!-- Email Sending Settings Review -->
@@ -791,10 +750,6 @@
                                     </div>
                                     <div class="col-md-6">
                                         <div class="mb-3">
-                                            <strong>Priority:</strong>
-                                            <span id="detailsCampaignPriority" class="badge">Loading...</span>
-                                        </div>
-                                        <div class="mb-3">
                                             <strong>Email Template:</strong>
                                             <div id="detailsEmailTemplate" class="text-muted">Loading...</div>
                                         </div>
@@ -803,10 +758,6 @@
                                             <div id="detailsFollowupDays" class="text-muted">Loading...</div>
                                         </div>
                                     </div>
-                                </div>
-                                <div class="mb-3">
-                                    <strong>Description:</strong>
-                                    <div id="detailsCampaignDescription" class="text-muted">Loading...</div>
                                 </div>
                                 <div class="row">
                                     <div class="col-md-6">

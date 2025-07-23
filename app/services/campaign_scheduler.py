@@ -695,18 +695,18 @@ class CampaignScheduler:
             except Exception as e:
                 current_app.logger.warning(f"Could not check email queue: {e}")
             
-            # Add recurring job to process pending email jobs every 30 seconds
+            # Add recurring job to process pending email jobs every 2 minutes
             self.scheduler.add_job(
                 func=process_pending_email_jobs,
                 trigger='interval',
-                seconds=30,
+                seconds=120,  # Reduced from 30 to 120 seconds to avoid connection overload
                 id='process_pending_emails',
                 replace_existing=True,
                 max_instances=1,  # Prevent overlapping executions
                 coalesce=True    # Merge missed executions
             )
             
-            current_app.logger.info("Background email processor scheduled (30s interval)")
+            current_app.logger.info("Background email processor scheduled (2min interval)")
             
         except Exception as e:
             current_app.logger.error(f"Failed to setup background jobs: {e}")
@@ -726,6 +726,11 @@ class CampaignScheduler:
             try:
                 self.scheduler.shutdown()
                 current_app.logger.info("Campaign scheduler stopped")
+                
+                # Clean up database connections
+                from app.models.campaign_email_job import CampaignEmailJob
+                CampaignEmailJob.close_engine()
+                
             except Exception as e:
                 current_app.logger.error(f"Failed to stop scheduler: {e}")
     

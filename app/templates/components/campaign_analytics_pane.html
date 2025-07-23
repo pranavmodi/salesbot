@@ -157,30 +157,44 @@ function loadAnalyticsData() {
     $('#analyticsError').hide();
     
     fetch(`/api/campaigns/${currentCampaignId}/analytics`)
-        .then(response => response.json())
+        .then(response => {
+            console.log('Analytics API response status:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
         .then(data => {
             $('#analyticsLoading').hide();
+            console.log('Analytics API response data:', data);
             if (data.success) {
                 analyticsData = data;
                 updateAnalyticsDisplay();
             } else {
+                console.error('Analytics API returned error:', data);
                 showAnalyticsError(data.message || 'Failed to load analytics data');
             }
         })
         .catch(error => {
             $('#analyticsLoading').hide();
-            showAnalyticsError('An unexpected error occurred.');
+            console.error('Analytics API fetch error:', error);
+            showAnalyticsError(`Error: ${error.message}`);
         });
 }
 
 function updateAnalyticsDisplay() {
     if (!analyticsData) return;
 
+    console.log('Analytics data received:', analyticsData);
+    
     const metrics = analyticsData.performance_metrics;
     if (!metrics) {
+        console.error('Performance metrics missing from analytics data:', analyticsData);
         showAnalyticsError("Performance metrics data is missing.");
         return;
     }
+    
+    console.log('Performance metrics:', metrics);
     
     $('#totalContacts').text(metrics.total_contacts.toLocaleString());
     $('#totalEmails').text(metrics.total_emails.toLocaleString());
