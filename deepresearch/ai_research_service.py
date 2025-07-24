@@ -21,9 +21,12 @@ class AIResearchService:
     
     def __init__(self):
         load_dotenv()
-        self.client = OpenAI(api_key=os.getenv("OPENAI_KEY"))
+        self.client = OpenAI(
+            api_key=os.getenv("OPENAI_KEY"),
+            timeout=120.0  # 2 minute timeout for API calls
+        )
         self.model = os.getenv("OPENAI_MODEL", "o3")
-        logger.info("AIResearchService initialized")
+        logger.info("AIResearchService initialized with 2-minute timeout")
 
     def research_company(self, company_name: str, company_domain: str = "") -> Optional[str]:
         """Use OpenAI to research a company and return comprehensive research."""
@@ -85,6 +88,7 @@ Company Details:
 Follow the exact structure provided in your system prompt. Begin now."""
 
         try:
+            logger.info(f"Making OpenAI API call for {company_name} research...")
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -94,11 +98,11 @@ Follow the exact structure provided in your system prompt. Begin now."""
             )
             
             research_content = response.choices[0].message.content.strip()
-            logger.info(f"Successfully researched {company_name}")
+            logger.info(f"Successfully researched {company_name} ({len(research_content)} characters)")
             return research_content
             
         except Exception as e:
-            logger.error(f"Error researching company {company_name}: {e}")
+            logger.error(f"Error researching company {company_name}: {type(e).__name__}: {e}")
             return None
 
     def generate_strategic_recommendations(self, company_name: str, research_content: str) -> Optional[str]:

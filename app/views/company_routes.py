@@ -88,7 +88,7 @@ def research_companies():
         
         # Start the research in a background thread
         research_thread = threading.Thread(target=run_research)
-        research_thread.daemon = True
+        research_thread.daemon = False  # Allow proper cleanup
         research_thread.start()
         
         return jsonify({
@@ -238,7 +238,7 @@ def research_single_company(company_id):
         
         # Start the research in a background thread
         research_thread = threading.Thread(target=run_step_by_step_research)
-        research_thread.daemon = True
+        research_thread.daemon = False  # Allow proper cleanup
         research_thread.start()
         
         return jsonify({
@@ -311,7 +311,7 @@ def resume_research(company_id):
         
         # Start the resume in a background thread
         resume_thread = threading.Thread(target=run_resume_research)
-        resume_thread.daemon = True
+        resume_thread.daemon = False  # Allow proper cleanup
         resume_thread.start()
         
         return jsonify({

@@ -92,15 +92,30 @@ class StepByStepResearcher:
             
             # Step 3: Report Generation
             logger.info(f"Step 3: Starting report generation for {company.company_name}")
-            markdown_report = self._generate_final_report(company, basic_research, strategic_analysis)
+            report_data = self._generate_final_report(company, basic_research, strategic_analysis)
             
-            if not markdown_report:
+            if not report_data:
                 Company.update_research_status(company_id, 'failed', 'Failed at report generation step')
                 return {'success': False, 'error': 'Failed to generate final report'}
             
-            # Store step 3 results and mark as completed
-            Company.update_full_research(company_id, basic_research, strategic_analysis, markdown_report)
-            logger.info(f"Step 3 completed for {company.company_name}")
+            # Store step 3 results with HTML/PDF data and mark as completed
+            success = self.db_service.update_company_research_with_reports(
+                company_id,
+                basic_research,
+                html_report=report_data['html_report'],
+                pdf_report_base64=report_data['pdf_report_base64'],
+                strategic_imperatives=report_data['strategic_imperatives'],
+                agent_recommendations=report_data['agent_recommendations']
+            )
+            
+            if success:
+                # Also update the step tracking and status
+                Company.update_research_step(company_id, 3, report_data['html_report'][:1000] + "...")  # Truncated for step tracking
+                Company.update_research_status(company_id, 'completed')
+                logger.info(f"Step 3 completed for {company.company_name}")
+            else:
+                Company.update_research_status(company_id, 'failed', 'Failed to save report data')
+                return {'success': False, 'error': 'Failed to save report data'}
             
             # Note: Markdown report is now only stored in database, not as disk file
             
@@ -227,19 +242,30 @@ class StepByStepResearcher:
             logger.error(f"Error in strategic analysis for {company.company_name}: {e}")
             return None
 
-    def _generate_final_report(self, company, basic_research: str, strategic_analysis: str) -> Optional[str]:
-        """Generate final markdown report (Step 3)."""
+    def _generate_final_report(self, company, basic_research: str, strategic_analysis: str) -> Optional[Dict[str, str]]:
+        """Generate final HTML/PDF report (Step 3)."""
         try:
-            # Generate markdown report
-            markdown_report = self.report_generator.generate_markdown_report(
+            # Generate strategic imperatives and agent recommendations
+            strategic_imperatives, agent_recommendations = self.ai_service.generate_strategic_imperatives_and_agent_recommendations(
+                company.company_name, 
+                basic_research
+            )
+            
+            # Generate HTML/PDF strategic report
+            report_data = self.report_generator.generate_strategic_report(
                 company.company_name,
                 basic_research,
                 strategic_analysis
             )
             
-            if markdown_report:
-                logger.info(f"Final report generated for {company.company_name}: {len(markdown_report)} characters")
-                return markdown_report
+            if report_data and report_data['html_report']:
+                logger.info(f"Final report generated for {company.company_name}: {len(report_data['html_report'])} characters")
+                return {
+                    'html_report': report_data['html_report'],
+                    'pdf_report_base64': report_data['pdf_report_base64'],
+                    'strategic_imperatives': strategic_imperatives,
+                    'agent_recommendations': agent_recommendations
+                }
             else:
                 logger.error(f"Failed to generate final report for {company.company_name}")
                 return None

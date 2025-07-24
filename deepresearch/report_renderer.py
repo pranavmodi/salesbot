@@ -16,17 +16,11 @@ from typing import Dict, Tuple, Optional
 from datetime import datetime
 from jinja2 import Environment, FileSystemLoader
 
-# Try to import WeasyPrint, fallback to HTML-only mode if dependencies missing
-try:
-    from weasyprint import HTML, CSS
-    from weasyprint.text.fonts import FontConfiguration
-    WEASYPRINT_AVAILABLE = True
-except ImportError as e:
-    logger.warning(f"WeasyPrint not available: {e}. PDF generation will be disabled.")
-    WEASYPRINT_AVAILABLE = False
-    HTML = None
-    CSS = None
-    FontConfiguration = None
+# WeasyPrint will be imported dynamically when needed
+WEASYPRINT_AVAILABLE = None  # Will be set on first use
+HTML = None
+CSS = None
+FontConfiguration = None
 
 logger = logging.getLogger(__name__)
 
@@ -45,13 +39,37 @@ class ReportRenderer:
             autoescape=True
         )
         
-        # Initialize WeasyPrint font configuration if available
-        if WEASYPRINT_AVAILABLE:
-            self.font_config = FontConfiguration()
-        else:
-            self.font_config = None
+        # Font configuration will be initialized when WeasyPrint is first used
+        self.font_config = None
         
         logger.info(f"ReportRenderer initialized with templates directory: {self.templates_dir}")
+
+    def _init_weasyprint(self) -> bool:
+        """Initialize WeasyPrint on first use. Returns True if successful."""
+        global WEASYPRINT_AVAILABLE, HTML, CSS, FontConfiguration
+        
+        if WEASYPRINT_AVAILABLE is not None:
+            return WEASYPRINT_AVAILABLE
+        
+        try:
+            from weasyprint import HTML as _HTML, CSS as _CSS
+            from weasyprint.text.fonts import FontConfiguration as _FontConfiguration
+            
+            HTML = _HTML
+            CSS = _CSS
+            FontConfiguration = _FontConfiguration
+            WEASYPRINT_AVAILABLE = True
+            
+            # Initialize font configuration
+            self.font_config = FontConfiguration()
+            
+            logger.info("WeasyPrint initialized successfully")
+            return True
+            
+        except Exception as e:
+            logger.warning(f"WeasyPrint not available: {e}. PDF generation will be disabled.")
+            WEASYPRINT_AVAILABLE = False
+            return False
 
     def render_strategic_report(self, company_name: str, strategic_content: str) -> Tuple[str, bytes]:
         """
@@ -81,7 +99,7 @@ class ReportRenderer:
             html_content = self._render_html_template(template_vars)
             
             # Generate PDF if WeasyPrint is available
-            if WEASYPRINT_AVAILABLE and self.font_config:
+            if self._init_weasyprint():
                 pdf_bytes = self._generate_pdf_from_html(html_content)
                 logger.info(f"Successfully rendered report for {company_name} (HTML: {len(html_content)} chars, PDF: {len(pdf_bytes)} bytes)")
             else:
@@ -106,7 +124,7 @@ class ReportRenderer:
 
     def _generate_pdf_from_html(self, html_content: str) -> bytes:
         """Generate PDF from HTML content using WeasyPrint."""
-        if not WEASYPRINT_AVAILABLE:
+        if not self._init_weasyprint():
             logger.warning("WeasyPrint not available, cannot generate PDF")
             return b''
             
