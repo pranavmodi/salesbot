@@ -71,7 +71,7 @@ class ReportRenderer:
             WEASYPRINT_AVAILABLE = False
             return False
 
-    def render_strategic_report(self, company_name: str, strategic_content: str) -> Tuple[str, bytes]:
+    def render_strategic_report(self, company_name: str, strategic_content: str, basic_research: str = None) -> Tuple[str, bytes]:
         """
         Render strategic report to both HTML and PDF formats.
         
@@ -85,6 +85,13 @@ class ReportRenderer:
         logger.info(f"Rendering strategic report for: {company_name}")
         
         try:
+            # Generate company-specific executive summary if basic research is provided
+            executive_summary = None
+            if basic_research:
+                from .ai_research_service import AIResearchService
+                ai_service = AIResearchService()
+                executive_summary = ai_service.generate_executive_summary(company_name, basic_research)
+            
             # Process strategic content for better HTML formatting
             formatted_content = self._format_strategic_content_for_html(strategic_content)
             
@@ -92,6 +99,7 @@ class ReportRenderer:
             template_vars = {
                 'company_name': company_name,
                 'strategic_content': formatted_content,
+                'executive_summary': executive_summary,
                 'generation_date': datetime.now().strftime('%B %d, %Y')
             }
             

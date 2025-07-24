@@ -38,7 +38,7 @@ class ReportGenerator:
         
         try:
             # Generate HTML and PDF using the renderer
-            html_content, pdf_bytes = self.renderer.render_strategic_report(company_name, strategic_content)
+            html_content, pdf_bytes = self.renderer.render_strategic_report(company_name, strategic_content, research_content)
             
             # Convert PDF to base64 for storage/transmission
             pdf_base64 = self.renderer.get_pdf_base64(pdf_bytes)

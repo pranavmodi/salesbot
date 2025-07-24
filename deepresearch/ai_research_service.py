@@ -239,3 +239,49 @@ Identify the 2 most critical strategic priorities for this company and propose s
         except Exception as e:
             logger.error(f"Error generating strategic imperatives and agent recommendations for {company_name}: {e}")
             return None, None
+
+    def generate_executive_summary(self, company_name: str, research_content: str) -> Optional[str]:
+        """Generate a company-specific executive summary with background and operating landscape."""
+        logger.info(f"Generating executive summary for: {company_name}")
+        
+        system_prompt = """You are a McKinsey senior partner writing an executive summary for a strategic analysis report. 
+
+Create a concise, company-specific executive summary (2-3 sentences) that includes:
+1. Company background and what they do
+2. Operating landscape/market context  
+3. Current state of play and strategic positioning
+
+Make it specific to the company, not generic. Use the company's actual business model, industry, and situation.
+Avoid generic phrases like "Based on comprehensive market analysis" or "competitive intelligence."
+Write in a professional, executive tone suitable for a board presentation.
+
+Example style:
+"[Company] operates as a [specific business model] in the [specific industry/market], serving [customer base] through [key channels/approach]. The company faces [specific market conditions/challenges] while positioned to capitalize on [specific opportunities]. Our analysis identifies critical strategic imperatives that can [specific outcomes for this company]."
+"""
+
+        user_prompt = f"""Based on this company research, write a company-specific executive summary:
+
+Company: {company_name}
+
+Research Content:
+{research_content}
+
+Write a professional executive summary that captures this specific company's background, operating landscape, and strategic situation."""
+
+        try:
+            logger.info(f"Making OpenAI API call for {company_name} executive summary...")
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ]
+            )
+            
+            executive_summary = response.choices[0].message.content.strip()
+            logger.info(f"Successfully generated executive summary for {company_name} ({len(executive_summary)} characters)")
+            return executive_summary
+            
+        except Exception as e:
+            logger.error(f"Error generating executive summary for company {company_name}: {type(e).__name__}: {e}")
+            return None
