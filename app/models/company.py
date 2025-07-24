@@ -15,6 +15,8 @@ class Company:
         self.website_url = data.get('website_url', '')
         self.company_research = data.get('company_research', '')
         self.markdown_report = data.get('markdown_report', '')
+        self.html_report = data.get('html_report', '')
+        self.pdf_report_base64 = data.get('pdf_report_base64', '')
         self.strategic_imperatives = data.get('strategic_imperatives', '')
         self.agent_recommendations = data.get('agent_recommendations', '')
         
@@ -61,7 +63,7 @@ class Company:
             with engine.connect() as conn:
                 result = conn.execute(text("""
                     SELECT id, company_name, website_url, company_research, markdown_report,
-                           strategic_imperatives, agent_recommendations,
+                           html_report, pdf_report_base64, strategic_imperatives, agent_recommendations,
                            research_status, research_step_1_basic, research_step_2_strategic, 
                            research_step_3_report, research_started_at, research_completed_at, 
                            research_error, created_at, updated_at
@@ -106,7 +108,7 @@ class Company:
                 offset = (page - 1) * per_page
                 result = conn.execute(text("""
                     SELECT id, company_name, website_url, company_research, markdown_report,
-                           strategic_imperatives, agent_recommendations,
+                           html_report, pdf_report_base64, strategic_imperatives, agent_recommendations,
                            research_status, research_step_1_basic, research_step_2_strategic, 
                            research_step_3_report, research_started_at, research_completed_at, 
                            research_error, created_at, updated_at
@@ -146,7 +148,7 @@ class Company:
             with engine.connect() as conn:
                 result = conn.execute(text("""
                     SELECT id, company_name, website_url, company_research, markdown_report,
-                           strategic_imperatives, agent_recommendations,
+                           html_report, pdf_report_base64, strategic_imperatives, agent_recommendations,
                            research_status, research_step_1_basic, research_step_2_strategic, 
                            research_step_3_report, research_started_at, research_completed_at, 
                            research_error, created_at, updated_at
@@ -179,7 +181,7 @@ class Company:
             with engine.connect() as conn:
                 result = conn.execute(text("""
                     SELECT id, company_name, website_url, company_research, markdown_report,
-                           strategic_imperatives, agent_recommendations,
+                           html_report, pdf_report_base64, strategic_imperatives, agent_recommendations,
                            research_status, research_step_1_basic, research_step_2_strategic, 
                            research_step_3_report, research_started_at, research_completed_at, 
                            research_error, created_at, updated_at
@@ -211,7 +213,7 @@ class Company:
             with engine.connect() as conn:
                 result = conn.execute(text("""
                     SELECT id, company_name, website_url, company_research, markdown_report,
-                           strategic_imperatives, agent_recommendations,
+                           html_report, pdf_report_base64, strategic_imperatives, agent_recommendations,
                            research_status, research_step_1_basic, research_step_2_strategic, 
                            research_step_3_report, research_started_at, research_completed_at, 
                            research_error, created_at, updated_at
@@ -513,6 +515,8 @@ class Company:
             'website_url': self.website_url,
             'company_research': self.company_research,
             'markdown_report': self.markdown_report,
+            'html_report': self.html_report,
+            'pdf_report_base64': self.pdf_report_base64,
             'strategic_imperatives': self.strategic_imperatives,
             'agent_recommendations': self.agent_recommendations,
             'research_status': self.research_status,
@@ -537,7 +541,7 @@ class Company:
             with engine.connect() as conn:
                 query = text("""
                     SELECT id, company_name, website_url, company_research, markdown_report,
-                           strategic_imperatives, agent_recommendations
+                           html_report, pdf_report_base64, strategic_imperatives, agent_recommendations
                     FROM companies 
                     WHERE LOWER(company_name) LIKE LOWER(:company_name)
                     ORDER BY company_name
@@ -553,6 +557,8 @@ class Company:
                         'website_url': row.website_url,
                         'company_research': row.company_research,
                         'markdown_report': row.markdown_report,
+                        'html_report': row.html_report,
+                        'pdf_report_base64': row.pdf_report_base64,
                         'strategic_imperatives': row.strategic_imperatives,
                         'agent_recommendations': row.agent_recommendations
                     })

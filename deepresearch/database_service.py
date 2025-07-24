@@ -359,4 +359,57 @@ class DatabaseService:
             return False
         except Exception as e:
             logger.error(f"Unexpected error updating company {company_name}: {e}")
-            return False 
+            return False
+
+    def update_company_research_with_reports(self, company_id: int, research: str, html_report: str = None, 
+                                           pdf_report_base64: str = None, strategic_imperatives: str = None, 
+                                           agent_recommendations: str = None) -> bool:
+        """Update company research with HTML/PDF reports and strategic data."""
+        logger.info(f"Updating research with reports for company ID: {company_id}")
+        
+        try:
+            with self.engine.connect() as conn:
+                with conn.begin():
+                    update_params = {
+                        'research': research,
+                        'company_id': company_id
+                    }
+                    
+                    update_fields = ['company_research = :research']
+                    
+                    if html_report is not None:
+                        update_fields.append('html_report = :html_report')
+                        update_params['html_report'] = html_report
+                    
+                    if pdf_report_base64 is not None:
+                        update_fields.append('pdf_report_base64 = :pdf_report_base64')
+                        update_params['pdf_report_base64'] = pdf_report_base64
+                    
+                    if strategic_imperatives is not None:
+                        update_fields.append('strategic_imperatives = :strategic_imperatives')
+                        update_params['strategic_imperatives'] = strategic_imperatives
+                    
+                    if agent_recommendations is not None:
+                        update_fields.append('agent_recommendations = :agent_recommendations')
+                        update_params['agent_recommendations'] = agent_recommendations
+                    
+                    update_query = text(f"""
+                        UPDATE companies 
+                        SET {', '.join(update_fields)}, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :company_id
+                    """)
+                    result = conn.execute(update_query, update_params)
+                    
+                    if result.rowcount > 0:
+                        logger.info(f"Successfully updated research with reports for company ID: {company_id}")
+                        return True
+                    else:
+                        logger.warning(f"No company found with ID: {company_id}")
+                        return False
+            
+        except SQLAlchemyError as e:
+            logger.error(f"Database error updating company reports {company_id}: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error updating company reports {company_id}: {e}")
+            return False

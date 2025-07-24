@@ -136,7 +136,7 @@ Founder, <a href="https://possibleminds.in">Possible Minds</a>
             
             # Get the company data to verify report exists
             company = Company.get_by_id(company_id)
-            if not company or not company.markdown_report:
+            if not company or not company.html_report:
                 return ""
             
             # First, publish the report to possibleminds.in
@@ -166,7 +166,8 @@ Founder, <a href="https://possibleminds.in">Possible Minds</a>
                 "company_website": company.website_url or "",
                 "contact_id": f"contact_{recipient_email.split('@')[0]}",
                 "generated_date": datetime.now().strftime("%Y-%m-%d"),
-                "markdown_report": company.markdown_report,
+                "html_report": company.html_report,
+                "pdf_report_base64": company.pdf_report_base64 or "",
                 "strategic_imperatives": company.strategic_imperatives or "Strategic imperatives analysis pending - comprehensive assessment of business priorities and transformation opportunities.",
                 "agent_recommendations": company.agent_recommendations or "AI agent recommendations analysis pending - tailored automation solutions and intelligent system implementations."
             }
@@ -250,10 +251,10 @@ Founder, <a href="https://possibleminds.in">Possible Minds</a>
             
             company = companies[0]  # Take first match
             
-            # Check if we have a published markdown report (full research completed)
-            if hasattr(company, 'markdown_report') and company.markdown_report:
+            # Check if we have a published HTML report (full research completed)
+            if hasattr(company, 'html_report') and company.html_report:
                 # Use basic research for email context, but we have the full report published
-                research_text = company.research_step_1_basic or company.company_research or company.markdown_report[:500] + "..."
+                research_text = company.research_step_1_basic or company.company_research or "Strategic analysis report available"
                 return research_text, company.id
             
             # Check if we have basic research but need full report
@@ -316,7 +317,7 @@ Founder, <a href="https://possibleminds.in">Possible Minds</a>
                     elapsed_time += poll_interval
                     
                     company = Company.get_by_id(company_id)
-                    if company and company.research_status == 'completed' and company.markdown_report:
+                    if company and company.research_status == 'completed' and company.html_report:
                         research_text = company.research_step_1_basic or company.company_research or "Research completed - see full report for details."
                         return research_text, company_id
                     elif company and company.research_step_1_basic:

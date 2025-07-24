@@ -65,6 +65,30 @@ source salesbot/bin/activate
 pip install -r requirements.txt
 ```
 
+#### System Dependencies for PDF Generation
+
+The project uses WeasyPrint for PDF report generation, which requires additional system libraries:
+
+**macOS (using Homebrew):**
+```bash
+brew install pango gdk-pixbuf cairo glib
+brew link glib  # If not automatically linked
+```
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get install libpango-1.0-0 libharfbuzz0b libpangoft2-1.0-0 libfribidi0 libcairo2 libglib2.0-0
+```
+
+**Important:** After installing system dependencies, restart the Flask application to ensure the new libraries are properly loaded.
+
+**Troubleshooting Library Issues on macOS:**
+If you still get `libgobject-2.0-0` or similar library errors after installing dependencies, the Flask application automatically sets the proper library paths. However, you can also manually set the environment variable:
+
+```bash
+export DYLD_LIBRARY_PATH="/usr/local/lib:/usr/local/opt/glib/lib:/usr/local/opt/pango/lib:/usr/local/opt/cairo/lib:/usr/local/opt/gdk-pixbuf/lib:$DYLD_LIBRARY_PATH"
+```
+
 ### 4. Run Data Ingestion
 
 ```bash

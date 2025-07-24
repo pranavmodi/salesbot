@@ -13,4 +13,10 @@ google-analytics-data
 # HTML/PDF Report Generation
 markdown==3.6
 pdfkit==1.0.0
-WeasyPrint==62.3 
+WeasyPrint==62.3
+Jinja2==3.1.4
+
+# Note: WeasyPrint requires system dependencies on macOS:
+# brew install pango gdk-pixbuf cairo glib
+# brew link glib (if not automatically linked)
+# On Ubuntu/Debian: apt-get install libpango-1.0-0 libharfbuzz0b libpangoft2-1.0-0 libglib2.0-0 

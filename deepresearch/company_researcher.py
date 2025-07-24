@@ -80,16 +80,20 @@ class CompanyResearcher:
                     strategic_imperatives, agent_recommendations = self.ai_service.generate_strategic_imperatives_and_agent_recommendations(company_name, research)
                     
                     if strategic_analysis:
-                        # Generate markdown report content
-                        markdown_content = self.report_generator.generate_markdown_report(company_name, research, strategic_analysis)
+                        # Generate HTML/PDF report content
+                        report_data = self.report_generator.generate_strategic_report(company_name, research, strategic_analysis)
                         
-                        # Update database with markdown report and new fields
-                        if self.db_service.update_company_research(company_id, research, markdown_content, strategic_imperatives, agent_recommendations):
-                            logger.info(f"📊 Successfully updated database with markdown report and strategic data for: {company_name}")
+                        # Update database with HTML report and new fields
+                        if self.db_service.update_company_research_with_reports(
+                            company_id, research, 
+                            html_report=report_data['html_report'],
+                            pdf_report_base64=report_data['pdf_report_base64'],
+                            strategic_imperatives=strategic_imperatives, 
+                            agent_recommendations=agent_recommendations
+                        ):
+                            logger.info(f"📊 Successfully updated database with HTML/PDF report and strategic data for: {company_name}")
                         else:
-                            logger.warning(f"⚠️ Failed to update database with markdown report for: {company_name}")
-                        
-                        # Note: Markdown report is now only stored in database, not as disk file
+                            logger.warning(f"⚠️ Failed to update database with HTML/PDF report for: {company_name}")
                     else:
                         logger.warning(f"⚠️ Failed to generate strategic analysis for: {company_name}")
                         # Still save strategic imperatives and agent recommendations even if strategic analysis failed

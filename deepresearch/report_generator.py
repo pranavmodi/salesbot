@@ -11,6 +11,8 @@ Handles markdown report generation and file operations for:
 import os
 import time
 import logging
+from typing import Dict, Tuple
+from .report_renderer import ReportRenderer
 
 logger = logging.getLogger(__name__)
 
@@ -23,62 +25,43 @@ class ReportGenerator:
         else:
             self.reports_dir = reports_base_dir
         
+        # Initialize report renderer
+        self.renderer = ReportRenderer()
+        
         # Create reports directory if it doesn't exist
         os.makedirs(self.reports_dir, exist_ok=True)
-        logger.info(f"ReportGenerator initialized with reports directory: {self.reports_dir}")
+        logger.info(f"ReportGenerator initialized with HTML/PDF rendering")
 
+    def generate_strategic_report(self, company_name: str, research_content: str, strategic_content: str) -> Dict[str, str]:
+        """Generate McKinsey-style client-facing strategic report in HTML and PDF formats."""
+        logger.info(f"Generating strategic report for: {company_name}")
+        
+        try:
+            # Generate HTML and PDF using the renderer
+            html_content, pdf_bytes = self.renderer.render_strategic_report(company_name, strategic_content)
+            
+            # Convert PDF to base64 for storage/transmission
+            pdf_base64 = self.renderer.get_pdf_base64(pdf_bytes)
+            
+            logger.info(f"Successfully generated strategic report for: {company_name}")
+            
+            return {
+                'html_report': html_content,
+                'pdf_report_base64': pdf_base64,
+                'pdf_bytes': pdf_bytes  # For immediate use
+            }
+            
+        except Exception as e:
+            logger.error(f"Error generating strategic report for {company_name}: {e}")
+            raise
+
+    # Legacy method kept for backward compatibility - will be removed
     def generate_markdown_report(self, company_name: str, research_content: str, strategic_content: str) -> str:
-        """Generate McKinsey-style client-facing strategic report."""
-        logger.info(f"Generating client-facing strategic report for: {company_name}")
-        
-        # Create polished client report with better formatting
-        formatted_content = self._format_strategic_content(strategic_content)
-        
-        full_report = f"""# Strategic Analysis: {company_name}
-
-## Executive Summary
-
-Based on comprehensive market analysis and competitive intelligence, we have identified key strategic imperatives and AI agent opportunities that can accelerate **{company_name}'s** growth and operational excellence.
-
----
-
-{formatted_content}
-
----
-
-*Strategic analysis prepared by [Possible Minds](https://possibleminds.in)* | *Generated on {time.strftime('%B %d, %Y')}*"""
-        
-        logger.info(f"Successfully generated markdown report for: {company_name}")
-        return full_report
-
-    def _format_strategic_content(self, content: str) -> str:
-        """Format strategic content for better readability."""
-        # Add proper spacing and visual hierarchy
-        formatted = content
-        
-        # Add spacing after strategic imperatives headers
-        formatted = formatted.replace('### Strategic Imperative', '\n### 🎯 Strategic Imperative')
-        
-        # Format AI Agent Recommendations section
-        formatted = formatted.replace('## AI Agent Recommendations', '\n## 🤖 AI Agent Recommendations')
-        
-        # Format Expected Business Impact section  
-        formatted = formatted.replace('## Expected Business Impact', '\n## 📈 Expected Business Impact')
-        
-        # Add better formatting for context/opportunity/impact sections
-        formatted = formatted.replace('**Context:**', '\n**📋 Context:**')
-        formatted = formatted.replace('**AI Agent Opportunity:**', '\n**🚀 AI Agent Opportunity:**')
-        formatted = formatted.replace('**Expected Impact:**', '\n**💰 Expected Impact:**')
-        
-        # Add spacing for priority items
-        formatted = formatted.replace('**Priority 1:**', '\n**🥇 Priority 1:**')
-        formatted = formatted.replace('**Priority 2:**', '\n🥈 **Priority 2:**')
-        
-        # Clean up extra newlines and ensure proper spacing
-        import re
-        formatted = re.sub(r'\n{3,}', '\n\n', formatted)
-        
-        return formatted.strip()
+        """Legacy method - use generate_strategic_report instead."""
+        logger.warning("generate_markdown_report is deprecated, use generate_strategic_report")
+        result = self.generate_strategic_report(company_name, research_content, strategic_content)
+        # Return HTML content as fallback
+        return result['html_report']
 
     def write_markdown_report(self, company_name: str, company_research: str, strategic_analysis: str) -> bool:
         """Write combined research and strategic analysis to markdown file."""
