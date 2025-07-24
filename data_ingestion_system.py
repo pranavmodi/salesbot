@@ -50,7 +50,13 @@ class ContactDataIngester:
             raise ValueError("DATABASE_URL environment variable not set")
         
         try:
-            self.engine = create_engine(database_url)
+            self.engine = create_engine(
+                database_url,
+                pool_size=5,          # Maximum number of permanent connections
+                max_overflow=10,      # Maximum number of overflow connections  
+                pool_pre_ping=True,   # Verify connections before use
+                pool_recycle=3600     # Recycle connections every hour
+            )
             self.Session = sessionmaker(bind=self.engine)
             logger.info("Connected to PostgreSQL database successfully")
         except Exception as e:
