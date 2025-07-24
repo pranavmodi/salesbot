@@ -144,71 +144,89 @@ class ReportRenderer:
         """Format strategic content from markdown to HTML-friendly format."""
         formatted = content
         
-        # Convert markdown headers to HTML
-        formatted = re.sub(r'^### (.*)', r'<div class="strategic-imperative"><div class="imperative-title">\1</div>', formatted, flags=re.MULTILINE)
+        # First, split content by strategic imperatives to handle them separately
+        imperative_sections = re.split(r'^### (.*?)$', formatted, flags=re.MULTILINE)
+        
+        if len(imperative_sections) > 1:
+            # Process each strategic imperative section separately
+            result_parts = [imperative_sections[0]]  # Keep any content before first ###
+            
+            for i in range(1, len(imperative_sections), 2):
+                if i + 1 < len(imperative_sections):
+                    title = imperative_sections[i]
+                    content_section = imperative_sections[i + 1]
+                    
+                    # Format this individual imperative
+                    formatted_section = self._format_single_imperative(title, content_section)
+                    result_parts.append(formatted_section)
+            
+            formatted = ''.join(result_parts)
+        else:
+            # No strategic imperatives found, format as regular content
+            formatted = self._format_regular_content(formatted)
+        
+        return formatted.strip()
+
+    def _format_single_imperative(self, title: str, content: str) -> str:
+        """Format a single strategic imperative with proper div nesting."""
+        # Create the imperative container
+        result = f'<div class="strategic-imperative"><div class="imperative-title">{title.strip()}</div>'
         
         # Format context sections
-        formatted = re.sub(
+        content = re.sub(
             r'\*\*📋 Context:\*\*(.*?)(?=\*\*🚀|$)', 
             r'<div class="section-label"><span class="emoji">📋</span> Context:</div><div class="section-content">\1</div>', 
-            formatted, 
+            content, 
             flags=re.DOTALL
         )
         
         # Format AI Agent Opportunity sections
-        formatted = re.sub(
+        content = re.sub(
             r'\*\*🚀 AI Agent Opportunity:\*\*(.*?)(?=\*\*💰|$)', 
             r'<div class="section-label"><span class="emoji">🚀</span> AI Agent Opportunity:</div><div class="section-content">\1</div>', 
-            formatted, 
+            content, 
             flags=re.DOTALL
         )
         
         # Format Expected Impact sections
-        formatted = re.sub(
-            r'\*\*💰 Expected Impact:\*\*(.*?)(?=</div>|###|##|$)', 
-            r'<div class="section-label"><span class="emoji">💰</span> Expected Impact:</div><div class="section-content">\1</div></div>', 
-            formatted, 
+        content = re.sub(
+            r'\*\*💰 Expected Impact:\*\*(.*?)(?=###|##|$)', 
+            r'<div class="section-label"><span class="emoji">💰</span> Expected Impact:</div><div class="section-content">\1</div>', 
+            content, 
             flags=re.DOTALL
         )
         
-        # Format main sections
-        formatted = re.sub(r'^## (🤖 AI Agent Recommendations)', r'<h2>\1</h2>', formatted, flags=re.MULTILINE)
-        formatted = re.sub(r'^## (📈 Expected Business Impact)', r'<h2>\1</h2>', formatted, flags=re.MULTILINE)
-        
-        # Format priority recommendations
-        formatted = re.sub(
-            r'\*\*🥇 Priority 1:\*\*(.*?)(?=- \*\*Use Case|\*\*🥈|$)', 
-            r'<div class="recommendations-grid"><div class="priority-card"><div class="priority-title"><span class="emoji">🥇</span> Priority 1:\1</div>', 
-            formatted, 
+        # Add the formatted content and close the imperative div
+        result += content + '</div>'
+        return result
+
+    def _format_regular_content(self, content: str) -> str:
+        """Format content that doesn't have strategic imperatives."""
+        # Format context sections
+        content = re.sub(
+            r'\*\*📋 Context:\*\*(.*?)(?=\*\*🚀|$)', 
+            r'<div class="section-label"><span class="emoji">📋</span> Context:</div><div class="section-content">\1</div>', 
+            content, 
             flags=re.DOTALL
         )
         
-        formatted = re.sub(
-            r'🥈 \*\*Priority 2:\*\*(.*?)(?=- \*\*Use Case|$)', 
-            r'</div><div class="priority-card"><div class="priority-title"><span class="emoji">🥈</span> Priority 2:\1</div>', 
-            formatted, 
+        # Format AI Agent Opportunity sections
+        content = re.sub(
+            r'\*\*🚀 AI Agent Opportunity:\*\*(.*?)(?=\*\*💰|$)', 
+            r'<div class="section-label"><span class="emoji">🚀</span> AI Agent Opportunity:</div><div class="section-content">\1</div>', 
+            content, 
             flags=re.DOTALL
         )
         
-        # Format use cases and business impact within priority cards
-        formatted = re.sub(r'- \*\*Use Case:\*\*(.*?)(?=- \*\*Business Impact|$)', r'<div><strong>Use Case:</strong>\1</div>', formatted, flags=re.DOTALL)
-        formatted = re.sub(r'- \*\*Business Impact:\*\*(.*?)(?=</div>|$)', r'<div><strong>Business Impact:</strong>\1</div></div>', formatted, flags=re.DOTALL)
+        # Format Expected Impact sections
+        content = re.sub(
+            r'\*\*💰 Expected Impact:\*\*(.*?)(?=###|##|$)', 
+            r'<div class="section-label"><span class="emoji">💰</span> Expected Impact:</div><div class="section-content">\1</div>', 
+            content, 
+            flags=re.DOTALL
+        )
         
-        # Close recommendations grid
-        if '🥈' in formatted:
-            formatted += '</div>'
-        
-        # Format impact lists
-        formatted = re.sub(r'^- (.*)', r'<ul class="impact-list"><li>\1</li></ul>', formatted, flags=re.MULTILINE)
-        
-        # Merge consecutive list items
-        formatted = re.sub(r'</ul>\s*<ul class="impact-list">', '', formatted)
-        
-        # Clean up extra newlines and whitespace
-        formatted = re.sub(r'\n{3,}', '\n\n', formatted)
-        formatted = re.sub(r'<div class="section-content">\s*\n\s*', '<div class="section-content">', formatted)
-        
-        return formatted.strip()
+        return content
 
     def get_pdf_base64(self, pdf_bytes: bytes) -> str:
         """Convert PDF bytes to base64 string for API payload."""
