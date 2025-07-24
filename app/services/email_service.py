@@ -97,7 +97,7 @@ class EmailService:
         """
         # TEMPORARY: Send all emails to a specific address for testing
         original_recipient = recipient_email
-        recipient_email = "pranav.modi@gmail.com"
+        # recipient_email = "pranav.modi@gmail.com"
         
         try:
             from email.message import EmailMessage
