@@ -106,60 +106,120 @@ Follow the exact structure provided in your system prompt. Begin now."""
             return None
 
     def generate_strategic_recommendations(self, company_name: str, research_content: str) -> Optional[str]:
-        """Generate executive-level strategic recommendations based on research."""
-        logger.info(f"Generating strategic recommendations for: {company_name}")
+        """Generate executive-level strategic recommendations based on research using structured outputs."""
+        logger.info(f"Generating strategic recommendations for: {company_name} with structured outputs")
         
-        system_prompt = f"""You are a McKinsey senior partner writing a strategic brief for {company_name}'s executive team. Create a crisp, data-driven analysis that identifies their key strategic imperatives and explains how AI agents can help achieve them.
+        # Define JSON schema for structured output
+        response_schema = {
+            "type": "object",
+            "properties": {
+                "introduction": {
+                    "type": "string",
+                    "description": "Opening statement about the analysis"
+                },
+                "strategic_imperatives": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "title": {
+                                "type": "string",
+                                "description": "Clear, action-oriented imperative title"
+                            },
+                            "context": {
+                                "type": "string",
+                                "description": "1-2 concise sentences explaining the current challenge/opportunity"
+                            },
+                            "ai_agent_opportunity": {
+                                "type": "string",
+                                "description": "2-3 detailed paragraphs explaining how AI agents solve this problem"
+                            },
+                            "expected_impact": {
+                                "type": "string",
+                                "description": "Quantifiable business outcome with specific metrics"
+                            }
+                        },
+                        "required": ["title", "context", "ai_agent_opportunity", "expected_impact"],
+                        "additionalProperties": False
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                },
+                "ai_agent_recommendations": {
+                    "type": "object",
+                    "properties": {
+                        "introduction": {
+                            "type": "string",
+                            "description": "Introduction to the recommendations"
+                        },
+                        "priorities": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "title": {
+                                        "type": "string",
+                                        "description": "Specific AI agent application title"
+                                    },
+                                    "use_case": {
+                                        "type": "string",
+                                        "description": "Concrete business application with specific details"
+                                    },
+                                    "business_impact": {
+                                        "type": "string",
+                                        "description": "Expected ROI/efficiency gain with numbers"
+                                    }
+                                },
+                                "required": ["title", "use_case", "business_impact"],
+                                "additionalProperties": False
+                            },
+                            "minItems": 2,
+                            "maxItems": 2
+                        }
+                    },
+                    "required": ["introduction", "priorities"],
+                    "additionalProperties": False
+                },
+                "expected_business_impact": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "description": "Specific metric/improvement with percentage/dollar amounts or competitive advantage"
+                    },
+                    "minItems": 3,
+                    "maxItems": 3
+                }
+            },
+            "required": ["introduction", "strategic_imperatives", "ai_agent_recommendations", "expected_business_impact"],
+            "additionalProperties": False
+        }
 
-Structure your response as follows:
+        system_prompt = f"""You are a McKinsey senior partner writing a strategic brief for {company_name}'s executive team. Create a crisp, data-driven analysis that identifies their key strategic imperatives and explains how AI agents can radically transform their business to achieve competitive advantage.
 
-Based on our analysis of {company_name}'s market position, competitive landscape, and operational context, we have identified the following strategic imperatives:
+Focus on how AI agents can solve fundamental problems, automate complex workflows, and create unfair advantages that competitors cannot easily replicate. Be specific about agent capabilities, data integration, and measurable business impact.
 
-### Strategic Imperative 1: [Clear, action-oriented imperative]
+For each AI Agent Opportunity section, think like a technology visionary explaining how AI can radically transform the business:
+- Describe the current manual/inefficient process that's holding them back
+- Explain the specific AI agent capabilities that solve this (data processing, automation, decision-making)
+- Detail the technical implementation (what data sources, what workflows, what learning mechanisms)
+- Emphasize how this creates a competitive moat that others can't easily copy
+- Use concrete examples of what the AI agents would actually do day-to-day
 
-**Context:** [1-2 concise sentences on why this is critical now]
+You must return your response in the exact JSON format specified in the schema. Write detailed, professional content for each section.
 
-**AI Agent Opportunity:** [Specific ways AI agents can accelerate this imperative - be concrete about the agent capabilities]
+Guidelines:
+- Introduction: Start with "Based on our analysis of {company_name}'s market position, competitive landscape, and operational context, we have identified the following strategic imperatives:"
+- Strategic Imperatives: Exactly 2 imperatives with clear titles, context, detailed AI agent opportunities (2-3 paragraphs), and quantifiable expected impact
+- AI Agent Recommendations: Introduction and exactly 2 priority recommendations with specific use cases and business impact metrics
+- Expected Business Impact: Exactly 3 specific improvements with numbers/percentages or competitive advantages
 
-**Expected Impact:** [Quantifiable business outcome with specific metrics/percentages]
+Keep content professional, data-driven, and specific to AI agent applications. Total length should be 400-500 words."""
 
-### Strategic Imperative 2: [Clear, action-oriented imperative]
-
-**Context:** [1-2 concise sentences on why this is critical now]
-
-**AI Agent Opportunity:** [Specific ways AI agents can accelerate this imperative - be concrete about the agent capabilities]
-
-**Expected Impact:** [Quantifiable business outcome with specific metrics/percentages]
-
-## AI Agent Recommendations
-
-Based on {company_name}'s strategic priorities, we recommend focusing AI agent implementation on:
-
-**Priority 1:** [Specific AI agent application]
-
-- **Use Case:** [Concrete business application with specific details]
-- **Business Impact:** [Expected ROI/efficiency gain with numbers]
-
-**Priority 2:** [Specific AI agent application]
-
-- **Use Case:** [Concrete business application with specific details]
-- **Business Impact:** [Expected ROI/efficiency gain with numbers]
-
-## Expected Business Impact
-
-Implementation of these AI agent solutions can deliver:
-
-- [Specific metric/improvement with percentage/dollar amounts]
-- [Specific metric/improvement with percentage/dollar amounts]  
-- [Competitive advantage gained - be specific]
-
-Keep the tone professional and consultative. Use data-driven insights with specific numbers. Be concrete about AI agent applications. Total length: 400-500 words maximum."""
-
-        user_prompt = f"""Based on the following research analysis of {company_name}, generate strategic recommendations:
+        user_prompt = f"""Based on the following research analysis of {company_name}, generate strategic recommendations in the required JSON format:
 
 {research_content}
 
-Create a comprehensive strategic report following the structure provided in your system prompt."""
+Return a complete JSON response following the exact schema structure."""
 
         try:
             response = self.client.chat.completions.create(
@@ -167,16 +227,73 @@ Create a comprehensive strategic report following the structure provided in your
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
-                ]
+                ],
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "strategic_recommendations",
+                        "schema": response_schema,
+                        "strict": True
+                    }
+                }
             )
             
-            strategic_content = response.choices[0].message.content.strip()
-            logger.info(f"Successfully generated strategic recommendations for {company_name}")
-            return strategic_content
+            # Parse the structured JSON response
+            import json
+            structured_data = json.loads(response.choices[0].message.content)
+            
+            # Convert structured data to formatted HTML/markdown
+            formatted_content = self._format_structured_recommendations(structured_data)
+            
+            logger.info(f"Successfully generated structured strategic recommendations for {company_name}")
+            return formatted_content
             
         except Exception as e:
             logger.error(f"Error generating strategic recommendations for {company_name}: {e}")
             return None 
+
+    def _format_structured_recommendations(self, data: dict) -> str:
+        """Convert structured JSON data to formatted HTML/markdown for the report."""
+        html_parts = []
+        
+        # Add introduction
+        html_parts.append(data["introduction"])
+        html_parts.append("")
+        
+        # Add strategic imperatives
+        for i, imperative in enumerate(data["strategic_imperatives"], 1):
+            html_parts.append(f"### Strategic Imperative {i}: {imperative['title']}")
+            html_parts.append("")
+            html_parts.append(f"**📋 Context:** {imperative['context']}")
+            html_parts.append("")
+            html_parts.append(f"**🚀 AI Agent Opportunity:**")
+            html_parts.append(imperative['ai_agent_opportunity'])
+            html_parts.append("")
+            html_parts.append(f"**💰 Expected Impact:** {imperative['expected_impact']}")
+            html_parts.append("")
+        
+        # Add AI agent recommendations section
+        html_parts.append("## 🤖 AI Agent Recommendations")
+        html_parts.append("")
+        html_parts.append(data["ai_agent_recommendations"]["introduction"])
+        html_parts.append("")
+        
+        for i, priority in enumerate(data["ai_agent_recommendations"]["priorities"], 1):
+            html_parts.append(f"**Priority {i}:** {priority['title']}")
+            html_parts.append("")
+            html_parts.append(f"- **Use Case:** {priority['use_case']}")
+            html_parts.append(f"- **Business Impact:** {priority['business_impact']}")
+            html_parts.append("")
+        
+        # Add expected business impact
+        html_parts.append("## Expected Business Impact")
+        html_parts.append("")
+        html_parts.append("Implementation of these AI agent solutions can deliver:")
+        html_parts.append("")
+        for impact in data["expected_business_impact"]:
+            html_parts.append(f"- {impact}")
+        
+        return "\n".join(html_parts)
 
     def generate_strategic_imperatives_and_agent_recommendations(self, company_name: str, research_content: str) -> tuple[Optional[str], Optional[str]]:
         """Generate strategic imperatives and AI agent recommendations based on research."""

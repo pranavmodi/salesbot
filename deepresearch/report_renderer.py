@@ -149,11 +149,91 @@ class ReportRenderer:
             raise
 
     def _format_strategic_content_for_html(self, content: str) -> str:
-        """Format strategic content from markdown to HTML-friendly format."""
+        """Format strategic content from markdown to HTML-friendly format with structured output support."""
         formatted = content
         
+        # Check if content appears to be from structured outputs (well-formatted already)
+        if self._is_structured_output_format(content):
+            # Content is already well-structured, apply minimal formatting
+            formatted = self._format_structured_content(formatted)
+        else:
+            # Legacy content - use the original complex formatting logic
+            formatted = self._format_legacy_content(formatted)
+        
+        return formatted.strip()
+
+    def _is_structured_output_format(self, content: str) -> bool:
+        """Detect if content is from structured outputs (well-formatted already)."""
+        # Check for clean, consistent formatting patterns
+        has_strategic_imperatives = "### Strategic Imperative 1:" in content and "### Strategic Imperative 2:" in content
+        has_clean_sections = "**📋 Context:**" in content and "**🚀 AI Agent Opportunity:**" in content
+        has_recommendations = "## 🤖 AI Agent Recommendations" in content
+        
+        return has_strategic_imperatives and has_clean_sections and has_recommendations
+
+    def _format_structured_content(self, content: str) -> str:
+        """Format content that's already well-structured from structured outputs."""
+        formatted = content
+        
+        # Process each strategic imperative separately to ensure proper div closure
+        imperative_sections = re.split(r'^(### Strategic Imperative \d+: .+)$', formatted, flags=re.MULTILINE)
+        
+        if len(imperative_sections) > 1:
+            result_parts = [imperative_sections[0]]  # Keep any content before first imperative
+            
+            for i in range(1, len(imperative_sections), 2):
+                if i + 1 < len(imperative_sections):
+                    header = imperative_sections[i]
+                    content_section = imperative_sections[i + 1]
+                    
+                    # Format the header
+                    header_match = re.match(r'### Strategic Imperative (\d+): (.+)', header)
+                    if header_match:
+                        imperative_num = header_match.group(1)
+                        imperative_title = header_match.group(2)
+                        
+                        # Start the strategic imperative container
+                        formatted_section = f'<div class="strategic-imperative"><div class="imperative-title">Strategic Imperative {imperative_num}: {imperative_title}</div>'
+                        
+                        # Format the content sections within this imperative
+                        section_content = content_section
+                        
+                        # Format context sections
+                        section_content = re.sub(
+                            r'\*\*📋 Context:\*\* (.+?)(?=\*\*🚀|\n\n|$)',
+                            r'<div class="section-label"><span class="emoji">📋</span> Context:</div><div class="section-content">\1</div>',
+                            section_content,
+                            flags=re.DOTALL
+                        )
+                        
+                        # Format AI Agent Opportunity sections
+                        section_content = re.sub(
+                            r'\*\*🚀 AI Agent Opportunity:\*\*\n(.+?)(?=\*\*💰|$)',
+                            r'<div class="section-label"><span class="emoji">🚀</span> AI Agent Opportunity:</div><div class="section-content">\1</div>',
+                            section_content,
+                            flags=re.DOTALL
+                        )
+                        
+                        # Format Expected Impact sections
+                        section_content = re.sub(
+                            r'\*\*💰 Expected Impact:\*\* (.+?)(?=\n|$)',
+                            r'<div class="section-label"><span class="emoji">💰</span> Expected Impact:</div><div class="section-content">\1</div>',
+                            section_content,
+                            flags=re.DOTALL
+                        )
+                        
+                        # Close the strategic imperative container
+                        formatted_section += section_content + '</div>'
+                        result_parts.append(formatted_section)
+            
+            formatted = ''.join(result_parts)
+        
+        return formatted
+
+    def _format_legacy_content(self, content: str) -> str:
+        """Format legacy content using the original complex logic."""
         # First, split content by strategic imperatives to handle them separately
-        imperative_sections = re.split(r'^### (.*?)$', formatted, flags=re.MULTILINE)
+        imperative_sections = re.split(r'^### (.*?)$', content, flags=re.MULTILINE)
         
         if len(imperative_sections) > 1:
             # Process each strategic imperative section separately
@@ -171,9 +251,9 @@ class ReportRenderer:
             formatted = ''.join(result_parts)
         else:
             # No strategic imperatives found, format as regular content
-            formatted = self._format_regular_content(formatted)
+            formatted = self._format_regular_content(content)
         
-        return formatted.strip()
+        return formatted
 
     def _format_single_imperative(self, title: str, content: str) -> str:
         """Format a single strategic imperative with proper div nesting."""
