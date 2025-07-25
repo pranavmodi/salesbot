@@ -192,8 +192,9 @@ class ReportRenderer:
                         imperative_num = header_match.group(1)
                         imperative_title = header_match.group(2)
                         
-                        # Start the strategic imperative container
-                        formatted_section = f'<div class="strategic-imperative"><div class="imperative-title">Strategic Imperative {imperative_num}: {imperative_title}</div>'
+                        # Start the strategic imperative container with anchor ID
+                        imperative_id = f"imperative-{imperative_num}"
+                        formatted_section = f'<div class="strategic-imperative" id="{imperative_id}"><div class="imperative-title">Strategic Imperative {imperative_num}: {imperative_title}</div>'
                         
                         # Format the content sections within this imperative
                         section_content = content_section
@@ -244,8 +245,15 @@ class ReportRenderer:
                     title = imperative_sections[i]
                     content_section = imperative_sections[i + 1]
                     
-                    # Format this individual imperative
-                    formatted_section = self._format_single_imperative(title, content_section)
+                    # Extract imperative number from title if it matches the pattern
+                    imperative_num = None
+                    import re
+                    num_match = re.match(r'Strategic Imperative (\d+):', title)
+                    if num_match:
+                        imperative_num = int(num_match.group(1))
+                    
+                    # Format this individual imperative with number for anchor ID
+                    formatted_section = self._format_single_imperative(title, content_section, imperative_num)
                     result_parts.append(formatted_section)
             
             formatted = ''.join(result_parts)
@@ -255,10 +263,14 @@ class ReportRenderer:
         
         return formatted
 
-    def _format_single_imperative(self, title: str, content: str) -> str:
-        """Format a single strategic imperative with proper div nesting."""
-        # Create the imperative container
-        result = f'<div class="strategic-imperative"><div class="imperative-title">{title.strip()}</div>'
+    def _format_single_imperative(self, title: str, content: str, imperative_num: int = None) -> str:
+        """Format a single strategic imperative with proper div nesting and anchor ID."""
+        # Create the imperative container with anchor ID if number provided
+        if imperative_num:
+            imperative_id = f"imperative-{imperative_num}"
+            result = f'<div class="strategic-imperative" id="{imperative_id}"><div class="imperative-title">{title.strip()}</div>'
+        else:
+            result = f'<div class="strategic-imperative"><div class="imperative-title">{title.strip()}</div>'
         
         # Format context sections
         content = re.sub(

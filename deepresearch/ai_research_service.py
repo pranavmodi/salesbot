@@ -275,26 +275,31 @@ Return a complete JSON response following the exact schema structure."""
             html_parts.append(f"**💰 Expected Impact:** {imperative['expected_impact']}")
             html_parts.append("")
         
-        # Add AI agent recommendations section
-        html_parts.append("## 🤖 AI Agent Recommendations")
-        html_parts.append("")
-        html_parts.append(data["ai_agent_recommendations"]["introduction"])
-        html_parts.append("")
+        # Add AI agent recommendations section with proper HTML
+        html_parts.append('<div class="recommendations-section">')
+        html_parts.append('<h2><span class="emoji">🤖</span> AI Agent Recommendations</h2>')
+        html_parts.append(f'<p>{data["ai_agent_recommendations"]["introduction"]}</p>')
         
+        # Create grid layout for priority recommendations
+        html_parts.append('<div class="recommendations-grid">')
         for i, priority in enumerate(data["ai_agent_recommendations"]["priorities"], 1):
-            html_parts.append(f"**Priority {i}:** {priority['title']}")
-            html_parts.append("")
-            html_parts.append(f"- **Use Case:** {priority['use_case']}")
-            html_parts.append(f"- **Business Impact:** {priority['business_impact']}")
-            html_parts.append("")
+            html_parts.append('<div class="priority-card">')
+            html_parts.append(f'<div class="priority-title"><span class="emoji">🎯</span> Priority {i}: {priority["title"]}</div>')
+            html_parts.append(f'<div style="margin: 10px 0;"><strong>Use Case:</strong> {priority["use_case"]}</div>')
+            html_parts.append(f'<div style="margin: 10px 0;"><strong>Business Impact:</strong> {priority["business_impact"]}</div>')
+            html_parts.append('</div>')
+        html_parts.append('</div>')
+        html_parts.append('</div>')
         
-        # Add expected business impact
-        html_parts.append("## Expected Business Impact")
-        html_parts.append("")
-        html_parts.append("Implementation of these AI agent solutions can deliver:")
-        html_parts.append("")
+        # Add expected business impact section with proper HTML
+        html_parts.append('<div class="impact-section">')
+        html_parts.append('<h2>Expected Business Impact</h2>')
+        html_parts.append('<p>Implementation of these AI agent solutions can deliver:</p>')
+        html_parts.append('<ul class="impact-list">')
         for impact in data["expected_business_impact"]:
-            html_parts.append(f"- {impact}")
+            html_parts.append(f'<li>{impact}</li>')
+        html_parts.append('</ul>')
+        html_parts.append('</div>')
         
         return "\n".join(html_parts)
 
@@ -432,6 +437,10 @@ Write a professional executive summary that captures this specific company's bac
                     "type": "string",
                     "description": "4-5 sentences covering what the company does, business model, industry position, market context, current challenges, and strategic positioning"
                 },
+                "transition_statement": {
+                    "type": "string",
+                    "description": "One sentence introducing the strategic imperatives that follow, explaining what AI agents can deliver for this company"
+                },
                 "strategic_imperatives": {
                     "type": "array",
                     "items": {
@@ -453,7 +462,7 @@ Write a professional executive summary that captures this specific company's bac
                     "maxItems": 2
                 }
             },
-            "required": ["company_background", "strategic_imperatives"],
+            "required": ["company_background", "transition_statement", "strategic_imperatives"],
             "additionalProperties": False
         }
 
@@ -466,7 +475,9 @@ Create a company-specific executive summary with:
    - Current challenges and competitive landscape
    - Strategic positioning and growth stage
    
-2. Two strategic imperatives with concise AI impact statements that match these EXACT titles:
+2. Transition statement: One sentence introducing the strategic imperatives, explaining what AI agents can specifically deliver for this company's situation
+
+3. Two strategic imperatives with concise AI impact statements that match these EXACT titles:
    - "{imperative_matches[0]}" 
    - "{imperative_matches[1]}"
 
@@ -490,6 +501,7 @@ Strategic Analysis:
 
 Return a JSON response with:
 - company_background: 4-5 detailed sentences about the company's business, market position, challenges, and strategy
+- transition_statement: One sentence introducing what AI agents can deliver for this specific company
 - strategic_imperatives: Two items with exact titles and ONE concise sentence each about AI impact"""
 
         try:
@@ -527,16 +539,21 @@ Return a JSON response with:
             return self.generate_executive_summary(company_name, basic_research)
 
     def _format_structured_executive_summary(self, data: dict) -> str:
-        """Convert structured executive summary data to formatted HTML."""
+        """Convert structured executive summary data to formatted HTML with links to strategic imperatives."""
         parts = []
         
         # Add company background as paragraph (larger section)
         parts.append(f"<p>{data['company_background']}</p>")
         
-        # Add strategic imperatives as concise HTML list
+        # Add transition statement
+        parts.append(f"<p>{data['transition_statement']}</p>")
+        
+        # Add strategic imperatives as concise HTML list with links
         parts.append("<ul style='margin-top: 15px; padding-left: 0; list-style: none;'>")
-        for imperative in data["strategic_imperatives"]:
-            parts.append(f"<li style='margin-bottom: 12px; padding-left: 0;'><span style='color: #0066cc; font-weight: bold;'>•</span> <strong>{imperative['title']}</strong>: {imperative['ai_impact']}</li>")
+        for i, imperative in enumerate(data["strategic_imperatives"], 1):
+            # Create anchor link to the strategic imperative section
+            imperative_id = f"imperative-{i}"
+            parts.append(f"<li style='margin-bottom: 12px; padding-left: 0;'><span style='color: #0066cc; font-weight: bold;'>•</span> <a href=\"#{imperative_id}\" style='color: #0066cc; text-decoration: none; font-weight: bold;'>{imperative['title']}</a>: {imperative['ai_impact']}</li>")
         parts.append("</ul>")
         
         return "\n".join(parts)
