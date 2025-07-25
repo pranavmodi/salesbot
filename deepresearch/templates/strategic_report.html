@@ -230,7 +230,52 @@
         {% endif %}
     </div>
     
-    {% if strategic_content %}
+    {% if use_structured and strategic_data %}
+        <!-- Strategic Imperatives Section -->
+        {% for imperative in strategic_data.strategic_imperatives %}
+        <div class="strategic-imperative" id="imperative-{{ loop.index }}">
+            <div class="imperative-title">Strategic Imperative {{ loop.index }}: {{ imperative.title }}</div>
+            
+            <div class="section-label"><span class="emoji">📋</span> Context:</div>
+            <div class="section-content">{{ imperative.context }}</div>
+            
+            <div class="section-label"><span class="emoji">🚀</span> AI Agent Opportunity:</div>
+            <div class="section-content">{{ imperative.ai_agent_opportunity }}</div>
+            
+            <div class="section-label"><span class="emoji">💰</span> Expected Impact:</div>
+            <div class="section-content">{{ imperative.expected_impact }}</div>
+        </div>
+        {% endfor %}
+        
+        <!-- AI Agent Recommendations Section -->
+        <div class="recommendations-section">
+            <h2><span class="emoji">🤖</span> AI Agent Recommendations</h2>
+            <p>{{ strategic_data.ai_agent_recommendations.introduction }}</p>
+            
+            <div class="recommendations-grid">
+                {% for priority in strategic_data.ai_agent_recommendations.priorities %}
+                <div class="priority-card">
+                    <div class="priority-title"><span class="emoji">🎯</span> Priority {{ loop.index }}: {{ priority.title }}</div>
+                    <div style="margin: 8px 0; font-size: 0.9em; color: #666;"><strong>Addresses:</strong> {{ priority.imperative_reference }}</div>
+                    <div style="margin: 10px 0;"><strong>Use Case:</strong> {{ priority.use_case }}</div>
+                    <div style="margin: 10px 0;"><strong>Business Impact:</strong> {{ priority.business_impact }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <!-- Expected Business Impact Section -->
+        <div class="impact-section">
+            <h2>Expected Business Impact</h2>
+            <p>Implementation of these AI agent solutions can deliver:</p>
+            <ul class="impact-list">
+                {% for impact in strategic_data.expected_business_impact %}
+                <li>{{ impact }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        
+    {% elif strategic_content %}
         {{ strategic_content | safe }}
     {% endif %}
     

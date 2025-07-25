@@ -71,7 +71,7 @@ class ReportRenderer:
             WEASYPRINT_AVAILABLE = False
             return False
 
-    def render_strategic_report(self, company_name: str, strategic_content: str, basic_research: str = None) -> Tuple[str, bytes]:
+    def render_strategic_report(self, company_name: str, strategic_content, basic_research: str = None) -> Tuple[str, bytes]:
         """
         Render strategic report to both HTML and PDF formats.
         
@@ -90,18 +90,65 @@ class ReportRenderer:
             if basic_research and strategic_content:
                 from .ai_research_service import AIResearchService
                 ai_service = AIResearchService()
-                executive_summary = ai_service.generate_executive_summary_with_imperatives(company_name, basic_research, strategic_content)
+                # Convert structured data to text for executive summary generation if needed
+                strategic_text = strategic_content
+                if isinstance(strategic_content, dict):
+                    # Convert structured data back to text for executive summary generation
+                    strategic_text = ai_service._format_structured_recommendations(strategic_content)
+                elif isinstance(strategic_content, str):
+                    # Try to parse JSON string to get structured data for executive summary
+                    try:
+                        import json
+                        parsed_data = json.loads(strategic_content)
+                        strategic_text = ai_service._format_structured_recommendations(parsed_data)
+                    except (json.JSONDecodeError, TypeError):
+                        # If not JSON, use as-is
+                        strategic_text = strategic_content
+                executive_summary = ai_service.generate_executive_summary_with_imperatives(company_name, basic_research, strategic_text)
             
-            # Process strategic content for better HTML formatting
-            formatted_content = self._format_strategic_content_for_html(strategic_content)
-            
-            # Prepare template variables
-            template_vars = {
-                'company_name': company_name,
-                'strategic_content': formatted_content,
-                'executive_summary': executive_summary,
-                'generation_date': datetime.now().strftime('%B %d, %Y')
-            }
+            # Check if strategic_content is structured data (dict), JSON string, or HTML string
+            if isinstance(strategic_content, dict):
+                # Use structured data directly
+                template_vars = {
+                    'company_name': company_name,
+                    'strategic_data': strategic_content,
+                    'executive_summary': executive_summary,
+                    'generation_date': datetime.now().strftime('%B %d, %Y'),
+                    'use_structured': True
+                }
+            elif isinstance(strategic_content, str):
+                # Try to parse as JSON first
+                try:
+                    import json
+                    parsed_data = json.loads(strategic_content)
+                    # It's JSON - use structured template
+                    template_vars = {
+                        'company_name': company_name,
+                        'strategic_data': parsed_data,
+                        'executive_summary': executive_summary,
+                        'generation_date': datetime.now().strftime('%B %d, %Y'),
+                        'use_structured': True
+                    }
+                except (json.JSONDecodeError, TypeError):
+                    # It's legacy HTML/markdown - use legacy formatting
+                    formatted_content = self._format_strategic_content_for_html(strategic_content)
+                    template_vars = {
+                        'company_name': company_name,
+                        'strategic_content': formatted_content,
+                        'executive_summary': executive_summary,
+                        'generation_date': datetime.now().strftime('%B %d, %Y'),
+                        'use_structured': False
+                    }
+            else:
+                # Process strategic content for better HTML formatting (legacy)
+                formatted_content = self._format_strategic_content_for_html(strategic_content)
+                template_vars = {
+                    'company_name': company_name,
+                    'strategic_content': formatted_content,
+                    'executive_summary': executive_summary,
+                    'generation_date': datetime.now().strftime('%B %d, %Y'),
+                    'use_structured': False
+                }
             
             # Render HTML
             html_content = self._render_html_template(template_vars)
@@ -175,8 +222,18 @@ class ReportRenderer:
         """Format content that's already well-structured from structured outputs."""
         formatted = content
         
+        # First, separate the AI Agent Recommendations and Expected Business Impact sections
+        # Split at the AI Agent Recommendations section
+        if '<div class="recommendations-section">' in formatted:
+            parts = formatted.split('<div class="recommendations-section">', 1)
+            imperative_content = parts[0]
+            recommendations_content = '<div class="recommendations-section">' + parts[1] if len(parts) > 1 else ''
+        else:
+            imperative_content = formatted
+            recommendations_content = ''
+        
         # Process each strategic imperative separately to ensure proper div closure
-        imperative_sections = re.split(r'^(### Strategic Imperative \d+: .+)$', formatted, flags=re.MULTILINE)
+        imperative_sections = re.split(r'^(### Strategic Imperative \d+: .+)$', imperative_content, flags=re.MULTILINE)
         
         if len(imperative_sections) > 1:
             result_parts = [imperative_sections[0]]  # Keep any content before first imperative
@@ -228,6 +285,12 @@ class ReportRenderer:
                         result_parts.append(formatted_section)
             
             formatted = ''.join(result_parts)
+        else:
+            formatted = imperative_content
+        
+        # Add back the recommendations and impact sections as standalone sections
+        if recommendations_content:
+            formatted += '\n\n' + recommendations_content
         
         return formatted
 

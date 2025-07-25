@@ -45,7 +45,7 @@ class AIResearchService:
 Follow this exact structure:
 
 1 | Snapshot
-Return a 3-sentence plain-English overview covering industry, core offering, size (revenue or headcount), and growth stage.
+Return a 3-sentence plain-English overview covering industry, core offering, size (revenue or headcount), growth stage, and PRECISE headquarters location (city, state/country).
 
 2 | Source Harvest
 Pull and cite recent facts (≤ 12 months) from:
@@ -54,6 +54,8 @@ Pull and cite recent facts (≤ 12 months) from:
 • News, PR, podcasts, founder interviews.
 • Customer reviews (G2, Capterra, Trustpilot, Glassdoor for employer sentiment).
 • Social media signals (LinkedIn posts, X/Twitter threads).
+
+CRITICAL: Include accurate headquarters/office location information with specific city, state/province, and country. Verify location from multiple sources if possible.
 
 3 | Signals → Pain Hypotheses
 For each major business function below, list observed signals (1-2 bullet points) → inferred pain hypothesis (1 bullet) in the table:
@@ -84,6 +86,17 @@ Company Details:
 - Company Name: {company_name}
 - Website: {website_url if website_url else 'Not available'}
 - Domain: {company_domain if company_domain else 'Not available'}
+
+LOCATION RESEARCH PRIORITY:
+Focus on finding accurate headquarters/office location information. Check multiple sources:
+1. Company website "About Us", "Contact", or "Locations" pages
+2. LinkedIn company page location
+3. Business registrations (SEC filings, Companies House, etc.)
+4. Recent news articles or press releases mentioning office locations
+5. Job postings that mention office locations
+6. Google Maps/business listings
+
+Be specific with city, state/province, and country. Avoid vague terms like "based in the US" or "European company."
 
 Follow the exact structure provided in your system prompt. Begin now."""
 
@@ -159,9 +172,13 @@ Follow the exact structure provided in your system prompt. Begin now."""
                             "items": {
                                 "type": "object",
                                 "properties": {
+                                    "imperative_reference": {
+                                        "type": "string",
+                                        "description": "Must match one of the strategic imperative titles exactly"
+                                    },
                                     "title": {
                                         "type": "string",
-                                        "description": "Specific AI agent application title"
+                                        "description": "Specific AI agent application name that addresses the imperative"
                                     },
                                     "use_case": {
                                         "type": "string",
@@ -172,7 +189,7 @@ Follow the exact structure provided in your system prompt. Begin now."""
                                         "description": "Expected ROI/efficiency gain with numbers"
                                     }
                                 },
-                                "required": ["title", "use_case", "business_impact"],
+                                "required": ["imperative_reference", "title", "use_case", "business_impact"],
                                 "additionalProperties": False
                             },
                             "minItems": 2,
@@ -212,7 +229,7 @@ You must return your response in the exact JSON format specified in the schema. 
 Guidelines:
 - Introduction: Start with "Based on our analysis of {company_name}'s market position, competitive landscape, and operational context, we have identified the following strategic imperatives:"
 - Strategic Imperatives: Exactly 2 imperatives with clear titles, context, detailed AI agent opportunities (2-3 paragraphs), and quantifiable expected impact
-- AI Agent Recommendations: Introduction and exactly 2 priority recommendations with specific use cases and business impact metrics
+- AI Agent Recommendations: Introduction and exactly 2 priority recommendations that directly address the 2 strategic imperatives (one recommendation per imperative). Each recommendation must include the imperative_reference field that exactly matches the strategic imperative title
 - Expected Business Impact: Exactly 3 specific improvements with numbers/percentages or competitive advantages
 
 Keep content professional, data-driven, and specific to AI agent applications. Total length should be 400-500 words."""
@@ -245,11 +262,12 @@ Return a complete JSON response following the exact schema structure."""
             import json
             structured_data = json.loads(response.choices[0].message.content)
             
-            # Convert structured data to formatted HTML/markdown
-            formatted_content = self._format_structured_recommendations(structured_data)
-            
             logger.info(f"Successfully generated structured strategic recommendations for {company_name}")
-            return formatted_content
+            # Return both the structured data and its JSON string for database storage
+            return {
+                'structured_data': structured_data,
+                'json_string': json.dumps(structured_data)
+            }
             
         except Exception as e:
             logger.error(f"Error generating strategic recommendations for {company_name}: {e}")
@@ -275,6 +293,10 @@ Return a complete JSON response following the exact schema structure."""
             html_parts.append(f"**💰 Expected Impact:** {imperative['expected_impact']}")
             html_parts.append("")
         
+        # Add proper section break before AI agent recommendations
+        html_parts.append("")
+        html_parts.append("")
+        
         # Add AI agent recommendations section with proper HTML
         html_parts.append('<div class="recommendations-section">')
         html_parts.append('<h2><span class="emoji">🤖</span> AI Agent Recommendations</h2>')
@@ -285,6 +307,7 @@ Return a complete JSON response following the exact schema structure."""
         for i, priority in enumerate(data["ai_agent_recommendations"]["priorities"], 1):
             html_parts.append('<div class="priority-card">')
             html_parts.append(f'<div class="priority-title"><span class="emoji">🎯</span> Priority {i}: {priority["title"]}</div>')
+            html_parts.append(f'<div style="margin: 8px 0; font-size: 0.9em; color: #666;"><strong>Addresses:</strong> {priority["imperative_reference"]}</div>')
             html_parts.append(f'<div style="margin: 10px 0;"><strong>Use Case:</strong> {priority["use_case"]}</div>')
             html_parts.append(f'<div style="margin: 10px 0;"><strong>Business Impact:</strong> {priority["business_impact"]}</div>')
             html_parts.append('</div>')

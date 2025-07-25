@@ -241,14 +241,21 @@ class StepByStepResearcher:
         """Perform strategic analysis (Step 2)."""
         try:
             # Generate strategic recommendations
-            strategic_analysis = self.ai_service.generate_strategic_recommendations(
+            strategic_result = self.ai_service.generate_strategic_recommendations(
                 company.company_name, 
                 basic_research
             )
             
-            if strategic_analysis:
-                logger.info(f"Strategic analysis completed for {company.company_name}: {len(strategic_analysis)} characters")
-                return strategic_analysis
+            if strategic_result:
+                # Handle new format that returns both structured data and JSON string
+                if isinstance(strategic_result, dict) and 'json_string' in strategic_result:
+                    json_string = strategic_result['json_string']
+                    logger.info(f"Strategic analysis completed for {company.company_name}: {len(json_string)} characters")
+                    return json_string  # Return JSON string for database storage
+                else:
+                    # Legacy format support
+                    logger.info(f"Strategic analysis completed for {company.company_name}: {len(strategic_result)} characters")
+                    return strategic_result
             else:
                 logger.error(f"Failed to get strategic analysis for {company.company_name}")
                 return None
@@ -260,6 +267,13 @@ class StepByStepResearcher:
     def _generate_final_report(self, company, basic_research: str, strategic_analysis: str) -> Optional[Dict[str, str]]:
         """Generate final HTML/PDF report (Step 3)."""
         try:
+            # Convert JSON string back to structured data for report rendering
+            import json
+            try:
+                strategic_data = json.loads(strategic_analysis)
+            except (json.JSONDecodeError, TypeError):
+                # If it's not JSON, treat as legacy format
+                strategic_data = strategic_analysis
             # Generate strategic imperatives and agent recommendations
             strategic_imperatives, agent_recommendations = self.ai_service.generate_strategic_imperatives_and_agent_recommendations(
                 company.company_name, 
@@ -270,7 +284,7 @@ class StepByStepResearcher:
             report_data = self.report_generator.generate_strategic_report(
                 company.company_name,
                 basic_research,
-                strategic_analysis
+                strategic_data  # Pass structured data instead of JSON string
             )
             
             if report_data and report_data['html_report']:
