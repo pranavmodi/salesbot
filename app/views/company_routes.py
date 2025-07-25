@@ -261,12 +261,79 @@ def research_single_company(company_id):
 def get_research_progress(company_id):
     """Get research progress for a specific company."""
     try:
-        from deepresearch.step_by_step_researcher import StepByStepResearcher
+        # Get progress directly from database without initializing services
+        company = Company.get_by_id(company_id)
+        if not company:
+            return jsonify({
+                'success': False,
+                'message': 'Company not found'
+            }), 404
         
-        researcher = StepByStepResearcher()
-        progress = researcher.get_research_progress(company_id)
+        # Calculate progress based on completed research steps
+        steps_completed = 0
+        total_steps = 3
+        step_details = []
         
-        return jsonify(progress)
+        # Step 1: Basic Research
+        step1_complete = hasattr(company, 'research_step_1_basic') and company.research_step_1_basic
+        if step1_complete:
+            steps_completed += 1
+        step_details.append({
+            'step': 1,
+            'name': 'Basic Company Research',
+            'status': 'completed' if step1_complete else ('in_progress' if steps_completed == 0 and hasattr(company, 'research_status') and company.research_status == 'in_progress' else 'pending'),
+            'description': 'Company analysis, pain points, and solution hooks'
+        })
+        
+        # Step 2: Strategic Analysis
+        step2_complete = hasattr(company, 'research_step_2_strategic') and company.research_step_2_strategic
+        if step2_complete:
+            steps_completed += 1
+        step_details.append({
+            'step': 2,
+            'name': 'Strategic Analysis',
+            'status': 'completed' if step2_complete else ('in_progress' if steps_completed == 1 and hasattr(company, 'research_status') and company.research_status == 'in_progress' else 'pending'),
+            'description': 'Strategic imperatives and AI agent recommendations'
+        })
+        
+        # Step 3: Report Generation
+        step3_complete = hasattr(company, 'research_step_3_report') and company.research_step_3_report
+        if step3_complete:
+            steps_completed += 1
+        step_details.append({
+            'step': 3,
+            'name': 'Report Generation',
+            'status': 'completed' if step3_complete else ('in_progress' if steps_completed == 2 and hasattr(company, 'research_status') and company.research_status == 'in_progress' else 'pending'),
+            'description': 'HTML/PDF report generation and publishing'
+        })
+        
+        progress_percentage = (steps_completed / total_steps) * 100
+        is_complete = steps_completed == total_steps
+        
+        # Determine current step
+        current_step = None
+        for step in step_details:
+            if step['status'] == 'in_progress':
+                current_step = step
+                break
+        if not current_step and not is_complete:
+            current_step = step_details[steps_completed]
+        
+        return jsonify({
+            'success': True,
+            'company_id': company_id,
+            'company_name': company.company_name,
+            'progress_percentage': progress_percentage,
+            'steps_completed': steps_completed,
+            'total_steps': total_steps,
+            'is_complete': is_complete,
+            'current_status': f"Step {steps_completed + 1}/3" if not is_complete else "Complete",
+            'current_step': current_step,
+            'step_details': step_details,
+            'research_status': getattr(company, 'research_status', 'unknown'),
+            'has_markdown_report': bool(hasattr(company, 'markdown_report') and company.markdown_report),
+            'has_html_report': bool(hasattr(company, 'html_report') and company.html_report)
+        })
         
     except Exception as e:
         current_app.logger.error(f"Error getting research progress for company {company_id}: {str(e)}")

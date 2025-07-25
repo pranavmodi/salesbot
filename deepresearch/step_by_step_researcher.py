@@ -42,8 +42,23 @@ class StepByStepResearcher:
         if not company:
             return {'success': False, 'error': f'Company with ID {company_id} not found'}
         
+        # Check for stuck research process (research_status = 'in_progress' for > 10 minutes)
+        if hasattr(company, 'research_status') and company.research_status == 'in_progress':
+            if hasattr(company, 'updated_at') and company.updated_at:
+                from datetime import datetime, timedelta, timezone
+                # Make both datetimes timezone-aware for comparison
+                now = datetime.now(timezone.utc)
+                updated_at = company.updated_at
+                if updated_at.tzinfo is None:
+                    updated_at = updated_at.replace(tzinfo=timezone.utc)
+                
+                time_elapsed = now - updated_at
+                if time_elapsed > timedelta(minutes=10):
+                    logger.warning(f"Research for {company.company_name} appears stuck (in_progress for {time_elapsed}). Resetting...")
+                    force_refresh = True
+        
         # Check if research already exists and not forcing refresh
-        if not force_refresh and company.research_status == 'completed':
+        if not force_refresh and hasattr(company, 'research_status') and company.research_status == 'completed':
             logger.info(f"Company {company.company_name} already has completed research")
             return {
                 'success': True, 

@@ -85,12 +85,12 @@ class ReportRenderer:
         logger.info(f"Rendering strategic report for: {company_name}")
         
         try:
-            # Generate company-specific executive summary if basic research is provided
+            # Generate company-specific executive summary with strategic imperatives
             executive_summary = None
-            if basic_research:
+            if basic_research and strategic_content:
                 from .ai_research_service import AIResearchService
                 ai_service = AIResearchService()
-                executive_summary = ai_service.generate_executive_summary(company_name, basic_research)
+                executive_summary = ai_service.generate_executive_summary_with_imperatives(company_name, basic_research, strategic_content)
             
             # Process strategic content for better HTML formatting
             formatted_content = self._format_strategic_content_for_html(strategic_content)

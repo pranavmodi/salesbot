@@ -203,7 +203,7 @@
     <div class="executive-summary">
         <h2>Executive Summary</h2>
         {% if executive_summary %}
-            <p>{{ executive_summary | safe }}</p>
+            {{ executive_summary | safe }}
         {% else %}
             <p>Based on comprehensive market analysis and competitive intelligence, we have identified key strategic imperatives and AI agent opportunities that can accelerate <strong>{{ company_name }}'s</strong> growth and operational excellence.</p>
         {% endif %}

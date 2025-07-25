@@ -25,6 +25,9 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
+# Reduce werkzeug HTTP request logging noise
+logging.getLogger('werkzeug').setLevel(logging.WARNING)
+
 app = create_app()
 
 if __name__ == '__main__':

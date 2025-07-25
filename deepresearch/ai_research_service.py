@@ -94,7 +94,8 @@ Follow the exact structure provided in your system prompt. Begin now."""
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
-                ]
+                ],
+                timeout=120.0  # Explicit 2-minute timeout
             )
             
             research_content = response.choices[0].message.content.strip()
@@ -103,7 +104,8 @@ Follow the exact structure provided in your system prompt. Begin now."""
             
         except Exception as e:
             logger.error(f"Error researching company {company_name}: {type(e).__name__}: {e}")
-            return None
+            # Return a fallback response to prevent complete failure
+            return f"Research timeout or error for {company_name}. Please try again later."
 
     def generate_strategic_recommendations(self, company_name: str, research_content: str) -> Optional[str]:
         """Generate executive-level strategic recommendations based on research using structured outputs."""
@@ -235,7 +237,8 @@ Return a complete JSON response following the exact schema structure."""
                         "schema": response_schema,
                         "strict": True
                     }
-                }
+                },
+                timeout=120.0  # Explicit 2-minute timeout
             )
             
             # Parse the structured JSON response
@@ -330,7 +333,8 @@ Identify the 2 most critical strategic priorities for this company and propose s
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
-                ]
+                ],
+                timeout=120.0  # Explicit 2-minute timeout
             )
             
             content = response.choices[0].message.content.strip()
@@ -363,17 +367,21 @@ Identify the 2 most critical strategic priorities for this company and propose s
         
         system_prompt = """You are a McKinsey senior partner writing an executive summary for a strategic analysis report. 
 
-Create a concise, company-specific executive summary (2-3 sentences) that includes:
-1. Company background and what they do
+Create a company-specific executive summary that includes:
+1. Company background and what they do (2-3 sentences)
 2. Operating landscape/market context  
 3. Current state of play and strategic positioning
+4. Two bullet points showing how AI agents can solve their key strategic imperatives
 
 Make it specific to the company, not generic. Use the company's actual business model, industry, and situation.
 Avoid generic phrases like "Based on comprehensive market analysis" or "competitive intelligence."
 Write in a professional, executive tone suitable for a board presentation.
 
-Example style:
-"[Company] operates as a [specific business model] in the [specific industry/market], serving [customer base] through [key channels/approach]. The company faces [specific market conditions/challenges] while positioned to capitalize on [specific opportunities]. Our analysis identifies critical strategic imperatives that can [specific outcomes for this company]."
+Format:
+"[Company] operates as a [specific business model] in the [specific industry/market], serving [customer base] through [key channels/approach]. The company faces [specific market conditions/challenges] while positioned to capitalize on [specific opportunities]. Our analysis identifies critical strategic imperatives that can [specific outcomes for this company].
+
+• **Strategic Imperative 1**: [Brief description of how AI agents can solve their first key business problem]
+• **Strategic Imperative 2**: [Brief description of how AI agents can solve their second key business problem]"
 """
 
         user_prompt = f"""Based on this company research, write a company-specific executive summary:
@@ -383,7 +391,7 @@ Company: {company_name}
 Research Content:
 {research_content}
 
-Write a professional executive summary that captures this specific company's background, operating landscape, and strategic situation."""
+Write a professional executive summary that captures this specific company's background, operating landscape, and strategic situation, followed by two bullet points showing how AI agents can address their key strategic imperatives."""
 
         try:
             logger.info(f"Making OpenAI API call for {company_name} executive summary...")
@@ -392,7 +400,8 @@ Write a professional executive summary that captures this specific company's bac
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
-                ]
+                ],
+                timeout=120.0  # Explicit 2-minute timeout
             )
             
             executive_summary = response.choices[0].message.content.strip()
@@ -402,3 +411,132 @@ Write a professional executive summary that captures this specific company's bac
         except Exception as e:
             logger.error(f"Error generating executive summary for company {company_name}: {type(e).__name__}: {e}")
             return None
+
+    def generate_executive_summary_with_imperatives(self, company_name: str, basic_research: str, strategic_content: str) -> Optional[str]:
+        """Generate executive summary with bullet points that match the actual strategic imperatives using structured outputs."""
+        logger.info(f"Generating executive summary with imperatives for: {company_name}")
+        
+        # Extract strategic imperative titles from the strategic content
+        import re
+        imperative_matches = re.findall(r'### Strategic Imperative \d+: (.+?)(?=\n|$)', strategic_content)
+        
+        if len(imperative_matches) < 2:
+            # Fallback to the original method if we can't extract imperatives
+            return self.generate_executive_summary(company_name, basic_research)
+        
+        # Define JSON schema for structured executive summary
+        response_schema = {
+            "type": "object",
+            "properties": {
+                "company_background": {
+                    "type": "string",
+                    "description": "4-5 sentences covering what the company does, business model, industry position, market context, current challenges, and strategic positioning"
+                },
+                "strategic_imperatives": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "title": {
+                                "type": "string",
+                                "description": "Exact strategic imperative title from the report"
+                            },
+                            "ai_impact": {
+                                "type": "string",
+                                "description": "One concise sentence describing the AI agent solution and its quantified business impact"
+                            }
+                        },
+                        "required": ["title", "ai_impact"],
+                        "additionalProperties": False
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                }
+            },
+            "required": ["company_background", "strategic_imperatives"],
+            "additionalProperties": False
+        }
+
+        system_prompt = f"""You are a McKinsey senior partner writing an executive summary for a strategic analysis report.
+
+Create a company-specific executive summary with:
+1. Company background: 4-5 comprehensive sentences covering:
+   - What the company does and their business model
+   - Industry position and market context
+   - Current challenges and competitive landscape
+   - Strategic positioning and growth stage
+   
+2. Two strategic imperatives with concise AI impact statements that match these EXACT titles:
+   - "{imperative_matches[0]}" 
+   - "{imperative_matches[1]}"
+
+For each imperative, provide only ONE sentence that captures the core AI agent solution and its quantified business impact.
+
+Make it specific to the company, not generic. Use the company's actual business model, industry, and situation.
+Avoid generic phrases like "Based on comprehensive market analysis" or "competitive intelligence."
+Write in a professional, executive tone suitable for a board presentation.
+
+You must return your response in the exact JSON format specified in the schema."""
+
+        user_prompt = f"""Based on this company research and strategic analysis, generate a structured executive summary:
+
+Company: {company_name}
+
+Basic Research:
+{basic_research}
+
+Strategic Analysis:
+{strategic_content[:1000]}...
+
+Return a JSON response with:
+- company_background: 4-5 detailed sentences about the company's business, market position, challenges, and strategy
+- strategic_imperatives: Two items with exact titles and ONE concise sentence each about AI impact"""
+
+        try:
+            logger.info(f"Making OpenAI API call for {company_name} executive summary with structured outputs...")
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "executive_summary",
+                        "schema": response_schema,
+                        "strict": True
+                    }
+                },
+                timeout=120.0  # Explicit 2-minute timeout
+            )
+            
+            # Parse the structured JSON response
+            import json
+            structured_data = json.loads(response.choices[0].message.content)
+            
+            # Format the structured data into markdown
+            formatted_summary = self._format_structured_executive_summary(structured_data)
+            
+            logger.info(f"Successfully generated structured executive summary for {company_name} ({len(formatted_summary)} characters)")
+            return formatted_summary
+            
+        except Exception as e:
+            logger.error(f"Error generating structured executive summary for company {company_name}: {type(e).__name__}: {e}")
+            # Fallback to the original method
+            return self.generate_executive_summary(company_name, basic_research)
+
+    def _format_structured_executive_summary(self, data: dict) -> str:
+        """Convert structured executive summary data to formatted HTML."""
+        parts = []
+        
+        # Add company background as paragraph (larger section)
+        parts.append(f"<p>{data['company_background']}</p>")
+        
+        # Add strategic imperatives as concise HTML list
+        parts.append("<ul style='margin-top: 15px; padding-left: 0; list-style: none;'>")
+        for imperative in data["strategic_imperatives"]:
+            parts.append(f"<li style='margin-bottom: 12px; padding-left: 0;'><span style='color: #0066cc; font-weight: bold;'>•</span> <strong>{imperative['title']}</strong>: {imperative['ai_impact']}</li>")
+        parts.append("</ul>")
+        
+        return "\n".join(parts)
