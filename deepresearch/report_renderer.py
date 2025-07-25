@@ -247,7 +247,6 @@ class ReportRenderer:
                     
                     # Extract imperative number from title if it matches the pattern
                     imperative_num = None
-                    import re
                     num_match = re.match(r'Strategic Imperative (\d+):', title)
                     if num_match:
                         imperative_num = int(num_match.group(1))
