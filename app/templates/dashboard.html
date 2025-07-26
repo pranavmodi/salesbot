@@ -189,5 +189,9 @@
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 
 <!-- Deep Research Modal functionality -->
+<script>
+    // Configuration passed from backend
+    window.NETLIFY_PUBLISH_URL = "{{ netlify_publish_url }}";
+</script>
 <script src="{{ url_for('static', filename='js/deep-research.js') }}"></script>
 {% endblock %} 

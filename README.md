@@ -277,9 +277,13 @@ The system includes comprehensive error handling:
 Required environment variables:
 - `DATABASE_URL`: PostgreSQL connection string (e.g., `postgresql://user:pass@localhost/db`)
 
+Optional environment variables:
+- `NETLIFY_PUBLISH_URL`: URL for publishing reports (default: `https://possibleminds.in/.netlify/functions/publish-report-persistent`)
+
 Example `.env` file:
 ```env
 DATABASE_URL=postgresql://pranav:postgres@localhost:5432/salesdb
+NETLIFY_PUBLISH_URL=https://possibleminds.in/.netlify/functions/publish-report-persistent
 ```
 
 ## Results Summary

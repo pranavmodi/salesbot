@@ -15,7 +15,7 @@ DEFAULT_CALENDAR  = os.getenv("CALENDAR_URL", "https://calendly.com/pranav-modi/
 OPENAI_MODEL      = os.getenv("OPENAI_MODEL", "gpt-4o")
 AUTO_RESEARCH     = os.getenv("AUTO_RESEARCH_ENABLED", "true").lower() == "true"
 BASE_URL          = os.getenv("BASE_URL", "https://salesbot.possibleminds.in")
-NETLIFY_PUBLISH_URL = "https://possibleminds.in/.netlify/functions/publish-report-persistent"
+NETLIFY_PUBLISH_URL = os.getenv("NETLIFY_PUBLISH_URL", "https://possibleminds.in/.netlify/functions/publish-report-persistent")
 NETLIFY_SECRET    = os.getenv("NETLIFY_WEBHOOK_SECRET", "")  # Add this to your .env file
 
 # ---- Context about the sender and product ----

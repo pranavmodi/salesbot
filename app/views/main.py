@@ -1,4 +1,5 @@
 from flask import Blueprint, render_template, request, current_app
+import os
 
 from app.models.contact import Contact
 from app.models.email_history import EmailHistory
@@ -65,7 +66,8 @@ def index():
         success_rate=success_rate,
         pending_contacts=len(contact_data['contacts']),
         uncontacted_count=uncontacted_count,
-        threads=get_inbox_threads() # Add threads to dashboard context
+        threads=get_inbox_threads(), # Add threads to dashboard context
+        netlify_publish_url=os.getenv("NETLIFY_PUBLISH_URL", "https://possibleminds.in/.netlify/functions/publish-report-persistent")
     )
 
 def get_inbox_threads():

@@ -5,7 +5,7 @@ from typing import Dict, Optional, Union
 
 DEFAULT_CALENDAR = os.getenv("CALENDAR_URL", "https://calendly.com/pranav-modi/15-minute-meeting")
 AUTO_RESEARCH = os.getenv("AUTO_RESEARCH_ENABLED", "true").lower() == "true"
-NETLIFY_PUBLISH_URL = "https://possibleminds.in/.netlify/functions/publish-report-persistent"
+NETLIFY_PUBLISH_URL = os.getenv("NETLIFY_PUBLISH_URL", "https://possibleminds.in/.netlify/functions/publish-report-persistent")
 NETLIFY_SECRET = os.getenv("NETLIFY_WEBHOOK_SECRET", "")
 
 class PossibleMindsEmailComposer:

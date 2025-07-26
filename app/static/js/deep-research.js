@@ -612,18 +612,24 @@
                 }
 
                 const company = data.company;
-                if (!company.markdown_report) {
-                    throw new Error('No markdown report available to publish');
+                if (!company.html_report && !company.markdown_report) {
+                    throw new Error('No report available to publish');
                 }
 
                 // Show publish status as loading
                 showPublishStatus('loading', 'Publishing report to possibleminds.in...');
 
-                // Prepare payload for Netlify function
+                // Prepare payload matching backend structure
                 const payload = {
+                    company_id: `comp_${company.id}`,
                     company_name: company.company_name,
-                    markdown_report: company.markdown_report,
-                    company_website: company.website_url || ''
+                    company_website: company.website_url || "",
+                    contact_id: `contact_frontend_user`,
+                    generated_date: new Date().toISOString().split('T')[0],
+                    html_report: company.html_report || "",
+                    pdf_report_base64: company.pdf_report_base64 || "",
+                    strategic_imperatives: company.strategic_imperatives || "Strategic imperatives analysis pending - comprehensive assessment of business priorities and transformation opportunities.",
+                    agent_recommendations: company.agent_recommendations || "AI agent recommendations analysis pending - tailored automation solutions and intelligent system implementations."
                 };
 
                 // Log the raw content being published
@@ -645,7 +651,7 @@
                 // console.log('📝 COMPLETE JSON PAYLOAD END');
 
                 // Make the publish request
-                return fetch('https://possibleminds.in/.netlify/functions/publish-report', {
+                return fetch(window.NETLIFY_PUBLISH_URL || 'https://possibleminds.in/.netlify/functions/publish-report-persistent', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
