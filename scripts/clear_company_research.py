@@ -38,7 +38,13 @@ class CompanyResearchCleaner:
         if not self.database_url:
             raise ValueError("DATABASE_URL not found in environment variables")
         
-        self.engine = create_engine(self.database_url)
+        self.engine = create_engine(
+            self.database_url,
+            pool_size=5,          # Maximum number of permanent connections
+            max_overflow=10,      # Maximum number of connections that can overflow the pool
+            pool_pre_ping=True,   # Verify connections before use
+            pool_recycle=3600     # Recycle connections every hour
+        )
         logger.info("CompanyResearchCleaner initialized")
 
     def get_companies_with_research_count(self) -> int:
