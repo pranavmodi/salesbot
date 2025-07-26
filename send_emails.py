@@ -69,7 +69,13 @@ from email.utils import make_msgid
 def get_db_engine():
     """Get database engine."""
     try:
-        return create_engine(DATABASE_URL)
+        return create_engine(
+            DATABASE_URL,
+            pool_size=5,          # Maximum number of permanent connections
+            max_overflow=10,      # Maximum number of connections that can overflow the pool
+            pool_pre_ping=True,   # Verify connections before use
+            pool_recycle=3600     # Recycle connections every hour
+        )
     except Exception as e:
         logging.error(f"Error creating database engine: {e}")
         return None

@@ -642,7 +642,13 @@ def delete_all_campaigns():
         database_url = os.getenv("DATABASE_URL")
         if database_url:
             try:
-                engine = create_engine(database_url)
+                engine = create_engine(
+                    database_url,
+                    pool_size=5,          # Maximum number of permanent connections
+                    max_overflow=10,      # Maximum number of connections that can overflow the pool
+                    pool_pre_ping=True,   # Verify connections before use
+                    pool_recycle=3600     # Recycle connections every hour
+                )
                 with engine.connect() as conn:
                     # Get all pending email jobs with campaign info
                     pending_jobs_query = text("""

@@ -646,8 +646,19 @@ class CampaignScheduler:
                 current_app.logger.error("DATABASE_URL not configured for scheduler")
                 return
             
+            # Configure SQLAlchemy job store with connection pooling
+            from sqlalchemy import create_engine
+            # Create engine with connection pooling to prevent "too many clients" errors
+            scheduler_engine = create_engine(
+                database_url,
+                pool_size=5,          # Maximum number of permanent connections to keep open
+                max_overflow=10,      # Maximum number of connections that can overflow the pool
+                pool_pre_ping=True,   # Verify connections before use
+                pool_recycle=3600     # Recycle connections every hour
+            )
+            
             jobstores = {
-                'default': SQLAlchemyJobStore(url=database_url, tablename='scheduler_jobs')
+                'default': SQLAlchemyJobStore(engine=scheduler_engine, tablename='scheduler_jobs')
             }
             
             executors = {

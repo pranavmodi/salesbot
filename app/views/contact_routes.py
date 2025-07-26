@@ -81,7 +81,13 @@ def update_contact(email):
         if not database_url:
             return jsonify({'success': False, 'message': 'Database connection error'}), 500
  
-        engine = create_engine(database_url)
+        engine = create_engine(
+            database_url,
+            pool_size=5,          # Maximum number of permanent connections
+            max_overflow=10,      # Maximum number of connections that can overflow the pool
+            pool_pre_ping=True,   # Verify connections before use
+            pool_recycle=3600     # Recycle connections every hour
+        )
         with engine.connect() as conn:
             with conn.begin():
                 # Handle company_id if company info is being updated
@@ -252,7 +258,13 @@ def add_contact():
                 'message': 'Database connection error'
             }), 500
         
-        engine = create_engine(database_url)
+        engine = create_engine(
+            database_url,
+            pool_size=5,          # Maximum number of permanent connections
+            max_overflow=10,      # Maximum number of connections that can overflow the pool
+            pool_pre_ping=True,   # Verify connections before use
+            pool_recycle=3600     # Recycle connections every hour
+        )
         with engine.connect() as conn:
             with conn.begin():
                 # -------------------------------------------------------------
