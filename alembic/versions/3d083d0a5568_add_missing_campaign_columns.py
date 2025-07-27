@@ -20,10 +20,14 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Add missing campaign columns if they don't exist."""
+    print("🔧 Starting campaign columns migration...")
+    
     # Check if columns already exist
     conn = op.get_bind()
     inspector = sa.inspect(conn)
     columns = [col['name'] for col in inspector.get_columns('campaigns')]
+    
+    print(f"📋 Current campaigns table columns: {columns}")
     
     # Add missing campaign columns
     missing_columns = {
@@ -40,6 +44,7 @@ def upgrade() -> None:
     
     for col_name, col_type in missing_columns.items():
         if col_name not in columns:
+            print(f"➕ Adding missing column: {col_name}")
             if col_name == 'email_template':
                 # Add with default value
                 op.add_column('campaigns', sa.Column(col_name, col_type, nullable=True, default='deep_research'))
@@ -67,6 +72,10 @@ def upgrade() -> None:
             else:
                 # Add without default
                 op.add_column('campaigns', sa.Column(col_name, col_type, nullable=True))
+        else:
+            print(f"✅ Column {col_name} already exists")
+    
+    print("🎉 Campaign columns migration completed!")
 
 
 def downgrade() -> None:

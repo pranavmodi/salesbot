@@ -18,12 +18,22 @@ export PYTHONPATH="/app:$PYTHONPATH"
 
 # Run database migrations
 echo "🗄️ Running database migrations..."
+
+# Check current revision before migration
+echo "📍 Current alembic revision:"
+alembic current
+
+# Run the migration
 alembic upgrade head
 
 if [ $? -ne 0 ]; then
     echo "❌ Database migration failed"
     exit 1
 fi
+
+# Check revision after migration
+echo "📍 Alembic revision after migration:"
+alembic current
 
 echo "✅ Database migrations completed"
 
