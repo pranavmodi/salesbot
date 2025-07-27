@@ -28,6 +28,7 @@ def upgrade() -> None:
     # Add missing campaign columns
     missing_columns = {
         'email_template': sa.String(length=100),
+        'priority': sa.String(length=50),
         'campaign_settings': sa.Text,
         'schedule_date': sa.DateTime,
         'followup_days': sa.Integer,
@@ -43,6 +44,10 @@ def upgrade() -> None:
                 # Add with default value
                 op.add_column('campaigns', sa.Column(col_name, col_type, nullable=True, default='deep_research'))
                 op.execute("UPDATE campaigns SET email_template = 'deep_research' WHERE email_template IS NULL")
+            elif col_name == 'priority':
+                # Add with default value
+                op.add_column('campaigns', sa.Column(col_name, col_type, nullable=True, default='medium'))
+                op.execute("UPDATE campaigns SET priority = 'medium' WHERE priority IS NULL")
             elif col_name == 'followup_days':
                 # Add with default value
                 op.add_column('campaigns', sa.Column(col_name, col_type, nullable=True, default=3))
@@ -67,7 +72,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Remove added campaign columns."""
     columns_to_remove = [
-        'email_template', 'campaign_settings', 'schedule_date', 
+        'email_template', 'priority', 'campaign_settings', 'schedule_date', 
         'followup_days', 'selection_criteria', 'status'
     ]
     
