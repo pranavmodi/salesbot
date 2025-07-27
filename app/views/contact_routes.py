@@ -45,12 +45,15 @@ def get_contacts():
         return jsonify({'error': 'Failed to load contacts'}), 500
 
 @contact_bp.route('/contact/<email>', methods=['GET'])
+@contact_bp.route('/contacts/<email>', methods=['GET'])
 def get_contact(email):
     """Get a specific contact by email."""
     try:
+        current_app.logger.info(f"Looking up contact: {email}")
         contacts = Contact.search(email)
         if contacts:
-            return jsonify(contacts[0].to_dict())
+            contact_dict = contacts[0].to_dict()
+            return jsonify({'contact': contact_dict})
         return jsonify({'error': 'Contact not found'}), 404
     except Exception as e:
         current_app.logger.error(f"Error getting contact: {str(e)}")
