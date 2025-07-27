@@ -1,0 +1,53 @@
+# Git
+.git
+.gitignore
+
+# Virtual environments
+venv/
+salesbot/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local development files
+.env
+*.db
+*.sqlite3
+interactions.db
+
+# Logs
+*.log
+logs/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation (exclude from build)
+*.md
+docs/
+
+# Test files
+tests/
+*_test.py
+
+# Temporary files
+*.tmp
+*.temp
+
+# CSV data files
+contacts/*.csv
+*.csv
+
+# Reports
+deepresearch/reports/
+
+# Node modules (if any)
+node_modules/
