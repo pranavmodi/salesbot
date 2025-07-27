@@ -42,7 +42,7 @@ salesbot/
 *.log
 
 # Ignore sensitive configuration files
-config.py
+# config.py  # Re-enabled for deployment - contains no secrets, just Flask config
 *.envrc
 email_accounts_config.json
 email_accounts_config.json.backup
