@@ -125,8 +125,14 @@ def update_contact(email):
                             website_url = company_domain if company_domain.startswith(('http://', 'https://')) else f"https://{company_domain}"
                         fallback_name = company_name or company_domain or 'Unknown'
                         result = conn.execute(text("""
-                            INSERT INTO companies (company_name, website_url)
-                            VALUES (:company_name, :website_url)
+                            INSERT INTO companies (
+                                company_name, website_url, research_status, 
+                                created_at, updated_at
+                            )
+                            VALUES (
+                                :company_name, :website_url, 'pending',
+                                CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                            )
                             RETURNING id
                         """), {
                             "company_name": fallback_name,
@@ -310,8 +316,14 @@ def add_contact():
                         # Use company_name if available, otherwise fallback to domain
                         fallback_name = contact_company_name or contact_company_domain or 'Unknown'
                         result = conn.execute(text("""
-                            INSERT INTO companies (company_name, website_url)
-                            VALUES (:company_name, :website_url)
+                            INSERT INTO companies (
+                                company_name, website_url, research_status, 
+                                created_at, updated_at
+                            )
+                            VALUES (
+                                :company_name, :website_url, 'pending',
+                                CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                            )
                             RETURNING id
                         """), {
                             "company_name": fallback_name,

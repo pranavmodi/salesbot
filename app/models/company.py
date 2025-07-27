@@ -62,11 +62,21 @@ class Company:
         try:
             with engine.connect() as conn:
                 result = conn.execute(text("""
-                    SELECT id, company_name, website_url, company_research, markdown_report,
-                           html_report, pdf_report_base64, strategic_imperatives, agent_recommendations,
-                           research_status, research_step_1_basic, research_step_2_strategic, 
-                           research_step_3_report, research_started_at, research_completed_at, 
-                           research_error, created_at, updated_at
+                    SELECT id, company_name, website_url, 
+                           COALESCE(company_research, '') as company_research, 
+                           COALESCE(markdown_report, '') as markdown_report,
+                           COALESCE(html_report, '') as html_report, 
+                           COALESCE(pdf_report_base64, '') as pdf_report_base64, 
+                           COALESCE(strategic_imperatives, '') as strategic_imperatives, 
+                           COALESCE(agent_recommendations, '') as agent_recommendations,
+                           COALESCE(research_status, 'pending') as research_status, 
+                           COALESCE(research_step_1_basic, '') as research_step_1_basic, 
+                           COALESCE(research_step_2_strategic, '') as research_step_2_strategic, 
+                           COALESCE(research_step_3_report, '') as research_step_3_report, 
+                           research_started_at, research_completed_at, 
+                           COALESCE(research_error, '') as research_error, 
+                           COALESCE(created_at, CURRENT_TIMESTAMP) as created_at, 
+                           COALESCE(updated_at, CURRENT_TIMESTAMP) as updated_at
                     FROM companies 
                     ORDER BY created_at DESC
                 """))
@@ -107,11 +117,21 @@ class Company:
                 # Get paginated results
                 offset = (page - 1) * per_page
                 result = conn.execute(text("""
-                    SELECT id, company_name, website_url, company_research, markdown_report,
-                           html_report, pdf_report_base64, strategic_imperatives, agent_recommendations,
-                           research_status, research_step_1_basic, research_step_2_strategic, 
-                           research_step_3_report, research_started_at, research_completed_at, 
-                           research_error, created_at, updated_at
+                    SELECT id, company_name, website_url, 
+                           COALESCE(company_research, '') as company_research, 
+                           COALESCE(markdown_report, '') as markdown_report,
+                           COALESCE(html_report, '') as html_report, 
+                           COALESCE(pdf_report_base64, '') as pdf_report_base64, 
+                           COALESCE(strategic_imperatives, '') as strategic_imperatives, 
+                           COALESCE(agent_recommendations, '') as agent_recommendations,
+                           COALESCE(research_status, 'pending') as research_status, 
+                           COALESCE(research_step_1_basic, '') as research_step_1_basic, 
+                           COALESCE(research_step_2_strategic, '') as research_step_2_strategic, 
+                           COALESCE(research_step_3_report, '') as research_step_3_report, 
+                           research_started_at, research_completed_at, 
+                           COALESCE(research_error, '') as research_error, 
+                           COALESCE(created_at, CURRENT_TIMESTAMP) as created_at, 
+                           COALESCE(updated_at, CURRENT_TIMESTAMP) as updated_at
                     FROM companies 
                     ORDER BY created_at DESC
                     LIMIT :limit OFFSET :offset
