@@ -627,9 +627,7 @@
                     contact_id: `contact_frontend_user`,
                     generated_date: new Date().toISOString().split('T')[0],
                     html_report: company.html_report || "",
-                    pdf_report_base64: company.pdf_report_base64 || "",
-                    strategic_imperatives: company.strategic_imperatives || "Strategic imperatives analysis pending - comprehensive assessment of business priorities and transformation opportunities.",
-                    agent_recommendations: company.agent_recommendations || "AI agent recommendations analysis pending - tailored automation solutions and intelligent system implementations."
+                    pdf_report_base64: company.pdf_report_base64 || ""
                 };
 
                 // Log the raw content being published
