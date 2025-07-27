@@ -35,6 +35,27 @@ fi
 echo "📍 Alembic revision after migration:"
 alembic current
 
+# Show actual database schema for debugging
+echo "🔍 Current campaigns table schema:"
+python3 -c "
+import os
+from sqlalchemy import create_engine, text, inspect
+engine = create_engine(os.getenv('DATABASE_URL'))
+with engine.connect() as conn:
+    inspector = inspect(engine)
+    if 'campaigns' in inspector.get_table_names():
+        columns = inspector.get_columns('campaigns')
+        print('Campaigns columns:', [col['name'] for col in columns])
+    else:
+        print('Campaigns table does not exist')
+        
+    if 'companies' in inspector.get_table_names():
+        columns = inspector.get_columns('companies')
+        print('Companies columns:', [col['name'] for col in columns])
+    else:
+        print('Companies table does not exist')
+"
+
 echo "✅ Database migrations completed"
 
 # Start the web server with proper Python path
