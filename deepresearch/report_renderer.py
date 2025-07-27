@@ -187,8 +187,8 @@ class ReportRenderer:
             # Create HTML document
             html_doc = HTML(string=html_content)
             
-            # Generate PDF with proper font configuration
-            pdf_bytes = html_doc.write_pdf(font_config=self.font_config)
+            # Generate PDF (modern WeasyPrint API)
+            pdf_bytes = html_doc.write_pdf()
             
             return pdf_bytes
         except Exception as e:
