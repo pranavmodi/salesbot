@@ -1,6 +1,11 @@
-from app import create_app
-import logging
+import sys
 import os
+import logging
+
+# Add the current directory to Python path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from app import create_app
 
 # Set environment variables for WeasyPrint library paths on macOS
 if os.name != 'nt':  # Not Windows

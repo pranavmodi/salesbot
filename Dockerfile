@@ -30,6 +30,9 @@ COPY . .
 # Make start script executable
 RUN chmod +x start.sh
 
+# Set Python path for proper module imports
+ENV PYTHONPATH=/app
+
 # Expose port (Railway will set PORT env var)
 EXPOSE $PORT
 
