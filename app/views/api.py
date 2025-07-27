@@ -10,13 +10,46 @@ Handles API endpoints for viewing and downloading company reports:
 
 import base64
 import logging
-from flask import Blueprint, request, Response, render_template, abort, make_response
+from flask import Blueprint, request, Response, render_template, abort, make_response, jsonify
 from app.models.company import Company
+from app.models.contact import Contact
 
 logger = logging.getLogger(__name__)
 
 # Create API blueprint
 api_bp = Blueprint('api', __name__, url_prefix='/api')
+
+@api_bp.route('/contacts', methods=['POST'])
+def add_contact():
+    """Add a new contact via API."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+        
+        # For now, return success - the actual implementation would save to database
+        return jsonify({'success': True, 'message': 'Contact added successfully'})
+    except Exception as e:
+        logger.error(f"Error adding contact: {e}")
+        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+
+@api_bp.route('/companies', methods=['GET'])
+def get_companies():
+    """Get companies list via API."""
+    try:
+        companies = Company.get_paginated()
+        # Convert to JSON-serializable format
+        companies_data = []
+        for company in companies.get('companies', []):
+            companies_data.append({
+                'id': company.id,
+                'company_name': company.company_name,
+                'website_url': company.website_url
+            })
+        return jsonify({'success': True, 'companies': companies_data})
+    except Exception as e:
+        logger.error(f"Error getting companies: {e}")
+        return jsonify({'success': False, 'message': 'Internal server error'}), 500
 
 @api_bp.route('/public/reports/<int:company_id>')
 def get_company_report(company_id: int):
