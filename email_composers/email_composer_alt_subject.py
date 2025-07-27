@@ -38,7 +38,7 @@ class AltSubjectEmailComposer:
     """
 
     def __init__(self) -> None:
-        self.client         = OpenAI(api_key=os.getenv("OPENAI_KEY"))
+        self.client         = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         self.product_desc   = self._load_text(PRODUCT_DESC_PATH)
         self.proof_points   = self._load_text(PROOF_POINTS_PATH).splitlines()
         self.kpi_hints      = self._load_kpi_hints()

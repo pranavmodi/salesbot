@@ -22,7 +22,7 @@ class AIResearchService:
     def __init__(self):
         load_dotenv()
         self.client = OpenAI(
-            api_key=os.getenv("OPENAI_KEY"),
+            api_key=os.getenv("OPENAI_API_KEY"),
             timeout=120.0  # 2 minute timeout for API calls
         )
         self.model = os.getenv("OPENAI_MODEL", "o3")

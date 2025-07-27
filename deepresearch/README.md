@@ -213,7 +213,7 @@ Ensure you have the required environment variables:
 
 ```bash
 DATABASE_URL=postgresql://user:pass@localhost/salesbot
-OPENAI_KEY=sk-...
+OPENAI_API_KEY=sk-...
 OPENAI_MODEL=o3  # or gpt-4, gpt-3.5-turbo
 ```
 

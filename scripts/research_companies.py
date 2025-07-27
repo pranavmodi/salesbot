@@ -40,7 +40,7 @@ class CompanyResearcher:
     
     def __init__(self):
         load_dotenv()
-        self.client = OpenAI(api_key=os.getenv("OPENAI_KEY"))
+        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         self.model = os.getenv("OPENAI_MODEL", "o3")
         self.database_url = os.getenv("DATABASE_URL")
         
