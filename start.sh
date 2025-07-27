@@ -13,6 +13,9 @@ fi
 
 echo "✅ DATABASE_URL detected"
 
+# Set Python path for proper imports
+export PYTHONPATH="/app:$PYTHONPATH"
+
 # Run database migrations
 echo "🗄️ Running database migrations..."
 alembic upgrade head
@@ -24,6 +27,6 @@ fi
 
 echo "✅ Database migrations completed"
 
-# Start the web server
+# Start the web server with proper Python path
 echo "🌐 Starting web server..."
-exec gunicorn --bind 0.0.0.0:$PORT run:app --timeout 120 --workers 2
+exec env PYTHONPATH="/app:$PYTHONPATH" gunicorn --bind 0.0.0.0:$PORT run:app --timeout 120 --workers 2
