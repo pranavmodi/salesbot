@@ -429,9 +429,21 @@ function viewContactDetails(email) {
 }
 
 function showContactModal(contactData) {
-    const modal = document.getElementById('contactModal');
+    const modal = document.getElementById('contactDetailsModal');
+    if (!modal) {
+        console.error('Contact details modal not found in DOM');
+        showToast('errorToast', 'Contact details modal not available');
+        return;
+    }
+    
     const modalTitle = modal.querySelector('.modal-title');
-    const modalBody = modal.querySelector('#contactDetails');
+    const modalBody = modal.querySelector('#contactDetailsContent');
+    
+    if (!modalTitle || !modalBody) {
+        console.error('Modal elements not found - modalTitle:', modalTitle, 'modalBody:', modalBody);
+        showToast('errorToast', 'Contact modal elements not found');
+        return;
+    }
     
     const displayName = contactData.display_name || contactData.full_name || 
                        `${contactData.first_name || ''} ${contactData.last_name || ''}`.trim() || 'Unknown';
