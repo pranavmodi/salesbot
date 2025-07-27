@@ -336,12 +336,22 @@ class StepByStepResearcher:
                 Company.update_research_step(company_id, 2, strategic_analysis)
                 
                 # Continue to step 3
-                markdown_report = self._generate_final_report(company, company.research_step_1_basic, strategic_analysis)
-                if not markdown_report:
+                report_data = self._generate_final_report(company, company.research_step_1_basic, strategic_analysis)
+                if not report_data:
                     Company.update_research_status(company_id, 'failed', 'Failed at report generation step (resume)')
                     return {'success': False, 'error': 'Failed to generate final report'}
                 
-                Company.update_full_research(company_id, company.research_step_1_basic, strategic_analysis, markdown_report)
+                # Store step 3 results with HTML/PDF data and mark as completed
+                success = self.db_service.update_company_research_with_reports(
+                    company_id,
+                    company.research_step_1_basic,
+                    strategic_analysis=strategic_analysis,
+                    html_report=report_data['html_report'],
+                    pdf_report_base64=report_data['pdf_report_base64'],
+                    strategic_imperatives=report_data.get('strategic_imperatives', ''),
+                    agent_recommendations=report_data.get('agent_recommendations', ''),
+                    status='completed'
+                )
                 
                 return {
                     'success': True,
@@ -354,21 +364,26 @@ class StepByStepResearcher:
                 logger.info(f"Resuming from step 3 for {company.company_name}")
                 Company.update_research_status(company_id, 'in_progress')
                 
-                markdown_report = self._generate_final_report(
+                report_data = self._generate_final_report(
                     company, 
                     company.research_step_1_basic, 
                     company.research_step_2_strategic
                 )
                 
-                if not markdown_report:
+                if not report_data:
                     Company.update_research_status(company_id, 'failed', 'Failed at report generation step (resume)')
                     return {'success': False, 'error': 'Failed to generate final report'}
                 
-                Company.update_full_research(
-                    company_id, 
-                    company.research_step_1_basic, 
-                    company.research_step_2_strategic, 
-                    markdown_report
+                # Store step 3 results with HTML/PDF data and mark as completed
+                success = self.db_service.update_company_research_with_reports(
+                    company_id,
+                    company.research_step_1_basic,
+                    strategic_analysis=company.research_step_2_strategic,
+                    html_report=report_data['html_report'],
+                    pdf_report_base64=report_data['pdf_report_base64'],
+                    strategic_imperatives=report_data.get('strategic_imperatives', ''),
+                    agent_recommendations=report_data.get('agent_recommendations', ''),
+                    status='completed'
                 )
                 
                 return {
