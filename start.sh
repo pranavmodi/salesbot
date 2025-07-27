@@ -27,6 +27,10 @@ fi
 
 echo "✅ Database migrations completed"
 
+# Debug Python imports
+echo "🔍 Running debug script..."
+python debug.py
+
 # Start the web server with proper Python path
 echo "🌐 Starting web server..."
 exec env PYTHONPATH="/app:$PYTHONPATH" gunicorn --bind 0.0.0.0:$PORT run:app --timeout 120 --workers 2
