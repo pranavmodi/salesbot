@@ -52,6 +52,59 @@ def get_companies():
         logger.error(f"Error getting companies: {e}")
         return jsonify({'success': False, 'message': 'Internal server error'}), 500
 
+@api_bp.route('/companies', methods=['POST'])
+def create_company():
+    """Create a new company."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+        
+        # Validate required fields
+        company_name = data.get('company_name', '').strip()
+        if not company_name:
+            return jsonify({'success': False, 'message': 'Company name is required'}), 400
+        
+        # Check if company already exists
+        existing_companies = Company.get_companies_by_name(company_name)
+        if existing_companies:
+            return jsonify({'success': False, 'message': 'A company with this name already exists'}), 400
+        
+        # Prepare company data
+        website_url = data.get('website_url', '').strip()
+        if website_url and not website_url.startswith(('http://', 'https://')):
+            website_url = f"https://{website_url}"
+        
+        company_data = {
+            'company_name': company_name,
+            'website_url': website_url,
+            'company_research': ''  # Start with empty research
+        }
+        
+        # Save the company
+        success = Company.save(company_data)
+        if success:
+            # Get the created company to return its ID
+            created_companies = Company.get_companies_by_name(company_name)
+            if created_companies:
+                company = created_companies[0]
+                logger.info(f"Successfully created company: {company_name}")
+                return jsonify({
+                    'success': True,
+                    'message': f'Company "{company_name}" created successfully',
+                    'company': {
+                        'id': company.id,
+                        'company_name': company.company_name,
+                        'website_url': company.website_url
+                    }
+                })
+        
+        return jsonify({'success': False, 'message': 'Failed to create company'}), 500
+        
+    except Exception as e:
+        logger.error(f"Error creating company: {e}")
+        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+
 @api_bp.route('/public/reports/<int:company_id>')
 def get_company_report(company_id: int):
     """Serve HTML report for a company."""

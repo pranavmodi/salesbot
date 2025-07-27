@@ -776,8 +776,76 @@ function cancelCompanyEdit() {
 }
 
 function saveCompany() {
-    // This function can be used for saving new companies
-    console.log('Save company functionality to be implemented');
+    const form = document.getElementById('addCompanyForm');
+    const saveBtn = document.getElementById('saveCompanyBtn');
+    
+    // Get form data
+    const companyData = {
+        company_name: document.getElementById('companyName').value.trim(),
+        website_url: document.getElementById('websiteUrl').value.trim()
+    };
+    
+    // Validate required fields
+    if (!companyData.company_name) {
+        showToast('errorToast', 'Company name is required');
+        return;
+    }
+    
+    // Show loading state
+    const originalHTML = saveBtn.innerHTML;
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+    
+    // Check if we're editing or creating
+    const editingId = saveBtn.dataset.editingCompanyId;
+    const endpoint = editingId ? `/api/companies/${editingId}` : '/api/companies';
+    const method = editingId ? 'PUT' : 'POST';
+    
+    fetch(endpoint, {
+        method: method,
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(companyData)
+    })
+    .then(resp => resp.json())
+    .then(data => {
+        if (data.success) {
+            showToast('successToast', data.message || 'Company saved successfully');
+            
+            // Close modal if it exists
+            const modal = bootstrap.Modal.getInstance(document.getElementById('addCompanyModal'));
+            if (modal) modal.hide();
+            
+            // Reset form and state
+            if (form) form.reset();
+            delete saveBtn.dataset.editingCompanyId;
+            
+            // Update modal title if it exists
+            const modalLabel = document.getElementById('addCompanyModalLabel');
+            if (modalLabel) modalLabel.textContent = 'Add New Company';
+            
+            // Reload companies list
+            setTimeout(() => {
+                if (typeof loadCompanies === 'function') {
+                    loadCompanies();
+                } else {
+                    window.location.reload();
+                }
+            }, 1500);
+        } else {
+            showToast('errorToast', data.message || 'Failed to save company');
+        }
+    })
+    .catch(err => {
+        console.error('Error saving company:', err);
+        showToast('errorToast', 'Error saving company');
+    })
+    .finally(() => {
+        // Restore button state
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalHTML;
+    });
 }
 
 // Company stats update
