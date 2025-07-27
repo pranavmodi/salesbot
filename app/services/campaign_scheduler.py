@@ -646,15 +646,19 @@ class CampaignScheduler:
                 current_app.logger.error("DATABASE_URL not configured for scheduler")
                 return
             
-            # Configure SQLAlchemy job store with connection pooling
+            # Configure SQLAlchemy job store with conservative connection pooling
             from sqlalchemy import create_engine
-            # Create engine with connection pooling to prevent "too many clients" errors
+            # Create engine with very conservative connection pooling for Railway
             scheduler_engine = create_engine(
                 database_url,
-                pool_size=5,          # Maximum number of permanent connections to keep open
-                max_overflow=10,      # Maximum number of connections that can overflow the pool
+                pool_size=2,          # Reduced: Maximum number of permanent connections
+                max_overflow=3,       # Reduced: Maximum number of connections that can overflow
                 pool_pre_ping=True,   # Verify connections before use
-                pool_recycle=3600     # Recycle connections every hour
+                pool_recycle=1800,    # Recycle connections every 30 minutes (reduced from 1 hour)
+                pool_timeout=30,      # Timeout after 30 seconds when getting connection
+                connect_args={
+                    "options": "-c statement_timeout=30000"  # 30 second statement timeout
+                }
             )
             
             jobstores = {
@@ -687,9 +691,17 @@ class CampaignScheduler:
             current_app.logger.error(f"Failed to setup campaign scheduler: {e}")
     
     def _setup_background_jobs(self):
-        """Setup recurring background jobs."""
+        """Setup recurring background jobs with proper error handling for concurrent instances."""
         try:
-            # Remove existing job if it exists
+            # Check if job already exists to prevent duplicate registration
+            existing_jobs = self.scheduler.get_jobs()
+            existing_job_ids = [job.id for job in existing_jobs]
+            
+            if 'process_pending_emails' in existing_job_ids:
+                current_app.logger.info("Background email processor already exists, skipping registration")
+                return
+            
+            # Remove existing job if it exists (belt and suspenders approach)
             try:
                 self.scheduler.remove_job('process_pending_emails')
             except:
@@ -709,18 +721,26 @@ class CampaignScheduler:
             except Exception as e:
                 current_app.logger.warning(f"Could not check email queue: {e}")
             
-            # Add recurring job to process pending email jobs every 2 minutes
-            self.scheduler.add_job(
-                func=process_pending_email_jobs,
-                trigger='interval',
-                seconds=300,  # Increased to 5 minutes to reduce connection load
-                id='process_pending_emails',
-                replace_existing=True,
-                max_instances=1,  # Prevent overlapping executions
-                coalesce=True    # Merge missed executions
-            )
-            
-            current_app.logger.info("Background email processor scheduled (5min interval)")
+            # Add recurring job to process pending email jobs every 5 minutes
+            try:
+                self.scheduler.add_job(
+                    func=process_pending_email_jobs,
+                    trigger='interval',
+                    seconds=300,  # 5 minutes to reduce connection load
+                    id='process_pending_emails',
+                    replace_existing=True,
+                    max_instances=1,  # Prevent overlapping executions
+                    coalesce=True    # Merge missed executions
+                )
+                
+                current_app.logger.info("Background email processor scheduled (5min interval)")
+                
+            except Exception as job_error:
+                # If job registration fails due to duplicate key, it means another instance already registered it
+                if "already exists" in str(job_error).lower() or "duplicate key" in str(job_error).lower():
+                    current_app.logger.info("Background email processor already registered by another instance")
+                else:
+                    raise job_error
             
         except Exception as e:
             current_app.logger.error(f"Failed to setup background jobs: {e}")
