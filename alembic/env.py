@@ -15,16 +15,12 @@ load_dotenv() # Re-enable .env loading
 config = context.config
 
 # Set the sqlalchemy.url from environment variable
-database_url = os.getenv("DATABASE_URL") # Re-enable .env loading
+database_url = os.getenv("DATABASE_URL")
 if database_url:
     config.set_main_option("sqlalchemy.url", database_url)
 else:
-    # Fallback or error if DATABASE_URL is not set, to avoid using default from alembic.ini
-    # This ensures we don't accidentally connect to 'driver://user:pass@localhost/dbname'
-    raise ValueError("DATABASE_URL environment variable not set or .env file not loaded.")
-
-# HARDCODED URL FOR DIAGNOSIS
-config.set_main_option("sqlalchemy.url", "postgresql://pranav:postgres@localhost:5432/salesdb")
+    # Fallback or error if DATABASE_URL is not set
+    raise ValueError("DATABASE_URL environment variable not set. Please configure your database connection.")
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
