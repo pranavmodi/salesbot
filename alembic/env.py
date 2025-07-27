@@ -19,7 +19,7 @@ database_url = os.getenv("DATABASE_URL")
 if database_url:
     config.set_main_option("sqlalchemy.url", database_url)
 else:
-    # Fallback or error if DATABASE_URL is not set
+    # DATABASE_URL is required for migrations
     raise ValueError("DATABASE_URL environment variable not set. Please configure your database connection.")
 
 # Interpret the config file for Python logging.

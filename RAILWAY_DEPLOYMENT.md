@@ -14,14 +14,14 @@ git commit -m "feat: add Railway deployment configuration"
 git push origin main
 ```
 
-### 3. **Connect Repository**
-- In Railway dashboard: **New Project** → **Deploy from GitHub repo**
+### 3. **Add PostgreSQL Database FIRST**
+- In Railway dashboard: **New Project** → **Database** → **PostgreSQL**
+- This creates the database service and generates `DATABASE_URL`
+
+### 4. **Connect Repository**
+- In your Railway project: **New Service** → **GitHub Repo**
 - Select your `salesbot` repository
 - Railway will auto-detect it's a Python app
-
-### 4. **Add PostgreSQL Database**
-- In your Railway project: **New Service** → **Database** → **PostgreSQL**
-- Railway will auto-generate `DATABASE_URL`
 
 ### 5. **Configure Environment Variables**
 Go to your web service → **Variables** tab and add:
@@ -88,16 +88,24 @@ BASE_URL=https://your-app.up.railway.app
 
 ## 🆘 Troubleshooting
 
+**Migration Error: "DATABASE_URL environment variable not set"**
+- **Solution**: Add PostgreSQL database service BEFORE deploying
+- **Steps**: New Service → Database → PostgreSQL
+- **Important**: Database must exist before web service deployment
+
 **Database Connection Issues:**
 - Check `DATABASE_URL` is auto-set by Railway
 - Verify connection pooling is working
+- Restart the web service if needed
 
 **Email Issues:**
 - Verify `EMAIL_ACCOUNTS` JSON is properly escaped
 - Check SMTP credentials
+- Test with a single email account first
 
 **Build Failures:**
 - Check `requirements.txt` versions
 - View build logs in Railway dashboard
+- Ensure all dependencies are properly specified
 
 Ready to deploy! 🎉
