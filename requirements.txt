@@ -15,7 +15,7 @@ google-analytics-data==0.18.6
 # HTML/PDF Report Generation
 markdown==3.6
 Jinja2==3.1.4
-WeasyPrint==61.2
+WeasyPrint==66.0
 
 # Production WSGI Server
 gunicorn==21.2.0
