@@ -84,7 +84,7 @@ function saveNewContact() {
     saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Saving...';
     saveBtn.disabled = true;
 
-    fetch('/api/contacts', {
+    fetch('/api/contacts/add', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -144,20 +144,21 @@ function resetAddContactForm() {
 }
 
 function loadCompaniesForDropdown() {
-    const companySelect = document.getElementById('company');
+    const companySelect = document.getElementById('companySelect');
     if (!companySelect) return;
     
-    fetch('/api/companies')
+    fetch('/api/companies/list')
         .then(response => response.json())
         .then(data => {
             if (data.success) {
                 const companies = data.companies || [];
-                companySelect.innerHTML = '<option value="">Select a company</option>';
+                companySelect.innerHTML = '<option value="">Select existing company...</option>';
                 
                 companies.forEach(company => {
                     const option = document.createElement('option');
-                    option.value = company.name;
-                    option.textContent = company.name;
+                    option.value = company.id;
+                    option.textContent = company.company_name;
+                    option.title = company.website_url; // Show website on hover
                     companySelect.appendChild(option);
                 });
             }
@@ -168,12 +169,12 @@ function loadCompaniesForDropdown() {
 }
 
 function toggleNewCompanyFields() {
-    const newCompanyToggle = document.getElementById('newCompanyToggle');
+    const createNewCompanyCheckbox = document.getElementById('createNewCompany');
     const newCompanyFields = document.getElementById('newCompanyFields');
-    const companySelect = document.getElementById('company');
+    const companySelect = document.getElementById('companySelect');
     
-    if (newCompanyToggle && newCompanyFields && companySelect) {
-        if (newCompanyToggle.checked) {
+    if (createNewCompanyCheckbox && newCompanyFields && companySelect) {
+        if (createNewCompanyCheckbox.checked) {
             newCompanyFields.style.display = 'block';
             companySelect.disabled = true;
             companySelect.value = '';

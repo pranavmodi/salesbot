@@ -34,6 +34,7 @@ def add_contact():
         return jsonify({'success': False, 'message': 'Internal server error'}), 500
 
 @api_bp.route('/companies', methods=['GET'])
+@api_bp.route('/companies/list', methods=['GET'])
 def get_companies():
     """Get companies list via API."""
     try:
