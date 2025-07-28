@@ -360,10 +360,17 @@ class DeepResearchEmailComposer:
             from app.models.company import Company
             
             # Try to find company by name
+            print(f"🔍 DEBUG: Searching database for company: '{company_name}'")
             companies = Company.get_companies_by_name(company_name)
+            print(f"📋 DEBUG: Database search returned {len(companies)} companies")
+            
+            if companies:
+                for i, company in enumerate(companies):
+                    print(f"📋 DEBUG: Company {i+1}: ID={company.id}, Name='{company.company_name}', Status={getattr(company, 'research_status', 'unknown')}")
             
             # If company not found and auto-trigger enabled, create company and start research
             if not companies and auto_trigger:
+                print(f"🆕 DEBUG: No existing company found for '{company_name}' - triggering new research")
                 return self._trigger_full_deep_research(company_name)
             elif not companies:
                 return "", None
@@ -441,26 +448,35 @@ class DeepResearchEmailComposer:
     def _trigger_full_deep_research(self, company_name: str, company_id: int = None) -> tuple[str, int]:
         """Trigger full step-by-step deep research and return (research_text, company_id)."""
         try:
+            print(f"🚀 DEBUG: _trigger_full_deep_research called for '{company_name}' with company_id={company_id}")
+            
             # Import research services
             from deepresearch.step_by_step_researcher import StepByStepResearcher
             from app.models.company import Company
             
             # If no company_id provided, we need to create the company first
             if company_id is None:
+                print(f"🆕 DEBUG: Creating new company record for '{company_name}'")
                 company_data = {'company_name': company_name, 'website_url': '', 'company_research': ''}
                 
                 if Company.save(company_data):
+                    print(f"✅ DEBUG: Successfully created company record, retrieving ID...")
                     companies = Company.get_companies_by_name(company_name)
                     if companies:
                         company_id = companies[0].id
+                        print(f"✅ DEBUG: New company created with ID: {company_id}")
                     else:
+                        print(f"❌ DEBUG: Failed to retrieve newly created company")
                         return "", None
                 else:
+                    print(f"❌ DEBUG: Failed to save new company record")
                     return "", None
             
             # Trigger step-by-step deep research
+            print(f"🔬 DEBUG: Starting step-by-step research for company_id={company_id} ('{company_name}')")
             researcher = StepByStepResearcher()
             result = researcher.start_deep_research(company_id, force_refresh=False)
+            print(f"🔬 DEBUG: Research trigger result: {result}")
             
             if result.get('success'):
                 # Wait for research to complete with polling (max 5 minutes for Railway)
