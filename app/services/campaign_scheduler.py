@@ -49,19 +49,22 @@ def execute_campaign_job(campaign_id: int):
     app = create_app()
     with app.app_context():
         try:
-            current_app.logger.info(f"Starting execution of campaign {campaign_id}")
+            current_app.logger.info(f"🚀 DEBUG: Starting execution of campaign {campaign_id}")
             
             # Get campaign details
             campaign = Campaign.get_by_id(campaign_id)
             if not campaign:
-                current_app.logger.error(f"Campaign {campaign_id} not found during execution")
+                current_app.logger.error(f"❌ DEBUG: Campaign {campaign_id} not found during execution")
                 return
+            
+            current_app.logger.info(f"📋 DEBUG: Campaign {campaign_id} found - Name: {campaign.name}, Status: {campaign.status}")
             
             # Check if campaign is paused
             if campaign.status == 'paused':
-                current_app.logger.info(f"Campaign {campaign_id} is paused, skipping execution")
+                current_app.logger.info(f"⏸️ DEBUG: Campaign {campaign_id} is paused, skipping execution")
                 return
             
+            current_app.logger.info(f"🔄 DEBUG: Updating campaign {campaign_id} status to active")
             # Update status to active
             Campaign.update_status(campaign_id, 'active')
             
@@ -74,14 +77,17 @@ def execute_campaign_job(campaign_id: int):
             business_hours = settings.get('business_hours', {})
             
             # Get contacts that need to be processed
+            current_app.logger.info(f"👥 DEBUG: Getting contacts for campaign {campaign_id}")
             pending_contacts = Campaign.get_campaign_contacts(campaign_id, status='active')
             
+            current_app.logger.info(f"📊 DEBUG: Found {len(pending_contacts) if pending_contacts else 0} pending contacts for campaign {campaign_id}")
+            
             if not pending_contacts:
-                current_app.logger.info(f"No pending contacts for campaign {campaign_id}")
+                current_app.logger.warning(f"⚠️ DEBUG: No pending contacts for campaign {campaign_id} - marking as completed")
                 Campaign.update_status(campaign_id, 'completed')
                 return
             
-            current_app.logger.info(f"Scheduling {len(pending_contacts)} individual emails for campaign {campaign_id}")
+            current_app.logger.info(f"📅 DEBUG: Scheduling {len(pending_contacts)} individual emails for campaign {campaign_id}")
             
             # Schedule individual email jobs with configurable random delays
             base_delay_minutes = email_frequency['value'] if email_frequency['unit'] == 'minutes' else email_frequency['value'] * 60
@@ -154,11 +160,12 @@ def execute_campaign_job(campaign_id: int):
                         status='pending'
                     )
                     
+                    current_app.logger.info(f"💾 DEBUG: Attempting to save email job for {contact['email']} scheduled for {run_time}")
                     if email_job.save():
                         scheduled_count += 1
-                        current_app.logger.info(f"Scheduled email {i+1}/{len(pending_contacts)} to {contact['email']} for {run_time} (delay: {delay_seconds}s)")
+                        current_app.logger.info(f"✅ DEBUG: Scheduled email {i+1}/{len(pending_contacts)} to {contact['email']} for {run_time} (delay: {delay_seconds}s)")
                     else:
-                        current_app.logger.error(f"Failed to save email job for {contact['email']}")
+                        current_app.logger.error(f"❌ DEBUG: Failed to save email job for {contact['email']}")
                     
                 except Exception as e:
                     current_app.logger.error(f"Error scheduling email for {contact.get('email', 'unknown')}: {e}")
@@ -342,12 +349,16 @@ def process_pending_email_jobs():
     with app.app_context():
         try:
             # Get pending jobs that are ready to execute
+            current_app.logger.info(f"🔍 DEBUG: Checking for pending email jobs...")
             pending_jobs = CampaignEmailJob.get_pending_jobs(limit=10)  # Reduced from 50 to 10
             
+            current_app.logger.info(f"📧 DEBUG: Found {len(pending_jobs)} pending email jobs ready to process")
+            
             if not pending_jobs:
+                current_app.logger.info(f"💤 DEBUG: No pending jobs ready for execution")
                 return  # Silent return when no jobs
             
-            current_app.logger.info(f"Found {len(pending_jobs)} pending email jobs to process.")
+            current_app.logger.info(f"🚀 DEBUG: Processing {len(pending_jobs)} pending email jobs")
             
             for job in pending_jobs:
                 # Attempt to lock the job for processing to prevent race conditions
@@ -722,19 +733,19 @@ class CampaignScheduler:
             except Exception as e:
                 current_app.logger.warning(f"Could not check email queue: {e}")
             
-            # Add recurring job to process pending email jobs every 5 minutes
+            # Add recurring job to process pending email jobs every 30 seconds
             try:
                 self.scheduler.add_job(
                     func=process_pending_email_jobs,
                     trigger='interval',
-                    seconds=300,  # 5 minutes to reduce connection load
+                    seconds=30,  # 30 seconds for faster debugging
                     id='process_pending_emails',
                     replace_existing=True,
                     max_instances=1,  # Prevent overlapping executions
                     coalesce=True    # Merge missed executions
                 )
                 
-                current_app.logger.info("Background email processor scheduled (5min interval)")
+                current_app.logger.info("Background email processor scheduled (30sec interval)")
                 
             except Exception as job_error:
                 # If job registration fails due to duplicate key, it means another instance already registered it
