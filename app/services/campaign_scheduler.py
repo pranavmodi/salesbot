@@ -701,12 +701,13 @@ class CampaignScheduler:
             }
             
             executors = {
-                'default': ThreadPoolExecutor(5),  # Reduced from 20 to 5 to limit concurrent jobs
+                'default': ThreadPoolExecutor(2),  # Further reduced to 2 threads for Railway's limited resources
             }
             
             job_defaults = {
-                'coalesce': True,   # Changed to True to prevent duplicate jobs
-                'max_instances': 1  # Reduced from 3 to 1 to limit concurrent instances
+                'coalesce': True,   # Combine multiple pending jobs into one
+                'max_instances': 1,  # Only one instance of each job type at a time
+                'misfire_grace_time': 60  # Allow 60 seconds grace time for delayed execution
             }
             
             self.scheduler = BackgroundScheduler(
@@ -756,38 +757,48 @@ class CampaignScheduler:
             except Exception as e:
                 current_app.logger.warning(f"Could not check email queue: {e}")
             
-            # Add recurring job to process pending email jobs every 30 seconds
+            # Add recurring job to process pending email jobs every 60 seconds (reduced to conserve threads)
             try:
                 self.scheduler.add_job(
                     func=process_pending_email_jobs,
-                    trigger='interval',
-                    seconds=30,  # 30 seconds for faster debugging
+                    trigger='interval', 
+                    seconds=60,  # Increased to 60 seconds to reduce resource usage
                     id='process_pending_emails',
                     replace_existing=True,
                     max_instances=1,  # Prevent overlapping executions
                     coalesce=True    # Merge missed executions
                 )
                 
-                current_app.logger.info("Background email processor scheduled (30sec interval)")
+                current_app.logger.info("Background email processor scheduled (60sec interval)")
                 
             except Exception as job_error:
-                # If job registration fails due to duplicate key, it means another instance already registered it
-                if "already exists" in str(job_error).lower() or "duplicate key" in str(job_error).lower():
+                # If job registration fails due to threading issues, degrade gracefully
+                if "can't start new thread" in str(job_error).lower():
+                    current_app.logger.warning("Thread limit reached - running without background email processor")
+                    current_app.logger.warning("Campaigns will need manual triggering via dashboard")
+                elif "already exists" in str(job_error).lower() or "duplicate key" in str(job_error).lower():
                     current_app.logger.info("Background email processor already registered by another instance")
                 else:
-                    raise job_error
+                    current_app.logger.error(f"Failed to schedule background job: {job_error}")
+                    # Don't raise - continue without background processing
             
         except Exception as e:
             current_app.logger.error(f"Failed to setup background jobs: {e}")
     
     def start(self):
-        """Start the scheduler."""
+        """Start the scheduler with thread exhaustion handling."""
         if self.scheduler and not self.scheduler.running:
             try:
                 self.scheduler.start()
                 current_app.logger.info("Campaign scheduler started")
             except Exception as e:
-                current_app.logger.error(f"Failed to start scheduler: {e}")
+                if "can't start new thread" in str(e).lower():
+                    current_app.logger.warning("Thread limit reached - scheduler cannot start automatically")
+                    current_app.logger.warning("Manual campaign execution available via dashboard")
+                    # Set scheduler to None to indicate it's not available
+                    self.scheduler = None
+                else:
+                    current_app.logger.error(f"Failed to start scheduler: {e}")
     
     def stop(self):
         """Stop the scheduler."""
@@ -815,6 +826,12 @@ class CampaignScheduler:
             if not campaign:
                 current_app.logger.error(f"Campaign {campaign_id} not found")
                 return False
+            
+            # Check if scheduler is available
+            if not self.scheduler:
+                current_app.logger.warning(f"Scheduler unavailable - executing campaign {campaign_id} immediately via direct call")
+                execute_campaign_job(campaign_id)
+                return True
             
             # If no schedule date, start immediately with a small delay to avoid timing issues
             if not schedule_date:
@@ -982,12 +999,16 @@ class CampaignScheduler:
                 f"campaign_{campaign_id}_resume"
             ]
             
-            for job_id in main_job_ids:
-                try:
-                    self.scheduler.remove_job(job_id)
-                    current_app.logger.info(f"Removed main job {job_id}")
-                except:
-                    pass  # Job might not exist
+            # Only try to remove scheduler jobs if scheduler is available
+            if self.scheduler:
+                for job_id in main_job_ids:
+                    try:
+                        self.scheduler.remove_job(job_id)
+                        current_app.logger.info(f"Removed main job {job_id}")
+                    except:
+                        pass  # Job might not exist
+            else:
+                current_app.logger.info(f"Scheduler unavailable - campaign {campaign_id} jobs cannot be removed from scheduler")
             
             # Mark all pending email jobs for this campaign as cancelled
             try:
