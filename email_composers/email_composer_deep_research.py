@@ -103,7 +103,11 @@ class DeepResearchEmailComposer:
         # Generate public report URL with tracking parameters
         report_url = None
         if company_id:
+            print(f"🔗 DEBUG: Attempting to get report URL for company_id={company_id}, company_name={company_name}")
             report_url = self._get_or_publish_report_url(company_id, company_name, lead.get("email", ""), campaign_id)
+            print(f"🔗 DEBUG: Generated report_url: {report_url}")
+        else:
+            print(f"⚠️ DEBUG: No company_id found, cannot generate report URL")
 
         user_prompt = f"""
         === Lead ===
@@ -172,8 +176,15 @@ class DeepResearchEmailComposer:
             
             # Get the company data to verify report exists
             company = Company.get_by_id(company_id)
-            if not company or not company.markdown_report:
+            if not company:
+                print(f"❌ DEBUG: Company {company_id} not found in database")
                 return ""
+            
+            if not company.markdown_report:
+                print(f"⚠️ DEBUG: Company {company_name} (ID: {company_id}) has no markdown_report")
+                return ""
+            
+            print(f"✅ DEBUG: Company {company_name} has markdown_report, proceeding with publishing")
             
             # First, publish the report to possibleminds.in
             published_url = self._publish_report_to_netlify(company, recipient_email, campaign_id)
