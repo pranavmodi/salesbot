@@ -97,25 +97,31 @@ class DeepResearchEmailComposer:
         if auto_research is None:
             auto_research = AUTO_RESEARCH
 
-        # Try to get company research data (with optional auto-triggering)
-        print(f"🔍 DEBUG: Getting research for company: {company_name}")
+        # STEP 1: Get/Create company research and ensure full report exists
+        print(f"📝 STEP 1: Getting/creating research for company: {company_name}")
         company_research, company_id = self._get_company_research_with_full_report(company_name, auto_trigger=auto_research)
-        print(f"📋 DEBUG: Research result - company_id: {company_id}, research length: {len(company_research) if company_research else 0}")
+        print(f"📋 STEP 1 RESULT: company_id={company_id}, research_length={len(company_research) if company_research else 0}")
         
         # If company_research is None, it means research is in progress but not ready
         if company_research is None:
-            print(f"🚫 DEBUG: Research not ready for {company_name} - aborting email composition")
+            print(f"🚫 STEP 1 FAILED: Research not ready for {company_name} - aborting email composition")
             return None  # Return None to signal email should not be sent
         
-        # Generate public report URL with tracking parameters
+        print(f"✅ STEP 1 COMPLETED: Research available for {company_name}")
+        
+        # STEP 2: Publish report to possibleminds.in and generate tracking URL
+        print(f"🌐 STEP 2: Publishing report to possibleminds.in for company_id={company_id}")
         report_url = None
         if company_id:
-            print(f"🔗 DEBUG: Attempting to get report URL for company_id={company_id}, company_name={company_name}")
-            print(f"📧 DEBUG: Campaign ID provided: {campaign_id}, Contact email: {lead.get('email', '')}")
+            print(f"📧 STEP 2 INFO: Campaign_id={campaign_id}, Contact={lead.get('email', '')}")
             report_url = self._get_or_publish_report_url(company_id, company_name, lead.get("email", ""), campaign_id)
-            print(f"🔗 DEBUG: Generated report_url: {'YES - ' + report_url[:50] + '...' if report_url else 'NO - Empty/None'}")
+            if report_url:
+                print(f"✅ STEP 2 COMPLETED: Report published and tracking URL generated")
+                print(f"🔗 STEP 2 RESULT: URL={report_url[:50]}...")
+            else:
+                print(f"❌ STEP 2 FAILED: No report URL generated")
         else:
-            print(f"⚠️ DEBUG: No company_id found, cannot generate report URL")
+            print(f"❌ STEP 2 FAILED: No company_id found, cannot publish report")
 
         user_prompt = f"""
         === Lead ===
@@ -158,20 +164,22 @@ class DeepResearchEmailComposer:
 
         subject, body = self._parse(rsp.choices[0].message.content)
         
-        # Replace report link placeholder with HTML linked text
-        print(f"🔗 DEBUG: Processing report URL replacement - report_url: {'YES' if report_url else 'NO'}, has placeholder: {'YES' if '[REPORT_LINK_PLACEHOLDER]' in body else 'NO'}")
+        # STEP 3: Add report link to email and finalize for sending
+        print(f"📧 STEP 3: Adding report link to email template")
+        print(f"🔗 STEP 3 CHECK: report_url={'AVAILABLE' if report_url else 'MISSING'}, has_placeholder={'YES' if '[REPORT_LINK_PLACEHOLDER]' in body else 'NO'}")
         
         if report_url and "[REPORT_LINK_PLACEHOLDER]" in body:
             linked_text = f'<a href="{report_url}">strategic analysis report</a>'
             body = body.replace("[REPORT_LINK_PLACEHOLDER]", linked_text)
-            print(f"✅ DEBUG: Successfully replaced placeholder with report link")
+            print(f"✅ STEP 3 COMPLETED: Successfully added report link to email")
+            print(f"🔗 STEP 3 RESULT: Link text = 'strategic analysis report', URL = {report_url[:50]}...")
         elif "[REPORT_LINK_PLACEHOLDER]" in body:
             # If no report URL available, fall back to generic message
             fallback_msg = "Happy to share how we helped Precise Imaging reduce appointment no-shows by 40% - similar healthcare operational challenges."
             body = body.replace("P.S. I put together a strategic analysis for [Company] that covers these opportunities in detail. You can review it here: [REPORT_LINK_PLACEHOLDER]", f"P.S. {fallback_msg}")
-            print(f"⚠️ DEBUG: No report URL available, used fallback message")
+            print(f"❌ STEP 3 FALLBACK: No report URL available, used generic message")
         else:
-            print(f"ℹ️ DEBUG: No placeholder found in email body")
+            print(f"⚠️ STEP 3 WARNING: No placeholder found in email body - report link cannot be added")
         
         body = body.strip() # Ensure no trailing newlines before adding signature
         body += '\n' + self._signature()
@@ -180,6 +188,17 @@ class DeepResearchEmailComposer:
         html_body = self._convert_to_html(body)
         
         final_result = {"subject": subject, "body": html_body}
+        
+        # FINAL VERIFICATION: Confirm all steps completed successfully
+        has_report_link = 'strategic analysis report' in html_body
+        print(f"🎯 FINAL CHECK: Email ready for sending")
+        print(f"📧 FINAL RESULT: Subject='{subject[:50]}...', Has_report_link={has_report_link}")
+        
+        if has_report_link:
+            print(f"✅ ALL STEPS COMPLETED: Email contains actual report link and is ready to send")
+        else:
+            print(f"⚠️ INCOMPLETE: Email does not contain report link - may use fallback message")
+        
         return final_result
 
     def _get_or_publish_report_url(self, company_id: int, company_name: str, recipient_email: str, campaign_id: int = None) -> str:
@@ -351,9 +370,11 @@ class DeepResearchEmailComposer:
             
             company = companies[0]  # Take first match
             
-            # Check if we have a published markdown report (full research completed)
+            # Check if we have a markdown report (full research completed)
             if hasattr(company, 'markdown_report') and company.markdown_report:
-                # Use basic research for email context, but we have the full report published
+                print(f"✅ DEBUG: Company {company_name} has markdown report - ensuring it's published")
+                # We have the report, now ensure it gets published when email is composed
+                # Don't return yet - let the normal flow handle publishing in _get_or_publish_report_url
                 research_text = company.research_step_1_basic or company.company_research or company.markdown_report[:500] + "..."
                 return research_text, company.id
             
