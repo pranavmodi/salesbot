@@ -573,7 +573,11 @@ def _send_campaign_email(campaign_id: int, contact: Dict, settings: Dict) -> boo
                 current_app.logger.info(f"⚠️ DEBUG: EmailService.compose_email failed, using fallback")
                 email_content = _compose_fallback_email(campaign, contact, settings)
         
-        if email_content and 'subject' in email_content and 'body' in email_content:
+        # Check if email composition was successful and content is ready
+        if email_content is None:
+            current_app.logger.warning(f"🚫 DEBUG: Email composition aborted for {contact.get('email')} - research not ready")
+            return False  # Do not send email, research is still in progress
+        elif email_content and 'subject' in email_content and 'body' in email_content:
             # Send the email
             recipient_name = contact.get('display_name') or contact.get('full_name') or f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip()
             
@@ -648,6 +652,11 @@ def _compose_fallback_email(campaign: Campaign, contact: Dict, settings: Dict) -
             extra_context=f"This email is part of the '{campaign.name}' campaign.",
             campaign_id=campaign.id
         )
+        
+        # Handle case where composer returns None (research not ready)
+        if email_content is None:
+            current_app.logger.warning(f"🚫 DEBUG: Composer returned None for {contact.get('email')} - research not ready")
+            return None  # Propagate the None to prevent email sending
         
         current_app.logger.info(f"📧 DEBUG: Email composer returned content: {bool(email_content)}")
         if email_content and 'body' in email_content:

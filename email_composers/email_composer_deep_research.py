@@ -102,6 +102,11 @@ class DeepResearchEmailComposer:
         company_research, company_id = self._get_company_research_with_full_report(company_name, auto_trigger=auto_research)
         print(f"📋 DEBUG: Research result - company_id: {company_id}, research length: {len(company_research) if company_research else 0}")
         
+        # If company_research is None, it means research is in progress but not ready
+        if company_research is None:
+            print(f"🚫 DEBUG: Research not ready for {company_name} - aborting email composition")
+            return None  # Return None to signal email should not be sent
+        
         # Generate public report URL with tracking parameters
         report_url = None
         if company_id:
@@ -410,29 +415,52 @@ class DeepResearchEmailComposer:
             result = researcher.start_deep_research(company_id, force_refresh=False)
             
             if result.get('success'):
-                # Wait for research to complete with polling (max 60 seconds)
-                max_wait_time = 60
-                poll_interval = 3
+                # Wait for research to complete with polling (max 5 minutes for Railway)
+                max_wait_time = 300  # Increased from 60 to 300 seconds (5 minutes)
+                poll_interval = 5    # Increased from 3 to 5 seconds to reduce polling frequency
                 elapsed_time = 0
+                print(f"⏳ DEBUG: Waiting for deep research to complete (max {max_wait_time}s)...")
                 
                 while elapsed_time < max_wait_time:
                     time.sleep(poll_interval)
                     elapsed_time += poll_interval
                     
                     company = Company.get_by_id(company_id)
-                    if company and company.research_status == 'completed' and company.markdown_report:
-                        research_text = company.research_step_1_basic or company.company_research or "Research completed - see full report for details."
-                        return research_text, company_id
-                    elif company and company.research_step_1_basic:
-                        return company.research_step_1_basic, company_id
-                    elif company and company.research_status == 'failed':
-                        break
+                    if company:
+                        status = getattr(company, 'research_status', 'unknown')
+                        has_markdown = hasattr(company, 'markdown_report') and company.markdown_report
+                        has_basic = hasattr(company, 'research_step_1_basic') and company.research_step_1_basic
+                        
+                        print(f"⏳ DEBUG: Polling {elapsed_time}s/{max_wait_time}s - Status: {status}, Has markdown: {has_markdown}, Has basic: {has_basic}")
+                        
+                        # Only return when we have BOTH completed status AND markdown_report
+                        if status == 'completed' and has_markdown:
+                            print(f"✅ DEBUG: Research fully completed with markdown report after {elapsed_time}s")
+                            research_text = company.research_step_1_basic or company.company_research or "Research completed - see full report for details."
+                            return research_text, company_id
+                        elif status == 'failed':
+                            print(f"❌ DEBUG: Research failed after {elapsed_time}s")
+                            break
+                    else:
+                        print(f"⚠️ DEBUG: Company {company_id} not found during polling at {elapsed_time}s")
                 
-                # Timeout or failure - try to get whatever research is available
+                # Timeout or failure - DO NOT send email with placeholder
+                print(f"⚠️ DEBUG: Research timeout after {max_wait_time}s - email composition should be delayed")
                 company = Company.get_by_id(company_id)
-                if company and (company.research_step_1_basic or company.company_research):
-                    research_text = company.research_step_1_basic or company.company_research
-                    return research_text, company_id
+                if company:
+                    status = getattr(company, 'research_status', 'unknown')
+                    has_markdown = hasattr(company, 'markdown_report') and company.markdown_report
+                    print(f"⚠️ DEBUG: Final status check - Status: {status}, Has markdown: {has_markdown}")
+                    
+                    # If we have basic research but no markdown report, return None to prevent email sending
+                    if company.research_step_1_basic and not has_markdown:
+                        print(f"🚫 DEBUG: Research in progress but report not ready - preventing email composition")
+                        return None, company_id  # Return None to signal "not ready"
+                    elif company.research_step_1_basic:
+                        research_text = company.research_step_1_basic
+                        return research_text, company_id
+                    else:
+                        return "", company_id
                 else:
                     return "", company_id
             else:
