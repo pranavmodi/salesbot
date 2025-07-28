@@ -545,6 +545,9 @@ def execute_campaign_job_test_mode(campaign_id: int):
 def _send_campaign_email(campaign_id: int, contact: Dict, settings: Dict) -> bool:
     """Send email for a specific campaign contact."""
     try:
+        # Import current_app at the top to ensure it's available
+        from flask import current_app
+        
         # Get campaign details for email composition
         campaign = Campaign.get_by_id(campaign_id)
         
@@ -588,13 +591,14 @@ def _send_campaign_email(campaign_id: int, contact: Dict, settings: Dict) -> boo
         return False
         
     except Exception as e:
-        from flask import current_app
+        # current_app is already imported at the top of the function
         current_app.logger.error(f"Error sending campaign email: {e}")
         return False
 
 def _compose_fallback_email(campaign: Campaign, contact: Dict, settings: Dict) -> Dict:
     """Compose fallback email when main composer fails."""
     try:
+        from flask import current_app
         from email_composers.email_composer_warm import WarmEmailComposer
         from email_composers.email_composer_alt_subject import AltSubjectEmailComposer
         from email_composers.email_composer_deep_research import DeepResearchEmailComposer
@@ -639,7 +643,7 @@ def _compose_fallback_email(campaign: Campaign, contact: Dict, settings: Dict) -
         return email_content
         
     except Exception as e:
-        from flask import current_app
+        # current_app is already imported at the top of the function
         current_app.logger.error(f"Error in fallback email composition: {e}")
         return {}
 
