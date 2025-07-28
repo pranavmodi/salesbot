@@ -642,18 +642,34 @@ def launch_campaign(campaign_id):
     try:
         campaign = Campaign.get_by_id(campaign_id)
         if not campaign:
+            current_app.logger.error(f"🚀 DEBUG: Campaign {campaign_id} not found during launch")
             return jsonify({'success': False, 'message': 'Campaign not found'}), 404
         
+        current_app.logger.info(f"🚀 DEBUG: Launching campaign {campaign_id} ('{campaign.name}') - current status: {campaign.status}")
+        
+        # Check if campaign has contacts
+        contacts = Campaign.get_campaign_contacts(campaign_id, status='active')
+        current_app.logger.info(f"👥 DEBUG: Campaign {campaign_id} has {len(contacts) if contacts else 0} active contacts")
+        
+        if not contacts:
+            current_app.logger.warning(f"⚠️ DEBUG: Campaign {campaign_id} has no contacts - cannot launch")
+            return jsonify({
+                'success': False,
+                'message': 'Cannot launch campaign: No contacts associated with this campaign'
+            }), 400
+        
         # Schedule the campaign for execution
+        current_app.logger.info(f"📅 DEBUG: Scheduling campaign {campaign_id} for execution")
         success = campaign_scheduler.schedule_campaign(campaign_id)
         
         if success:
-            current_app.logger.info(f"Campaign {campaign_id} launched successfully")
+            current_app.logger.info(f"✅ DEBUG: Campaign {campaign_id} launched successfully")
             return jsonify({
                 'success': True,
                 'message': f'Campaign "{campaign.name}" launched successfully'
             })
         else:
+            current_app.logger.error(f"❌ DEBUG: Failed to schedule campaign {campaign_id}")
             return jsonify({
                 'success': False,
                 'message': 'Failed to launch campaign'
