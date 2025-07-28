@@ -235,6 +235,12 @@ class DeepResearchEmailComposer:
         try:
             from datetime import datetime
             
+            print(f"🌐 DEBUG: Starting Netlify publish for company {company.company_name} (ID: {company.id})")
+            print(f"📧 DEBUG: Recipient: {recipient_email}, Campaign: {campaign_id}")
+            print(f"📄 DEBUG: Report length: {len(company.markdown_report) if company.markdown_report else 0} chars")
+            print(f"🔧 DEBUG: NETLIFY_PUBLISH_URL: {NETLIFY_PUBLISH_URL}")
+            print(f"🔐 DEBUG: NETLIFY_SECRET configured: {bool(NETLIFY_SECRET)}")
+            
             # Prepare payload for Netlify function
             payload = {
                 "company_id": f"comp_{company.id}",
@@ -244,6 +250,8 @@ class DeepResearchEmailComposer:
                 "generated_date": datetime.now().strftime("%Y-%m-%d"),
                 "markdown_report": company.markdown_report
             }
+            
+            print(f"📦 DEBUG: Payload prepared - company_id: {payload['company_id']}, name: {payload['company_name']}")
             
             raw_body = json.dumps(payload, separators=(',', ':'))
             
@@ -257,6 +265,12 @@ class DeepResearchEmailComposer:
                     hashlib.sha256
                 ).hexdigest()
                 headers["X-Hub-Signature-256"] = f"sha256={signature}"
+                print(f"🔐 DEBUG: HMAC signature calculated and added to headers")
+            else:
+                print(f"⚠️ DEBUG: No NETLIFY_SECRET found - proceeding without signature")
+            
+            print(f"🌐 DEBUG: Making POST request to {NETLIFY_PUBLISH_URL}")
+            print(f"📤 DEBUG: Headers: {headers}")
             
             # Make the request to publish (using raw JSON string)
             response = requests.post(
@@ -265,6 +279,10 @@ class DeepResearchEmailComposer:
                 data=raw_body,  # Use raw JSON string for signature validation
                 timeout=30
             )
+            
+            print(f"📥 DEBUG: Response status: {response.status_code}")
+            print(f"📄 DEBUG: Response headers: {dict(response.headers)}")
+            print(f"📝 DEBUG: Response body: {response.text[:500]}...")
             
             if response.status_code == 200:
                 result = response.json()
