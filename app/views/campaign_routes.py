@@ -450,10 +450,10 @@ def get_campaign_schedule(campaign_id):
             if database_url:
                 engine = create_engine(
                     database_url,
-                    pool_size=5,
-                    max_overflow=10,
+                    pool_size=1,
+                    max_overflow=2,
                     pool_pre_ping=True,
-                    pool_recycle=3600
+                    pool_recycle=1800
                 )
                 
                 with engine.connect() as conn:
@@ -784,10 +784,10 @@ def delete_all_campaigns():
             try:
                 engine = create_engine(
                     database_url,
-                    pool_size=5,          # Maximum number of permanent connections
-                    max_overflow=10,      # Maximum number of connections that can overflow the pool
+                    pool_size=1,          # Reduced: Maximum number of permanent connections
+                    max_overflow=2,       # Reduced: Maximum number of connections that can overflow the pool
                     pool_pre_ping=True,   # Verify connections before use
-                    pool_recycle=3600     # Recycle connections every hour
+                    pool_recycle=1800     # Recycle connections every 30 minutes
                 )
                 with engine.connect() as conn:
                     # Get all pending email jobs with campaign info

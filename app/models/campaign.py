@@ -65,10 +65,10 @@ class Campaign:
         try:
             return create_engine(
                 database_url,
-                pool_size=5,          # Maximum number of permanent connections
-                max_overflow=10,      # Maximum number of overflow connections  
+                pool_size=1,          # Reduced: Maximum number of permanent connections
+                max_overflow=2,       # Reduced: Maximum number of overflow connections  
                 pool_pre_ping=True,   # Verify connections before use
-                pool_recycle=3600     # Recycle connections every hour
+                pool_recycle=1800     # Recycle connections every 30 minutes
             )
         except Exception as e:
             current_app.logger.error(f"Error creating database engine: {e}")
