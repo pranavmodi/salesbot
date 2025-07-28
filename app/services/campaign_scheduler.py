@@ -35,6 +35,30 @@ def job_error_listener(event):
     try:
         from flask import current_app
         current_app.logger.error(f"Job {event.job_id} failed: {event.exception}")
+        
+        # If it's a campaign job that failed due to timing, retry it
+        if 'campaign_' in event.job_id and 'immediate' in event.job_id:
+            try:
+                campaign_id = int(event.job_id.split('_')[1])
+                current_app.logger.warning(f"🔄 DEBUG: Retrying campaign {campaign_id} due to execution failure")
+                
+                # Retry with a longer delay
+                import datetime
+                from app.services.campaign_scheduler import campaign_scheduler
+                retry_time = datetime.datetime.utcnow() + datetime.timedelta(seconds=5)
+                retry_job_id = f"campaign_{campaign_id}_retry"
+                
+                campaign_scheduler.scheduler.add_job(
+                    func=execute_campaign_job,
+                    args=[campaign_id],
+                    trigger='date',
+                    run_date=retry_time,
+                    id=retry_job_id,
+                    replace_existing=True
+                )
+                current_app.logger.info(f"🔄 DEBUG: Campaign {campaign_id} rescheduled for retry at {retry_time}")
+            except Exception as retry_error:
+                current_app.logger.error(f"Failed to retry campaign job: {retry_error}")
     except:
         print(f"Job {event.job_id} failed: {event.exception}")
 
@@ -797,16 +821,20 @@ class CampaignScheduler:
                 current_app.logger.error(f"Campaign {campaign_id} not found")
                 return False
             
-            # If no schedule date, start immediately
+            # If no schedule date, start immediately with a small delay to avoid timing issues
             if not schedule_date:
+                import datetime
+                run_time = datetime.datetime.utcnow() + datetime.timedelta(seconds=2)  # 2 second delay
                 job_id = f"campaign_{campaign_id}_immediate"
                 self.scheduler.add_job(
                     func=execute_campaign_job,
                     args=[campaign_id],
+                    trigger='date',
+                    run_date=run_time,
                     id=job_id,
                     replace_existing=True
                 )
-                current_app.logger.info(f"Campaign {campaign_id} scheduled for immediate execution")
+                current_app.logger.info(f"🚀 DEBUG: Campaign {campaign_id} scheduled for execution at {run_time} (2 second delay)")
             else:
                 # Parse schedule date and schedule for future
                 schedule_dt = datetime.fromisoformat(schedule_date.replace('Z', '+00:00'))
