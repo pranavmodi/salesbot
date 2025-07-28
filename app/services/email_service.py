@@ -141,7 +141,7 @@ class EmailService:
             return False
 
     @staticmethod
-    def compose_email(contact_id: int, calendar_url: str = None, extra_context: str = None, composer_type: str = "warm") -> Dict[str, str] | None:
+    def compose_email(contact_id: int, calendar_url: str = None, extra_context: str = None, composer_type: str = "warm", campaign_id: int = None) -> Dict[str, str] | None:
         """
         Compose an email for a given contact.
         
@@ -204,7 +204,11 @@ class EmailService:
         # Get the default calendar URL if not provided
         effective_calendar_url = calendar_url or os.getenv("CALENDAR_URL", "https://calendly.com/pranav-modi/15-minute-meeting")
 
-        email_content = composer.compose_email(lead=lead_data, calendar_url=effective_calendar_url, extra_context=extra_context)
+        # Pass campaign_id to composer if it supports it (like DeepResearchEmailComposer)
+        if composer_type == "deep_research" and hasattr(composer, 'compose_email'):
+            email_content = composer.compose_email(lead=lead_data, calendar_url=effective_calendar_url, extra_context=extra_context, campaign_id=campaign_id)
+        else:
+            email_content = composer.compose_email(lead=lead_data, calendar_url=effective_calendar_url, extra_context=extra_context)
         
         if email_content and 'subject' in email_content and 'body' in email_content:
             return {

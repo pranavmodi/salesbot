@@ -548,17 +548,27 @@ def _send_campaign_email(campaign_id: int, contact: Dict, settings: Dict) -> boo
         # Get campaign details for email composition
         campaign = Campaign.get_by_id(campaign_id)
         
-        # Generate email content
-        email_content = EmailService.compose_email(
-            contact_id=None,
-            calendar_url=os.getenv("CALENDAR_URL", "https://calendly.com/pranav-modi/15-minute-meeting"),
-            extra_context=f"This email is part of the '{campaign.name}' campaign.",
-            composer_type=settings.get('email_template', 'warm')
-        )
+        current_app.logger.info(f"🔄 DEBUG: _send_campaign_email called for campaign {campaign_id}, contact {contact.get('email')}, template: {settings.get('email_template', 'warm')}")
         
-        if not email_content:
-            # Fallback email composition
+        # Skip EmailService.compose_email and go directly to fallback for deep_research template
+        template_type = settings.get('email_template', 'warm')
+        if template_type == 'deep_research':
+            current_app.logger.info(f"📧 DEBUG: Using direct deep_research composer for better debugging")
             email_content = _compose_fallback_email(campaign, contact, settings)
+        else:
+            # Generate email content using EmailService for non-deep_research templates
+            email_content = EmailService.compose_email(
+                contact_id=contact.get('email'),  # Use email as contact_id since it searches by email anyway
+                calendar_url=os.getenv("CALENDAR_URL", "https://calendly.com/pranav-modi/15-minute-meeting"),
+                extra_context=f"This email is part of the '{campaign.name}' campaign.",
+                composer_type=template_type,
+                campaign_id=campaign_id
+            )
+            
+            if not email_content:
+                # Fallback email composition
+                current_app.logger.info(f"⚠️ DEBUG: EmailService.compose_email failed, using fallback")
+                email_content = _compose_fallback_email(campaign, contact, settings)
         
         if email_content and 'subject' in email_content and 'body' in email_content:
             # Send the email
