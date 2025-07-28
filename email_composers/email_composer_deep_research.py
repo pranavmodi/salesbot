@@ -107,7 +107,8 @@ class DeepResearchEmailComposer:
             print(f"🚫 STEP 1 FAILED: Research not ready for {company_name} - aborting email composition")
             return None  # Return None to signal email should not be sent
         
-        print(f"✅ STEP 1 COMPLETED: Research available for {company_name}")
+        print(f"✅ STEP 1 COMPLETED: Research available for {company_name} (length: {len(company_research)} chars)")
+        # NOTE: company_research content is passed to OpenAI for email composition but not logged by our debug statements
         
         # STEP 2: Publish report to possibleminds.in and generate tracking URL
         print(f"🌐 STEP 2: Publishing report to possibleminds.in for company_id={company_id}")
@@ -382,7 +383,7 @@ class DeepResearchEmailComposer:
                 print(f"✅ DEBUG: Company {company_name} has markdown report - ensuring it's published")
                 # We have the report, now ensure it gets published when email is composed
                 # Don't return yet - let the normal flow handle publishing in _get_or_publish_report_url
-                research_text = company.research_step_1_basic or company.company_research or company.markdown_report[:500] + "..."
+                research_text = company.research_step_1_basic or company.company_research or "Research completed - see full report for details."
                 return research_text, company.id
             
             # Check if we have basic research but need full report
