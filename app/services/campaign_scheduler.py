@@ -617,11 +617,16 @@ def _compose_fallback_email(campaign: Campaign, contact: Dict, settings: Dict) -
         
         # Extract company name with smart fallback from website domain
         company_name = contact.get('company_name') or contact.get('company')
+        current_app.logger.info(f"📊 DEBUG: Contact company data - company_name: '{contact.get('company_name')}', company: '{contact.get('company')}', domain: '{contact.get('company_domain')}'")
+        
         if not company_name and contact.get('company_domain'):
             # Extract company name from domain (e.g., "chocolatetherapy.us" -> "Chocolate Therapy")
             domain = contact.get('company_domain').replace('https://', '').replace('http://', '').replace('www.', '').split('/')[0]
             domain_parts = domain.split('.')[0]  # Remove TLD
             company_name = ' '.join(word.capitalize() for word in domain_parts.replace('-', ' ').replace('_', ' ').split())
+            current_app.logger.info(f"🌐 DEBUG: Extracted company name from domain: '{company_name}' from '{contact.get('company_domain')}'")
+            
+        current_app.logger.info(f"🏢 DEBUG: Final company name for email composer: '{company_name}'")
         
         lead_data = {
             "name": contact.get('display_name') or contact.get('full_name') or f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip(),
@@ -633,6 +638,10 @@ def _compose_fallback_email(campaign: Campaign, contact: Dict, settings: Dict) -
         }
         
         calendar_url = os.getenv("CALENDAR_URL", "https://calendly.com/pranav-modi/15-minute-meeting")
+        
+        current_app.logger.info(f"🎯 DEBUG: Calling {template_type} composer for {contact.get('email')} with campaign_id={campaign.id}")
+        current_app.logger.info(f"📋 DEBUG: Lead data - Company: {lead_data.get('company')}, Email: {lead_data.get('email')}")
+        
         email_content = composer.compose_email(
             lead=lead_data, 
             calendar_url=calendar_url, 
@@ -640,6 +649,16 @@ def _compose_fallback_email(campaign: Campaign, contact: Dict, settings: Dict) -
             campaign_id=campaign.id
         )
         
+        current_app.logger.info(f"📧 DEBUG: Email composer returned content: {bool(email_content)}")
+        if email_content and 'body' in email_content:
+            has_placeholder = '[REPORT_LINK_PLACEHOLDER]' in email_content['body']
+            has_report_link = 'strategic analysis report' in email_content['body']
+            current_app.logger.info(f"🔗 DEBUG: Email body - Has placeholder: {has_placeholder}, Has report link: {has_report_link}")
+            if has_placeholder:
+                current_app.logger.warning(f"⚠️ DEBUG: Email still contains placeholder - report URL generation failed")
+            if has_report_link:
+                current_app.logger.info(f"✅ DEBUG: Email contains actual report link")
+                
         return email_content
         
     except Exception as e:
