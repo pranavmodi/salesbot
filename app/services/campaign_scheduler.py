@@ -334,44 +334,45 @@ def _reschedule_for_next_day(campaign_id: int, contact: Dict, settings: Dict):
 # Background job to process pending email jobs
 def process_pending_email_jobs():
     """Process pending email jobs from the database."""
-    import logging
+    from flask import current_app
+    from app import create_app
     
-    # Use direct database access without creating new Flask app
-    logger = logging.getLogger(__name__)
-    
-    try:
-        # Get pending jobs that are ready to execute
-        pending_jobs = CampaignEmailJob.get_pending_jobs(limit=10)  # Reduced from 50 to 10
-        
-        if not pending_jobs:
-            return  # Silent return when no jobs
-        
-        logger.info(f"Found {len(pending_jobs)} pending email jobs to process.")
-        
-        for job in pending_jobs:
-            # Attempt to lock the job for processing to prevent race conditions
-            if CampaignEmailJob.mark_as_processing(job.id):
-                try:
-                    logger.info(f"Processing email job {job.id} for {job.contact_email}")
-                    # Execute the email job
-                    success = _execute_email_job(job)
-                    
-                    if success:
-                        CampaignEmailJob.mark_as_executed(job.id)
-                        logger.info(f"✅ Email sent to {job.contact_email} (campaign {job.campaign_id})")
-                    else:
-                        CampaignEmailJob.mark_as_failed(job.id, "Email execution failed")
-                        logger.error(f"❌ Email failed for {job.contact_email} (campaign {job.campaign_id})")
+    # Create application context for background job
+    app = create_app()
+    with app.app_context():
+        try:
+            # Get pending jobs that are ready to execute
+            pending_jobs = CampaignEmailJob.get_pending_jobs(limit=10)  # Reduced from 50 to 10
+            
+            if not pending_jobs:
+                return  # Silent return when no jobs
+            
+            current_app.logger.info(f"Found {len(pending_jobs)} pending email jobs to process.")
+            
+            for job in pending_jobs:
+                # Attempt to lock the job for processing to prevent race conditions
+                if CampaignEmailJob.mark_as_processing(job.id):
+                    try:
+                        current_app.logger.info(f"Processing email job {job.id} for {job.contact_email}")
+                        # Execute the email job
+                        success = _execute_email_job(job)
                         
-                except Exception as e:
-                    CampaignEmailJob.mark_as_failed(job.id, str(e))
-                    logger.error(f"Error executing email job {job.id}: {e}")
-            else:
-                # Job was likely picked up by another worker, so we skip it
-                logger.debug(f"Skipping job {job.id}, already being processed by another worker.")
-                
-    except Exception as e:
-        logger.error(f"Error processing pending email jobs: {e}")
+                        if success:
+                            CampaignEmailJob.mark_as_executed(job.id)
+                            current_app.logger.info(f"✅ Email sent to {job.contact_email} (campaign {job.campaign_id})")
+                        else:
+                            CampaignEmailJob.mark_as_failed(job.id, "Email execution failed")
+                            current_app.logger.error(f"❌ Email failed for {job.contact_email} (campaign {job.campaign_id})")
+                            
+                    except Exception as e:
+                        CampaignEmailJob.mark_as_failed(job.id, str(e))
+                        current_app.logger.error(f"Error executing email job {job.id}: {e}")
+                else:
+                    # Job was likely picked up by another worker, so we skip it
+                    current_app.logger.debug(f"Skipping job {job.id}, already being processed by another worker.")
+                    
+        except Exception as e:
+            current_app.logger.error(f"Error processing pending email jobs: {e}")
 
 def _execute_email_job(job: CampaignEmailJob) -> bool:
     """Execute a single email job."""
