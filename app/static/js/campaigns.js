@@ -1168,6 +1168,11 @@ function displayCampaignList(campaigns, containerId, type) {
                                     title="View Schedule">
                                 <i class="fas fa-clock"></i>
                             </button>
+                            <button type="button" class="btn btn-outline-success btn-sm rounded-pill me-1" 
+                                    onclick="duplicateCampaign('${campaign.id}', '${campaign.name.replace(/'/g, '&apos;')}')"
+                                    title="Duplicate Campaign">
+                                <i class="fas fa-copy"></i>
+                            </button>
                             ${campaign.status === 'draft' ? 
                                 `<button type="button" class="btn btn-success btn-sm rounded-pill" 
                                          onclick="launchCampaign('${campaign.id}')"
@@ -2592,6 +2597,38 @@ function getStatusColor(status) {
     return colors[status] || 'secondary';
 }
 
+function duplicateCampaign(campaignId, campaignName) {
+    if (!confirm(`Are you sure you want to duplicate the campaign "${campaignName}"?`)) {
+        return;
+    }
+    
+    console.log(`Duplicating campaign ${campaignId}: ${campaignName}`);
+    
+    // Show loading state
+    const loadingToast = showToast('infoToast', 'Duplicating campaign...', 5000);
+    
+    fetch(`/api/campaigns/${campaignId}/duplicate`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('successToast', data.message);
+            
+            // Reload campaigns list to show the duplicated campaign
+            setTimeout(() => {
+                loadCampaigns();
+            }, 1500);
+        } else {
+            throw new Error(data.message || 'Failed to duplicate campaign');
+        }
+    })
+    .catch(error => {
+        console.error('Error duplicating campaign:', error);
+        showToast('errorToast', 'Failed to duplicate campaign: ' + error.message);
+    });
+}
+
 // Global function assignments for HTML onclick handlers
 window.nextStep = nextStep;
 window.previousStep = previousStep;
@@ -2613,3 +2650,4 @@ window.pauseCampaign = pauseCampaign;
 window.resumeCampaign = resumeCampaign;
 window.resetCampaignForTesting = resetCampaignForTesting;
 window.deleteAllCampaigns = deleteAllCampaigns;
+window.duplicateCampaign = duplicateCampaign;

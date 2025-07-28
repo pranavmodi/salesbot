@@ -840,3 +840,75 @@ def delete_all_campaigns():
     except Exception as e:
         current_app.logger.error(f"Error deleting all campaigns: {str(e)}")
         return jsonify({'success': False, 'message': f'Failed to delete campaigns: {str(e)}'}), 500
+
+@campaign_bp.route('/campaigns/<int:campaign_id>/duplicate', methods=['POST'])
+def duplicate_campaign(campaign_id):
+    """Duplicate an existing campaign with all its settings and contacts."""
+    try:
+        campaign = Campaign.get_by_id(campaign_id)
+        if not campaign:
+            return jsonify({'success': False, 'message': 'Campaign not found'}), 404
+        
+        current_app.logger.info(f"Duplicating campaign {campaign_id}")
+        
+        # Get campaign settings
+        campaign_settings = {}
+        if hasattr(campaign, 'campaign_settings') and campaign.campaign_settings:
+            try:
+                campaign_settings = json.loads(campaign.campaign_settings) if isinstance(campaign.campaign_settings, str) else campaign.campaign_settings
+            except:
+                campaign_settings = {}
+        
+        # Create duplicate campaign with modified name
+        duplicate_name = f"{campaign.name} (Copy)"
+        
+        # Check if name already exists and increment if needed
+        existing_campaigns = Campaign.get_all_campaigns()
+        existing_names = [c.name for c in existing_campaigns]
+        counter = 1
+        while duplicate_name in existing_names:
+            duplicate_name = f"{campaign.name} (Copy {counter})"
+            counter += 1
+        
+        # Create new campaign
+        new_campaign = Campaign(
+            name=duplicate_name,
+            type=campaign.type,
+            email_template=getattr(campaign, 'email_template', 'warm'),
+            status='draft',
+            campaign_settings=json.dumps(campaign_settings) if campaign_settings else None,
+            followup_days=getattr(campaign, 'followup_days', 3),
+            schedule_date=None  # Reset schedule date for copy
+        )
+        
+        if new_campaign.save():
+            new_campaign_id = new_campaign.id
+            current_app.logger.info(f"Created duplicate campaign {new_campaign_id} with name '{duplicate_name}'")
+            
+            # Copy campaign contacts
+            try:
+                original_contacts = Campaign.get_campaign_contacts(campaign_id)
+                if original_contacts:
+                    contact_emails = [contact['email'] for contact in original_contacts]
+                    result = Campaign.bulk_add_contacts_to_campaign(new_campaign_id, contact_emails, status='active')
+                    current_app.logger.info(f"Copied {result['success']} contacts to duplicate campaign")
+                else:
+                    current_app.logger.info("No contacts to copy from original campaign")
+            except Exception as e:
+                current_app.logger.error(f"Error copying contacts to duplicate campaign: {e}")
+            
+            return jsonify({
+                'success': True,
+                'message': f'Campaign duplicated successfully as "{duplicate_name}"',
+                'new_campaign_id': new_campaign_id,
+                'new_campaign_name': duplicate_name
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to create duplicate campaign'
+            }), 500
+        
+    except Exception as e:
+        current_app.logger.error(f"Error duplicating campaign {campaign_id}: {str(e)}")
+        return jsonify({'success': False, 'message': f'Failed to duplicate campaign: {str(e)}'}), 500
