@@ -422,6 +422,146 @@ def get_campaign_analytics(campaign_id):
         current_app.logger.error(f"Error getting campaign analytics for campaign {campaign_id}: {str(e)}")
         return jsonify({'error': 'Failed to retrieve campaign analytics'}), 500
 
+@campaign_bp.route('/campaigns/<int:campaign_id>/schedule', methods=['GET'])
+def get_campaign_schedule(campaign_id):
+    """Get execution schedule for a specific campaign including pending and sent emails."""
+    try:
+        campaign = Campaign.get_by_id(campaign_id)
+        if not campaign:
+            return jsonify({'success': False, 'error': 'Campaign not found'}), 404
+        
+        # Get campaign settings for display
+        campaign_settings = {}
+        if hasattr(campaign, 'campaign_settings') and campaign.campaign_settings:
+            try:
+                import json
+                campaign_settings = json.loads(campaign.campaign_settings) if isinstance(campaign.campaign_settings, str) else campaign.campaign_settings
+            except:
+                campaign_settings = {}
+        
+        # Get pending emails for this campaign
+        pending_emails = []
+        try:
+            from app.models.campaign_email_job import CampaignEmailJob
+            from sqlalchemy import create_engine, text
+            import os
+            
+            database_url = os.getenv("DATABASE_URL")
+            if database_url:
+                engine = create_engine(
+                    database_url,
+                    pool_size=5,
+                    max_overflow=10,
+                    pool_pre_ping=True,
+                    pool_recycle=3600
+                )
+                
+                with engine.connect() as conn:
+                    # Get pending email jobs for this campaign
+                    pending_query = text("""
+                        SELECT id, campaign_id, contact_email, scheduled_time, status, attempts, error_message
+                        FROM campaign_email_jobs 
+                        WHERE campaign_id = :campaign_id 
+                        AND status IN ('pending', 'scheduled')
+                        ORDER BY scheduled_time ASC
+                        LIMIT 100
+                    """)
+                    
+                    result = conn.execute(pending_query, {"campaign_id": campaign_id})
+                    pending_rows = result.fetchall()
+                    
+                    for row in pending_rows:
+                        pending_emails.append({
+                            'id': row.id,
+                            'campaign_id': row.campaign_id,
+                            'contact_email': row.contact_email,
+                            'scheduled_time': row.scheduled_time.isoformat() if row.scheduled_time else None,
+                            'status': row.status,
+                            'attempts': row.attempts or 0,
+                            'error_message': row.error_message
+                        })
+                        
+        except Exception as e:
+            current_app.logger.error(f"Error getting pending emails for campaign {campaign_id}: {e}")
+        
+        # Get recent sent emails for this campaign
+        sent_emails = []
+        try:
+            from app.models.email_history import EmailHistory
+            
+            # Get recent emails sent for this campaign
+            email_history = EmailHistory.get_by_campaign(campaign_id)
+            
+            # Convert to list and get most recent 50
+            recent_emails = sorted(email_history, key=lambda x: x.date or '', reverse=True)[:50]
+            
+            for email in recent_emails:
+                sent_emails.append({
+                    'id': email.id,
+                    'to': email.to,
+                    'contact_email': email.to,
+                    'subject': email.subject,
+                    'date': email.date.isoformat() if email.date else None,
+                    'sent_time': email.date.isoformat() if email.date else None,
+                    'status': email.status,
+                    'campaign_id': email.campaign_id,
+                    'sent_via': getattr(email, 'sent_via', 'unknown'),
+                    'email_type': getattr(email, 'email_type', 'campaign')
+                })
+                
+        except Exception as e:
+            current_app.logger.error(f"Error getting sent emails for campaign {campaign_id}: {e}")
+        
+        # Get campaign statistics
+        stats = {}
+        try:
+            campaign_stats = Campaign.get_campaign_stats(campaign_id)
+            stats = {
+                'total_contacts': campaign_stats.get('total_contacts', 0),
+                'emails_sent': campaign_stats.get('sent_emails', 0),
+                'pending_emails': len(pending_emails),
+                'unique_recipients': campaign_stats.get('unique_recipients', 0),
+                'success_rate': campaign_stats.get('success_rate', 0)
+            }
+        except Exception as e:
+            current_app.logger.error(f"Error getting campaign stats for {campaign_id}: {e}")
+            stats = {
+                'total_contacts': 0,
+                'emails_sent': len(sent_emails),
+                'pending_emails': len(pending_emails),
+                'unique_recipients': 0,
+                'success_rate': 0
+            }
+        
+        # Format campaign data for frontend
+        campaign_data = {
+            'id': campaign.id,
+            'name': campaign.name,
+            'status': campaign.status,
+            'type': campaign.type,
+            'daily_email_limit': campaign_settings.get('daily_email_limit', 50),
+            'email_frequency': campaign_settings.get('email_frequency', {'value': 30, 'unit': 'minutes'}),
+            'timezone': campaign_settings.get('timezone', 'UTC'),
+            'respect_business_hours': campaign_settings.get('respect_business_hours', True),
+            'business_hours': campaign_settings.get('business_hours', {}),
+            'created_at': campaign.created_at.isoformat() if campaign.created_at else None,
+            'updated_at': campaign.updated_at.isoformat() if campaign.updated_at else None
+        }
+        
+        current_app.logger.info(f"Schedule data for campaign {campaign_id}: {len(pending_emails)} pending, {len(sent_emails)} sent")
+        
+        return jsonify({
+            'success': True,
+            'campaign': campaign_data,
+            'pending_emails': pending_emails,
+            'sent_emails': sent_emails,
+            'stats': stats
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting campaign schedule for campaign {campaign_id}: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to retrieve campaign schedule'}), 500
+
 @campaign_bp.route('/campaigns/<int:campaign_id>/status', methods=['GET'])
 def get_campaign_status(campaign_id):
     """Get the current status and basic stats of a campaign."""
