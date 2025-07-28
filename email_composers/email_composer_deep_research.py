@@ -479,7 +479,7 @@ class DeepResearchEmailComposer:
                         has_markdown = hasattr(company, 'markdown_report') and company.markdown_report
                         has_basic = hasattr(company, 'research_step_1_basic') and company.research_step_1_basic
                         
-                        print(f"⏳ DEBUG: Polling {elapsed_time}s/{max_wait_time}s - Status: {status}, Has markdown: {has_markdown}, Has basic: {has_basic}")
+                        print(f"⏳ DEBUG: Polling {elapsed_time}s/{max_wait_time}s - Status: {status}, Has markdown: {has_markdown}, Has basic: {'YES' if has_basic else 'NO'}")
                         
                         # Only return when we have BOTH completed status AND markdown_report
                         if status == 'completed' and has_markdown:
