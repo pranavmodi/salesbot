@@ -354,12 +354,6 @@ function saveCurrentStepData(stepNumber) {
                     }
                 };
             }
-            
-            const selectionMethod = document.querySelector('input[name="selectionMethod"]:checked');
-            currentCampaignData.selection_method = selectionMethod ? selectionMethod.value : 'auto';
-            if (currentCampaignData.selection_method === 'manual') {
-                currentCampaignData.selected_contacts = selectedCampaignContacts;
-            }
             break;
     }
     
