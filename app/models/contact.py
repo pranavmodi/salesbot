@@ -46,21 +46,15 @@ class Contact:
 
     @staticmethod
     def _get_db_engine():
-        """Get database engine from environment."""
-        database_url = os.getenv("DATABASE_URL")
-        if not database_url:
-            current_app.logger.error("DATABASE_URL not configured.")
-            return None
+        """Get shared database engine."""
         try:
-            return create_engine(
-                database_url,
-                pool_size=1,          # Reduced: Maximum number of permanent connections
-                max_overflow=2,       # Reduced: Maximum number of overflow connections  
-                pool_pre_ping=True,   # Verify connections before use
-                pool_recycle=1800     # Recycle connections every 30 minutes
-            )
+            from app.database import get_shared_engine
+            return get_shared_engine()
         except Exception as e:
-            current_app.logger.error(f"Error creating database engine: {e}")
+            if hasattr(current_app, 'logger'):
+                current_app.logger.error(f"Error getting shared database engine: {e}")
+            else:
+                print(f"Error getting shared database engine: {e}")
             return None
 
     @classmethod

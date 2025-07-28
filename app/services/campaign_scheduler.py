@@ -682,20 +682,9 @@ class CampaignScheduler:
                 current_app.logger.error("DATABASE_URL not configured for scheduler")
                 return
             
-            # Configure SQLAlchemy job store with conservative connection pooling
-            from sqlalchemy import create_engine
-            # Create engine with very conservative connection pooling for Railway
-            scheduler_engine = create_engine(
-                database_url,
-                pool_size=2,          # Reduced: Maximum number of permanent connections
-                max_overflow=3,       # Reduced: Maximum number of connections that can overflow
-                pool_pre_ping=True,   # Verify connections before use
-                pool_recycle=1800,    # Recycle connections every 30 minutes (reduced from 1 hour)
-                pool_timeout=30,      # Timeout after 30 seconds when getting connection
-                connect_args={
-                    "options": "-c statement_timeout=30000"  # 30 second statement timeout
-                }
-            )
+            # Use shared database engine for APScheduler job store
+            from app.database import get_shared_engine
+            scheduler_engine = get_shared_engine()
             
             jobstores = {
                 'default': SQLAlchemyJobStore(engine=scheduler_engine, tablename='scheduler_jobs')
@@ -796,10 +785,6 @@ class CampaignScheduler:
             try:
                 self.scheduler.shutdown()
                 current_app.logger.info("Campaign scheduler stopped")
-                
-                # Clean up database connections
-                from app.models.campaign_email_job import CampaignEmailJob
-                CampaignEmailJob.close_engine()
                 
             except Exception as e:
                 current_app.logger.error(f"Failed to stop scheduler: {e}")
