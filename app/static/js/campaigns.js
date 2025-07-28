@@ -364,6 +364,20 @@ function populateReviewStep() {
     // Save all current step data first to ensure we have complete data
     saveCurrentStepData(3);
     
+    // Update contact count from the current selection before populating review
+    const selectionMethod = document.querySelector('input[name="selectionMethod"]:checked');
+    if (selectionMethod && selectionMethod.value !== 'manual') {
+        // Trigger an update of contact count for filtered selections
+        updateContactCount();
+        // Give a brief moment for the count to update
+        setTimeout(() => {
+            updateReviewContactCount();
+        }, 500);
+    } else {
+        // For manual selection, update immediately
+        updateReviewContactCount();
+    }
+    
     // Update the review modal elements
     const reviewCampaignName = document.getElementById('reviewCampaignName');
     const reviewCampaignType = document.getElementById('reviewCampaignType');
@@ -390,30 +404,8 @@ function populateReviewStep() {
         reviewFollowup.textContent = `${followupDays} days`;
     }
     
-    // Contact count
-    let contactCount = 0;
-    const selectionMethod = document.querySelector('input[name="selectionMethod"]:checked');
-    
-    if (selectionMethod) {
-        if (selectionMethod.value === 'manual') {
-            contactCount = selectedCampaignContacts.length;
-        } else {
-            // For quick/advanced filters, try to get count from UI or estimate
-            const contactCountElement = document.getElementById('contactCount');
-            if (contactCountElement) {
-                const countText = contactCountElement.textContent;
-                contactCount = parseInt(countText.match(/\d+/)?.[0] || '0');
-            }
-        }
-    }
-    
-    // Update contact-related elements
-    const targetContactsElements = document.querySelectorAll('[id*="reviewTarget"], [id*="estimatedReach"]');
-    targetContactsElements.forEach(element => {
-        if (element.id.includes('Contact') || element.id.includes('Reach')) {
-            element.textContent = `${contactCount}`;
-        }
-    });
+    // Contact count will be updated separately
+    updateReviewContactCount();
     
     // Update email settings
     const reviewEmailFrequency = document.getElementById('reviewEmailFrequency');
@@ -458,13 +450,6 @@ function populateReviewStep() {
         }
     }
     
-    // Update expected responses
-    const expectedResponses = document.getElementById('expectedResponses');
-    if (expectedResponses) {
-        const expectedReplies = Math.round(contactCount * 0.15);
-        expectedResponses.textContent = `~${expectedReplies} replies`;
-    }
-    
     // Also update the reviewContent div if it exists for backward compatibility
     const reviewContent = document.getElementById('reviewContent');
     if (reviewContent) {
@@ -489,6 +474,58 @@ function populateReviewStep() {
         `;
         
         reviewContent.innerHTML = html;
+    }
+}
+
+function updateReviewContactCount() {
+    // Contact count
+    let contactCount = 0;
+    const selectionMethod = document.querySelector('input[name="selectionMethod"]:checked');
+    
+    if (selectionMethod) {
+        if (selectionMethod.value === 'manual') {
+            contactCount = selectedCampaignContacts.length;
+        } else {
+            // For quick/advanced filters, try to get count from the estimated count element
+            const estimatedCountElement = document.getElementById('estimatedContactCount');
+            if (estimatedCountElement) {
+                const countText = estimatedCountElement.textContent;
+                // Extract number from text like "25 contacts match your criteria"
+                const match = countText.match(/\d+/);
+                contactCount = match ? parseInt(match[0]) : 0;
+            }
+            
+            // Also try the selected contacts count badge
+            if (contactCount === 0) {
+                const selectedContactsBadge = document.getElementById('selectedContactsCount');
+                if (selectedContactsBadge) {
+                    const badgeText = selectedContactsBadge.textContent;
+                    const match = badgeText.match(/(\d+)\s+contacts/);
+                    contactCount = match ? parseInt(match[1]) : 0;
+                }
+            }
+        }
+    }
+    
+    // Update contact-related elements
+    const reviewContactCount = document.getElementById('reviewContactCount');
+    if (reviewContactCount) {
+        reviewContactCount.textContent = contactCount.toString();
+    }
+    
+    // Update any other elements that might show target contacts
+    const targetContactsElements = document.querySelectorAll('[id*="reviewTarget"], [id*="estimatedReach"]');
+    targetContactsElements.forEach(element => {
+        if (element.id.includes('Contact') || element.id.includes('Reach')) {
+            element.textContent = `${contactCount}`;
+        }
+    });
+    
+    // Update expected responses
+    const expectedResponses = document.getElementById('expectedResponses');
+    if (expectedResponses) {
+        const expectedReplies = Math.round(contactCount * 0.15);
+        expectedResponses.textContent = `~${expectedReplies} replies`;
     }
 }
 
