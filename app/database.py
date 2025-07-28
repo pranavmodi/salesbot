@@ -4,7 +4,7 @@ This module provides a single, shared database engine to prevent connection limi
 """
 import os
 from sqlalchemy import create_engine
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import QueuePool
 import threading
 
 class DatabaseManager:
@@ -38,12 +38,12 @@ class DatabaseManager:
         # Use minimal connection pool settings for Railway
         self._engine = create_engine(
             database_url,
+            poolclass=QueuePool,            # Standard connection pool
             pool_size=1,                    # Only 1 permanent connection
-            max_overflow=1,                 # Only 1 overflow connection
+            max_overflow=1,                 # Only 1 overflow connection (max 2 total)
             pool_pre_ping=True,             # Verify connections before use
             pool_recycle=900,               # Recycle connections every 15 minutes
-            pool_timeout=30,                # 30 second timeout
-            poolclass=StaticPool,           # Use static pool for better control
+            pool_timeout=30,                # 30 second timeout when getting connection
             connect_args={
                 "options": "-c statement_timeout=30000"  # 30 second statement timeout
             }
