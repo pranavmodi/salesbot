@@ -98,7 +98,9 @@ class DeepResearchEmailComposer:
             auto_research = AUTO_RESEARCH
 
         # Try to get company research data (with optional auto-triggering)
+        print(f"🔍 DEBUG: Getting research for company: {company_name}")
         company_research, company_id = self._get_company_research_with_full_report(company_name, auto_trigger=auto_research)
+        print(f"📋 DEBUG: Research result - company_id: {company_id}, research length: {len(company_research) if company_research else 0}")
         
         # Generate public report URL with tracking parameters
         report_url = None
@@ -151,13 +153,19 @@ class DeepResearchEmailComposer:
         subject, body = self._parse(rsp.choices[0].message.content)
         
         # Replace report link placeholder with HTML linked text
+        print(f"🔗 DEBUG: Processing report URL replacement - report_url: {'YES' if report_url else 'NO'}, has placeholder: {'YES' if '[REPORT_LINK_PLACEHOLDER]' in body else 'NO'}")
+        
         if report_url and "[REPORT_LINK_PLACEHOLDER]" in body:
             linked_text = f'<a href="{report_url}">strategic analysis report</a>'
             body = body.replace("[REPORT_LINK_PLACEHOLDER]", linked_text)
+            print(f"✅ DEBUG: Successfully replaced placeholder with report link")
         elif "[REPORT_LINK_PLACEHOLDER]" in body:
             # If no report URL available, fall back to generic message
             fallback_msg = "Happy to share how we helped Precise Imaging reduce appointment no-shows by 40% - similar healthcare operational challenges."
             body = body.replace("P.S. I put together a strategic analysis for [Company] that covers these opportunities in detail. You can review it here: [REPORT_LINK_PLACEHOLDER]", f"P.S. {fallback_msg}")
+            print(f"⚠️ DEBUG: No report URL available, used fallback message")
+        else:
+            print(f"ℹ️ DEBUG: No placeholder found in email body")
         
         body = body.strip() # Ensure no trailing newlines before adding signature
         body += '\n' + self._signature()
@@ -182,9 +190,10 @@ class DeepResearchEmailComposer:
             
             if not company.markdown_report:
                 print(f"⚠️ DEBUG: Company {company_name} (ID: {company_id}) has no markdown_report")
+                print(f"📊 DEBUG: Company {company_name} available fields: company_research={bool(company.company_research)}, research_status={getattr(company, 'research_status', 'unknown')}")
                 return ""
             
-            print(f"✅ DEBUG: Company {company_name} has markdown_report, proceeding with publishing")
+            print(f"✅ DEBUG: Company {company_name} has markdown_report ({len(company.markdown_report)} chars), proceeding with publishing")
             
             # First, publish the report to possibleminds.in
             published_url = self._publish_report_to_netlify(company, recipient_email, campaign_id)
