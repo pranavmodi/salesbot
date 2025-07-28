@@ -306,7 +306,17 @@ function saveCurrentStepData(stepNumber) {
             currentCampaignData.type = document.getElementById('campaignType').value;
             break;
         case 2:
+            // Save selection method
+            const selectionMethod = document.querySelector('input[name="selectionMethod"]:checked');
+            currentCampaignData.selection_method = selectionMethod ? selectionMethod.value : 'quick';
+            
+            // Save filter criteria
             currentCampaignData.target_criteria = getFilterCriteria();
+            
+            // If manual selection, save selected contacts
+            if (currentCampaignData.selection_method === 'manual') {
+                currentCampaignData.selected_contacts = selectedCampaignContacts;
+            }
             break;
         case 3:
             currentCampaignData.email_template = document.getElementById('emailTemplate').value;
@@ -357,58 +367,135 @@ function saveCurrentStepData(stepNumber) {
 }
 
 function populateReviewStep() {
-    const reviewContent = document.getElementById('reviewContent');
-    if (!reviewContent) return;
+    // Save all current step data first to ensure we have complete data
+    saveCurrentStepData(3);
     
-    let html = `
-        <div class="row">
-            <div class="col-md-6">
-                <h6 class="text-muted mb-3">Campaign Details</h6>
-                <div class="mb-2">
-                    <strong>Name:</strong> ${currentCampaignData.name || 'Not specified'}
-                </div>
-                <div class="mb-2">
-                    <strong>Description:</strong> ${currentCampaignData.description || 'None'}
-                </div>
-                <div class="mb-2">
-                    <strong>Priority:</strong> ${getPriorityBadge(currentCampaignData.priority || 'medium')}
-                </div>
-                <div class="mb-2">
-                    <strong>Email Template:</strong> ${getEmailTemplateDisplayName(currentCampaignData.email_template || 'cold_outreach')}
-                </div>
-            </div>
-            <div class="col-md-6">
-                <h6 class="text-muted mb-3">Target & Selection</h6>
-                <div class="mb-2">
-                    <strong>Selection Method:</strong> 
-                    ${currentCampaignData.selection_method === 'manual' ? 'Manual Selection' : 'Automatic Filtering'}
-                </div>
-    `;
+    // Update the review modal elements
+    const reviewCampaignName = document.getElementById('reviewCampaignName');
+    const reviewCampaignType = document.getElementById('reviewCampaignType');
+    const reviewEmailTemplate = document.getElementById('reviewEmailTemplate');
+    const reviewFollowup = document.getElementById('reviewFollowup');
     
-    if (currentCampaignData.selection_method === 'manual') {
-        html += `
-                <div class="mb-2">
-                    <strong>Selected Contacts:</strong> ${selectedCampaignContacts.length}
-                </div>
-        `;
-    } else {
-        const criteria = currentCampaignData.target_criteria || {};
-        html += `
-                <div class="mb-2">
-                    <strong>Company Filter:</strong> ${criteria.company || 'All companies'}
-                </div>
-                <div class="mb-2">
-                    <strong>Location Filter:</strong> ${criteria.location || 'All locations'}
-                </div>
-        `;
+    // Campaign name and type
+    if (reviewCampaignName) {
+        reviewCampaignName.textContent = currentCampaignData.name || 'Untitled Campaign';
+    }
+    if (reviewCampaignType) {
+        reviewCampaignType.textContent = currentCampaignData.type || 'GTM Campaign';
     }
     
-    html += `
-            </div>
-        </div>
-    `;
+    // Email template
+    if (reviewEmailTemplate) {
+        const templateText = getEmailTemplateDisplayName(currentCampaignData.email_template || 'cold_outreach');
+        reviewEmailTemplate.textContent = templateText;
+    }
     
-    reviewContent.innerHTML = html;
+    // Follow-up days
+    if (reviewFollowup) {
+        const followupDays = currentCampaignData.followup_days || 3;
+        reviewFollowup.textContent = `${followupDays} days`;
+    }
+    
+    // Contact count
+    let contactCount = 0;
+    const selectionMethod = document.querySelector('input[name="selectionMethod"]:checked');
+    
+    if (selectionMethod) {
+        if (selectionMethod.value === 'manual') {
+            contactCount = selectedCampaignContacts.length;
+        } else {
+            // For quick/advanced filters, try to get count from UI or estimate
+            const contactCountElement = document.getElementById('contactCount');
+            if (contactCountElement) {
+                const countText = contactCountElement.textContent;
+                contactCount = parseInt(countText.match(/\d+/)?.[0] || '0');
+            }
+        }
+    }
+    
+    // Update contact-related elements
+    const targetContactsElements = document.querySelectorAll('[id*="reviewTarget"], [id*="estimatedReach"]');
+    targetContactsElements.forEach(element => {
+        if (element.id.includes('Contact') || element.id.includes('Reach')) {
+            element.textContent = `${contactCount}`;
+        }
+    });
+    
+    // Update email settings
+    const reviewEmailFrequency = document.getElementById('reviewEmailFrequency');
+    const reviewDailyLimit = document.getElementById('reviewDailyLimit');
+    const reviewTimezone = document.getElementById('reviewTimezone');
+    const reviewBusinessHours = document.getElementById('reviewBusinessHours');
+    
+    if (reviewEmailFrequency) {
+        const frequency = currentCampaignData.email_frequency || { value: 30, unit: 'minutes' };
+        reviewEmailFrequency.textContent = `${frequency.value} ${frequency.unit}`;
+    }
+    
+    if (reviewDailyLimit) {
+        const dailyLimit = currentCampaignData.daily_email_limit || 50;
+        reviewDailyLimit.textContent = `${dailyLimit} emails`;
+    }
+    
+    if (reviewTimezone) {
+        const timezone = currentCampaignData.timezone || 'America/Los_Angeles';
+        const timezoneMap = {
+            'America/New_York': 'Eastern Time',
+            'America/Chicago': 'Central Time',
+            'America/Denver': 'Mountain Time',
+            'America/Los_Angeles': 'Pacific Time',
+            'Europe/London': 'GMT',
+            'Europe/Paris': 'Central European Time',
+            'Asia/Tokyo': 'Japan Time',
+            'Australia/Sydney': 'Sydney Time'
+        };
+        reviewTimezone.textContent = timezoneMap[timezone] || timezone;
+    }
+    
+    if (reviewBusinessHours) {
+        const respectBusinessHours = currentCampaignData.respect_business_hours !== false;
+        if (respectBusinessHours && currentCampaignData.business_hours) {
+            const businessHours = currentCampaignData.business_hours;
+            const businessDays = Object.values(businessHours.days || {}).filter(day => day).length;
+            const timeRange = `${businessHours.start_time || '09:00'}-${businessHours.end_time || '17:00'}`;
+            reviewBusinessHours.textContent = `${timeRange} (${businessDays} days)`;
+        } else {
+            reviewBusinessHours.textContent = 'Disabled';
+        }
+    }
+    
+    // Update expected responses
+    const expectedResponses = document.getElementById('expectedResponses');
+    if (expectedResponses) {
+        const expectedReplies = Math.round(contactCount * 0.15);
+        expectedResponses.textContent = `~${expectedReplies} replies`;
+    }
+    
+    // Also update the reviewContent div if it exists for backward compatibility
+    const reviewContent = document.getElementById('reviewContent');
+    if (reviewContent) {
+        let html = `
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="text-muted mb-3">Campaign Details</h6>
+                    <div class="mb-2">
+                        <strong>Name:</strong> ${currentCampaignData.name || 'Not specified'}
+                    </div>
+                    <div class="mb-2">
+                        <strong>Email Template:</strong> ${getEmailTemplateDisplayName(currentCampaignData.email_template || 'cold_outreach')}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="text-muted mb-3">Target & Selection</h6>
+                    <div class="mb-2">
+                        <strong>Selected Contacts:</strong> ${contactCount}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        reviewContent.innerHTML = html;
+    }
 }
 
 function setupStepValidation() {
