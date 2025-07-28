@@ -117,7 +117,7 @@ def execute_campaign_job(campaign_id: int):
                     cumulative_delay += delay_seconds
                     
                     # Schedule the individual email in database
-                    run_time = datetime.now() + timedelta(seconds=cumulative_delay)
+                    run_time = datetime.utcnow() + timedelta(seconds=cumulative_delay)
                     
                     # Create a serializable version of the contact data
                     serializable_contact = {
@@ -307,7 +307,7 @@ def _reschedule_for_next_day(campaign_id: int, contact: Dict, settings: Dict):
         
         # Schedule for tomorrow at a random time in the morning
         import random
-        tomorrow = datetime.now() + timedelta(days=1)
+        tomorrow = datetime.utcnow() + timedelta(days=1)
         # Random time between 9 AM and 11 AM
         random_hour = random.randint(9, 11)
         random_minute = random.randint(0, 59)
