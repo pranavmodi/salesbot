@@ -490,7 +490,7 @@ def get_campaign_schedule(campaign_id):
             from app.models.email_history import EmailHistory
             
             # Get recent emails sent for this campaign
-            email_history = EmailHistory.get_by_campaign(campaign_id)
+            email_history = EmailHistory.get_by_campaign_id(campaign_id)
             
             # Convert to list and get most recent 50
             recent_emails = sorted(email_history, key=lambda x: x.date or '', reverse=True)[:50]
