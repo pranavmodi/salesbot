@@ -1163,6 +1163,11 @@ function displayCampaignList(campaigns, containerId, type) {
                                     title="View Analytics">
                                 <i class="fas fa-chart-line"></i>
                             </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill me-1" 
+                                    onclick="viewCampaignSchedule('${campaign.id}', '${campaign.name.replace(/'/g, '&apos;')}')"
+                                    title="View Schedule">
+                                <i class="fas fa-clock"></i>
+                            </button>
                             ${campaign.status === 'draft' ? 
                                 `<button type="button" class="btn btn-success btn-sm rounded-pill" 
                                          onclick="launchCampaign('${campaign.id}')"
@@ -2334,6 +2339,259 @@ function resetCampaignForTesting(campaignId) {
     });
 }
 
+function viewCampaignSchedule(campaignId, campaignName) {
+    console.log('Loading campaign schedule for:', campaignId, campaignName);
+    
+    // Show the schedule modal immediately with loading state
+    const modal = new bootstrap.Modal(document.getElementById('campaignScheduleModal'));
+    modal.show();
+    
+    // Set modal title
+    const titleElement = document.getElementById('campaignScheduleTitle');
+    if (titleElement) {
+        titleElement.textContent = `${campaignName} - Schedule`;
+    }
+    
+    // Set loading state for schedule content
+    const scheduleContent = document.getElementById('scheduleContent');
+    if (scheduleContent) {
+        scheduleContent.innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading schedule...</p>
+            </div>
+        `;
+    }
+    
+    // Initialize schedule data loading
+    initializeCampaignSchedule(campaignId);
+}
+
+function initializeCampaignSchedule(campaignId) {
+    // Store current campaign ID for auto-refresh
+    window.currentScheduleCampaignId = campaignId;
+    
+    // Load initial schedule data
+    loadCampaignScheduleData(campaignId);
+    
+    // Set up auto-refresh every 30 seconds
+    if (window.scheduleRefreshInterval) {
+        clearInterval(window.scheduleRefreshInterval);
+    }
+    
+    window.scheduleRefreshInterval = setInterval(() => {
+        if (window.currentScheduleCampaignId) {
+            loadCampaignScheduleData(window.currentScheduleCampaignId);
+        }
+    }, 30000); // 30 seconds
+    
+    // Clear interval when modal is closed
+    const modal = document.getElementById('campaignScheduleModal');
+    if (modal) {
+        modal.addEventListener('hidden.bs.modal', () => {
+            if (window.scheduleRefreshInterval) {
+                clearInterval(window.scheduleRefreshInterval);
+                window.scheduleRefreshInterval = null;
+            }
+            window.currentScheduleCampaignId = null;
+        });
+    }
+}
+
+function loadCampaignScheduleData(campaignId) {
+    fetch(`/api/campaigns/${campaignId}/schedule`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayCampaignSchedule(data);
+            } else {
+                throw new Error(data.error || 'Failed to load schedule');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading campaign schedule:', error);
+            const scheduleContent = document.getElementById('scheduleContent');
+            if (scheduleContent) {
+                scheduleContent.innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                        <h5 class="text-danger">Failed to Load Schedule</h5>
+                        <p class="text-muted">${error.message}</p>
+                        <button class="btn btn-outline-primary" onclick="loadCampaignScheduleData(${campaignId})">
+                            <i class="fas fa-refresh me-2"></i>Retry
+                        </button>
+                    </div>
+                `;
+            }
+        });
+}
+
+function displayCampaignSchedule(data) {
+    const scheduleContent = document.getElementById('scheduleContent');
+    if (!scheduleContent) return;
+    
+    const { campaign, pending_emails, sent_emails, stats } = data;
+    
+    let html = `
+        <!-- Campaign Overview -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>Campaign Overview
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <table class="table table-sm">
+                            <tr><th>Status:</th><td><span class="badge bg-${getStatusColor(campaign.status)}">${campaign.status || 'Draft'}</span></td></tr>
+                            <tr><th>Total Contacts:</th><td>${stats.total_contacts || 0}</td></tr>
+                            <tr><th>Emails Sent:</th><td>${stats.emails_sent || 0}</td></tr>
+                            <tr><th>Pending Emails:</th><td>${stats.pending_emails || 0}</td></tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <table class="table table-sm">
+                            <tr><th>Daily Limit:</th><td>${campaign.daily_email_limit || 50} emails</td></tr>
+                            <tr><th>Frequency:</th><td>${campaign.email_frequency || 'N/A'}</td></tr>
+                            <tr><th>Timezone:</th><td>${campaign.timezone || 'UTC'}</td></tr>
+                            <tr><th>Business Hours:</th><td>${campaign.respect_business_hours ? 'Enabled' : 'Disabled'}</td></tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Pending Emails -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-clock me-2"></i>Pending Emails (${pending_emails?.length || 0})
+                </h5>
+            </div>
+            <div class="card-body">
+    `;
+    
+    if (pending_emails && pending_emails.length > 0) {
+        html += `
+            <div class="table-responsive">
+                <table class="table table-hover table-sm">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Contact</th>
+                            <th>Scheduled Time</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        pending_emails.slice(0, 50).forEach(email => {
+            const scheduledTime = new Date(email.scheduled_time);
+            const timeFormatted = scheduledTime.toLocaleString();
+            const isToday = scheduledTime.toDateString() === new Date().toDateString();
+            
+            html += `
+                <tr class="${isToday ? 'table-warning' : ''}">
+                    <td>${email.contact_email}</td>
+                    <td>
+                        ${timeFormatted}
+                        ${isToday ? '<span class="badge bg-info ms-2">Today</span>' : ''}
+                    </td>
+                    <td><span class="badge bg-secondary">${email.status || 'Pending'}</span></td>
+                </tr>
+            `;
+        });
+        
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+        
+        if (pending_emails.length > 50) {
+            html += `<p class="text-muted text-center mt-2">Showing first 50 of ${pending_emails.length} pending emails</p>`;
+        }
+    } else {
+        html += `<p class="text-muted text-center py-3">No pending emails</p>`;
+    }
+    
+    html += `
+            </div>
+        </div>
+        
+        <!-- Recent Sent Emails -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-paper-plane me-2"></i>Recent Sent Emails (${sent_emails?.length || 0})
+                </h5>
+            </div>
+            <div class="card-body">
+    `;
+    
+    if (sent_emails && sent_emails.length > 0) {
+        html += `
+            <div class="table-responsive">
+                <table class="table table-hover table-sm">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Contact</th>
+                            <th>Sent Time</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        sent_emails.slice(0, 20).forEach(email => {
+            const sentTime = new Date(email.date || email.sent_time);
+            const timeFormatted = sentTime.toLocaleString();
+            const statusColor = email.status === 'sent' ? 'success' : email.status === 'failed' ? 'danger' : 'secondary';
+            
+            html += `
+                <tr>
+                    <td>${email.to || email.contact_email}</td>
+                    <td>${timeFormatted}</td>
+                    <td><span class="badge bg-${statusColor}">${email.status || 'Unknown'}</span></td>
+                </tr>
+            `;
+        });
+        
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+    } else {
+        html += `<p class="text-muted text-center py-3">No emails sent yet</p>`;
+    }
+    
+    html += `
+            </div>
+        </div>
+        
+        <div class="text-center mt-3">
+            <small class="text-muted">Auto-refreshes every 30 seconds</small>
+        </div>
+    `;
+    
+    scheduleContent.innerHTML = html;
+}
+
+function getStatusColor(status) {
+    const colors = {
+        'active': 'success',
+        'paused': 'warning',
+        'draft': 'info',
+        'completed': 'secondary',
+        'scheduled': 'primary'
+    };
+    return colors[status] || 'secondary';
+}
+
 // Global function assignments for HTML onclick handlers
 window.nextStep = nextStep;
 window.previousStep = previousStep;
@@ -2349,6 +2607,7 @@ window.saveCampaignDraft = saveCampaignDraft;
 window.updateContactCount = updateContactCount;
 window.viewCampaignDetails = viewCampaignDetails;
 window.viewCampaignAnalytics = viewCampaignAnalytics;
+window.viewCampaignSchedule = viewCampaignSchedule;
 window.launchCampaign = launchCampaign;
 window.pauseCampaign = pauseCampaign;
 window.resumeCampaign = resumeCampaign;
