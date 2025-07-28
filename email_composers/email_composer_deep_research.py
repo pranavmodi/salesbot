@@ -106,8 +106,9 @@ class DeepResearchEmailComposer:
         report_url = None
         if company_id:
             print(f"🔗 DEBUG: Attempting to get report URL for company_id={company_id}, company_name={company_name}")
+            print(f"📧 DEBUG: Campaign ID provided: {campaign_id}, Contact email: {lead.get('email', '')}")
             report_url = self._get_or_publish_report_url(company_id, company_name, lead.get("email", ""), campaign_id)
-            print(f"🔗 DEBUG: Generated report_url: {report_url}")
+            print(f"🔗 DEBUG: Generated report_url: {'YES - ' + report_url[:50] + '...' if report_url else 'NO - Empty/None'}")
         else:
             print(f"⚠️ DEBUG: No company_id found, cannot generate report URL")
 
@@ -182,28 +183,42 @@ class DeepResearchEmailComposer:
             # Import here to avoid circular imports
             from app.models.company import Company
             
+            print(f"🔄 DEBUG: _get_or_publish_report_url called with company_id={company_id}, company_name='{company_name}'")
+            
             # Get the company data to verify report exists
             company = Company.get_by_id(company_id)
             if not company:
                 print(f"❌ DEBUG: Company {company_id} not found in database")
                 return ""
             
-            if not company.markdown_report:
+            print(f"✅ DEBUG: Company {company_id} found in database: {company.company_name}")
+            
+            # Check if company has markdown_report
+            has_markdown = hasattr(company, 'markdown_report') and company.markdown_report
+            has_research = hasattr(company, 'company_research') and company.company_research
+            print(f"📊 DEBUG: Company data check - has_markdown_report: {has_markdown}, has_company_research: {has_research}")
+            
+            if not has_markdown:
                 print(f"⚠️ DEBUG: Company {company_name} (ID: {company_id}) has no markdown_report")
-                print(f"📊 DEBUG: Company {company_name} available fields: company_research={bool(company.company_research)}, research_status={getattr(company, 'research_status', 'unknown')}")
+                print(f"📊 DEBUG: Available fields: company_research={bool(company.company_research)}, research_status={getattr(company, 'research_status', 'unknown')}")
                 return ""
             
             print(f"✅ DEBUG: Company {company_name} has markdown_report ({len(company.markdown_report)} chars), proceeding with publishing")
             
             # First, publish the report to possibleminds.in
+            print(f"🌐 DEBUG: Attempting to publish report to Netlify...")
             published_url = self._publish_report_to_netlify(company, recipient_email, campaign_id)
+            print(f"🌐 DEBUG: Netlify publishing result: {'SUCCESS - ' + published_url[:50] + '...' if published_url else 'FAILED - No URL returned'}")
             
             if published_url:
                 # The Netlify function already returns a tracked URL, so we can use it directly
+                print(f"✅ DEBUG: Using Netlify published URL as final report URL")
                 return published_url
             else:
                 # Fallback: generate click tracking URL even if publishing failed
+                print(f"🔄 DEBUG: Netlify publishing failed, generating fallback tracking URL...")
                 tracked_url = self._generate_report_url_with_tracking(company_id, company_name, recipient_email, campaign_id)
+                print(f"🔄 DEBUG: Fallback tracking URL: {'SUCCESS - ' + tracked_url[:50] + '...' if tracked_url else 'FAILED - No URL generated'}")
                 return tracked_url
                 
         except Exception as e:
