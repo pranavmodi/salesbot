@@ -253,6 +253,10 @@ class DeepResearchEmailComposer:
             
             print(f"📦 DEBUG: Payload prepared - company_id: {payload['company_id']}, name: {payload['company_name']}")
             
+            # Create payload without the full report for logging
+            payload_for_logging = {k: v for k, v in payload.items() if k != 'markdown_report'}
+            payload_for_logging['markdown_report'] = f"[{len(payload['markdown_report'])} chars]"
+            
             raw_body = json.dumps(payload, separators=(',', ':'))
             
             headers = {"Content-Type": "application/json"}
@@ -270,7 +274,9 @@ class DeepResearchEmailComposer:
                 print(f"⚠️ DEBUG: No NETLIFY_SECRET found - proceeding without signature")
             
             print(f"🌐 DEBUG: Making POST request to {NETLIFY_PUBLISH_URL}")
-            print(f"📤 DEBUG: Headers: {headers}")
+            headers_safe = {k: v if k != 'X-Hub-Signature-256' else '[HMAC_SIGNATURE]' for k, v in headers.items()}
+            print(f"📤 DEBUG: Headers: {headers_safe}")
+            print(f"📦 DEBUG: Payload size: {len(raw_body)} bytes")
             
             # Make the request to publish (using raw JSON string)
             response = requests.post(
@@ -281,8 +287,11 @@ class DeepResearchEmailComposer:
             )
             
             print(f"📥 DEBUG: Response status: {response.status_code}")
-            print(f"📄 DEBUG: Response headers: {dict(response.headers)}")
-            print(f"📝 DEBUG: Response body: {response.text[:500]}...")
+            print(f"📄 DEBUG: Response content-type: {response.headers.get('content-type', 'unknown')}")
+            
+            # Only log a small portion of the response to avoid flooding logs
+            response_preview = response.text[:200] if response.text else "No response body"
+            print(f"📝 DEBUG: Response preview: {response_preview}{'...' if len(response.text) > 200 else ''}")
             
             if response.status_code == 200:
                 result = response.json()
