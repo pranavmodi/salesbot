@@ -443,18 +443,11 @@ def get_campaign_schedule(campaign_id):
         pending_emails = []
         try:
             from app.models.campaign_email_job import CampaignEmailJob
-            from sqlalchemy import create_engine, text
-            import os
+            from app.database import get_shared_engine
+            from sqlalchemy import text
             
-            database_url = os.getenv("DATABASE_URL")
-            if database_url:
-                engine = create_engine(
-                    database_url,
-                    pool_size=1,
-                    max_overflow=2,
-                    pool_pre_ping=True,
-                    pool_recycle=1800
-                )
+            engine = get_shared_engine()
+            if engine:
                 
                 with engine.connect() as conn:
                     # Get pending email jobs for this campaign
@@ -776,19 +769,12 @@ def delete_all_campaigns():
         
         # Log pending emails before deletion
         from app.models.campaign_email_job import CampaignEmailJob
-        from sqlalchemy import create_engine, text
-        import os
+        from app.database import get_shared_engine
+        from sqlalchemy import text
         
-        database_url = os.getenv("DATABASE_URL")
-        if database_url:
+        engine = get_shared_engine()
+        if engine:
             try:
-                engine = create_engine(
-                    database_url,
-                    pool_size=1,          # Reduced: Maximum number of permanent connections
-                    max_overflow=2,       # Reduced: Maximum number of connections that can overflow the pool
-                    pool_pre_ping=True,   # Verify connections before use
-                    pool_recycle=1800     # Recycle connections every 30 minutes
-                )
                 with engine.connect() as conn:
                     # Get all pending email jobs with campaign info
                     pending_jobs_query = text("""

@@ -22,19 +22,25 @@ class DatabaseService:
     
     def __init__(self):
         load_dotenv()
-        self.database_url = os.getenv("DATABASE_URL")
-        
-        if not self.database_url:
-            raise ValueError("DATABASE_URL not found in environment variables")
-        
-        self.engine = create_engine(
-            self.database_url,
-            pool_size=5,          # Maximum number of permanent connections
-            max_overflow=10,      # Maximum number of connections that can overflow the pool
-            pool_pre_ping=True,   # Verify connections before use
-            pool_recycle=3600     # Recycle connections every hour
-        )
-        logger.info("DatabaseService initialized")
+        # Use shared engine instead of creating a new one
+        try:
+            from app.database import get_shared_engine
+            self.engine = get_shared_engine()
+            logger.info("DatabaseService initialized with shared engine")
+        except Exception as e:
+            logger.error(f"Failed to get shared engine: {e}")
+            # Fallback to creating minimal engine
+            self.database_url = os.getenv("DATABASE_URL")
+            if not self.database_url:
+                raise ValueError("DATABASE_URL not found in environment variables")
+            self.engine = create_engine(
+                self.database_url,
+                pool_size=1,
+                max_overflow=1,
+                pool_pre_ping=True,
+                pool_recycle=1800
+            )
+            logger.warning("DatabaseService using fallback engine")
 
     def get_unique_companies_from_contacts(self) -> List[Dict[str, str]]:
         """Extract unique companies from contacts table with their domains."""

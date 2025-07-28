@@ -77,20 +77,13 @@ def update_contact(email):
         if not update_fields:
             return jsonify({'success': False, 'message': 'No valid fields to update'}), 400
  
-        from sqlalchemy import create_engine, text
-        import os
+        from app.database import get_shared_engine
+        from sqlalchemy import text
         from datetime import datetime
-        database_url = os.getenv("DATABASE_URL")
-        if not database_url:
+        
+        engine = get_shared_engine()
+        if not engine:
             return jsonify({'success': False, 'message': 'Database connection error'}), 500
- 
-        engine = create_engine(
-            database_url,
-            pool_size=5,          # Maximum number of permanent connections
-            max_overflow=10,      # Maximum number of connections that can overflow the pool
-            pool_pre_ping=True,   # Verify connections before use
-            pool_recycle=3600     # Recycle connections every hour
-        )
         with engine.connect() as conn:
             with conn.begin():
                 # Handle company_id if company info is being updated
@@ -255,25 +248,17 @@ def add_contact():
         
         # Use the Contact model to save the contact
         # Since Contact model doesn't have a save method, we'll use the database directly
-        from sqlalchemy import create_engine, text
+        from app.database import get_shared_engine
+        from sqlalchemy import text
         from datetime import datetime
         import json
-        import os
         
-        database_url = os.getenv("DATABASE_URL")
-        if not database_url:
+        engine = get_shared_engine()
+        if not engine:
             return jsonify({
                 'success': False,
                 'message': 'Database connection error'
             }), 500
-        
-        engine = create_engine(
-            database_url,
-            pool_size=5,          # Maximum number of permanent connections
-            max_overflow=10,      # Maximum number of connections that can overflow the pool
-            pool_pre_ping=True,   # Verify connections before use
-            pool_recycle=3600     # Recycle connections every hour
-        )
         with engine.connect() as conn:
             with conn.begin():
                 # -------------------------------------------------------------
