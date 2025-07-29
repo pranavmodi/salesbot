@@ -9,6 +9,7 @@ Handles OpenAI API interactions for:
 """
 
 import os
+import gc
 import logging
 from typing import Optional
 from dotenv import load_dotenv
@@ -119,6 +120,9 @@ Follow the exact structure provided in your system prompt. Begin now."""
             logger.error(f"Error researching company {company_name}: {type(e).__name__}: {e}")
             # Return a fallback response to prevent complete failure
             return f"Research timeout or error for {company_name}. Please try again later."
+        finally:
+            # Force garbage collection to clean up OpenAI client resources
+            gc.collect()
 
     def generate_strategic_recommendations(self, company_name: str, research_content: str) -> Optional[str]:
         """Generate executive-level strategic recommendations based on research using structured outputs."""
@@ -271,7 +275,10 @@ Return a complete JSON response following the exact schema structure."""
             
         except Exception as e:
             logger.error(f"Error generating strategic recommendations for {company_name}: {e}")
-            return None 
+            return None
+        finally:
+            # Force garbage collection to clean up OpenAI client resources
+            gc.collect() 
 
     def _format_structured_recommendations(self, data: dict) -> str:
         """Convert structured JSON data to formatted HTML/markdown for the report."""
@@ -388,6 +395,9 @@ Identify the 2 most critical strategic priorities for this company and propose s
         except Exception as e:
             logger.error(f"Error generating strategic imperatives and agent recommendations for {company_name}: {e}")
             return None, None
+        finally:
+            # Force garbage collection to clean up OpenAI client resources
+            gc.collect()
 
     def generate_executive_summary(self, company_name: str, research_content: str) -> Optional[str]:
         """Generate a company-specific executive summary with background and operating landscape."""
@@ -439,6 +449,9 @@ Write a professional executive summary that captures this specific company's bac
         except Exception as e:
             logger.error(f"Error generating executive summary for company {company_name}: {type(e).__name__}: {e}")
             return None
+        finally:
+            # Force garbage collection to clean up OpenAI client resources
+            gc.collect()
 
     def generate_executive_summary_with_imperatives(self, company_name: str, basic_research: str, strategic_content: str) -> Optional[str]:
         """Generate executive summary with bullet points that match the actual strategic imperatives using structured outputs."""
@@ -560,6 +573,9 @@ Return a JSON response with:
             logger.error(f"Error generating structured executive summary for company {company_name}: {type(e).__name__}: {e}")
             # Fallback to the original method
             return self.generate_executive_summary(company_name, basic_research)
+        finally:
+            # Force garbage collection to clean up OpenAI client resources
+            gc.collect()
 
     def _format_structured_executive_summary(self, data: dict) -> str:
         """Convert structured executive summary data to formatted HTML with links to strategic imperatives."""
