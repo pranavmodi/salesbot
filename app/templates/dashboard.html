@@ -37,18 +37,7 @@
     </div>
 </div>
 
-<!-- Admin Actions -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="d-flex justify-content-end">
-            <button id="cleanDatabaseBtn" class="btn btn-danger btn-sm">
-                <i class="fas fa-trash me-1"></i> Clean Database
-            </button>
-        </div>
-    </div>
-</div>
-
-<!-- Tab Navigation -->
+<!-- Tab Navigation with Admin Actions -->
 <ul class="nav nav-tabs main-tabs" id="myTab" role="tablist">
     <li class="nav-item" role="presentation">
         <button class="nav-link active" id="contacts-tab" data-bs-toggle="tab" data-bs-target="#contacts-tab-pane" type="button" role="tab" aria-controls="contacts-tab-pane" aria-selected="true">
@@ -77,6 +66,29 @@
         <button class="nav-link" id="gtm-campaign-tab" data-bs-toggle="tab" data-bs-target="#gtm-campaign-tab-pane" type="button" role="tab" aria-controls="gtm-campaign-tab-pane" aria-selected="false">
             <i class="fas fa-bullhorn me-1"></i> GTM Campaign
         </button>
+    </li>
+    <li class="nav-item dropdown ms-auto" role="presentation">
+        <button class="nav-link dropdown-toggle text-danger" id="adminDropdown" data-bs-toggle="dropdown" aria-expanded="false" style="border: none; background: none;">
+            <i class="fas fa-cog me-1"></i> Admin
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="adminDropdown">
+            <li>
+                <h6 class="dropdown-header">
+                    <i class="fas fa-exclamation-triangle text-warning me-1"></i>
+                    Danger Zone
+                </h6>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+                <button class="dropdown-item text-danger d-flex align-items-center" id="cleanDatabaseBtn">
+                    <i class="fas fa-trash me-2"></i>
+                    <div>
+                        <div class="fw-bold">Clean Database</div>
+                        <small class="text-muted">Remove all data from all tables</small>
+                    </div>
+                </button>
+            </li>
+        </ul>
     </li>
 </ul>
 
@@ -201,36 +213,107 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (cleanDatabaseBtn) {
         cleanDatabaseBtn.addEventListener('click', function() {
-            // Change button to loading state
-            const originalHTML = this.innerHTML;
-            this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Cleaning...';
-            this.disabled = true;
+            // Close the dropdown
+            const dropdownMenu = this.closest('.dropdown-menu');
+            if (dropdownMenu) {
+                const dropdown = bootstrap.Dropdown.getInstance(document.getElementById('adminDropdown'));
+                if (dropdown) dropdown.hide();
+            }
             
-            fetch('/api/clean-database', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showToast('Database cleaned successfully!', 'success');
-                    // Refresh the page to update stats
-                    setTimeout(() => location.reload(), 1500);
-                } else {
-                    showToast('Failed to clean database: ' + (data.error || 'Unknown error'), 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showToast('Error cleaning database: ' + error.message, 'error');
-            })
-            .finally(() => {
-                // Restore button state
-                this.innerHTML = originalHTML;
-                this.disabled = false;
-            });
+            // Show confirmation modal instead of immediate execution
+            const confirmModal = new bootstrap.Modal(document.getElementById('cleanDatabaseModal') || createCleanDatabaseModal());
+            confirmModal.show();
+        });
+    }
+    
+    function createCleanDatabaseModal() {
+        const modalHTML = `
+            <div class="modal fade" id="cleanDatabaseModal" tabindex="-1" aria-labelledby="cleanDatabaseModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content border-danger">
+                        <div class="modal-header bg-danger text-white">
+                            <h5 class="modal-title" id="cleanDatabaseModalLabel">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                Confirm Database Cleaning
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-danger d-flex align-items-center" role="alert">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <div>
+                                    <strong>Warning:</strong> This action will permanently delete ALL data from the database.
+                                </div>
+                            </div>
+                            <p class="mb-3">This will remove:</p>
+                            <ul class="mb-3">
+                                <li>All contacts and companies</li>
+                                <li>All campaigns and email history</li>
+                                <li>All research data and reports</li>
+                                <li>All system data</li>
+                            </ul>
+                            <p class="text-muted"><strong>This action cannot be undone.</strong></p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                <i class="fas fa-times me-1"></i> Cancel
+                            </button>
+                            <button type="button" class="btn btn-danger" id="confirmCleanDatabase">
+                                <i class="fas fa-trash me-1"></i> Yes, Clean Database
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        const modal = document.getElementById('cleanDatabaseModal');
+        
+        // Add event listener for confirm button
+        document.getElementById('confirmCleanDatabase').addEventListener('click', function() {
+            executeCleanDatabase();
+            bootstrap.Modal.getInstance(modal).hide();
+        });
+        
+        return modal;
+    }
+    
+    function executeCleanDatabase() {
+        const confirmBtn = document.getElementById('confirmCleanDatabase');
+        const originalHTML = confirmBtn ? confirmBtn.innerHTML : '';
+        
+        if (confirmBtn) {
+            confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Cleaning...';
+            confirmBtn.disabled = true;
+        }
+        
+        fetch('/api/clean-database', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Database cleaned successfully! Refreshing dashboard...', 'success');
+                // Refresh the page to update stats
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                showToast('Failed to clean database: ' + (data.error || 'Unknown error'), 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('Error cleaning database: ' + error.message, 'error');
+        })
+        .finally(() => {
+            // Restore button state
+            if (confirmBtn) {
+                confirmBtn.innerHTML = originalHTML;
+                confirmBtn.disabled = false;
+            }
         });
     }
 });
