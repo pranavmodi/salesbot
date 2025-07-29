@@ -221,7 +221,7 @@ class DeepResearchEmailComposer:
             # Check if company has html_report
             has_html_report = hasattr(company, 'html_report') and company.html_report
             has_research = hasattr(company, 'company_research') and company.company_research
-            print(f"📊 DEBUG: Company data check - has_html_report: {has_html_report}, has_company_research: {has_research}")
+            print(f"📊 DEBUG: Company data check - has_html_report: {has_html_report}, has_company_research: {len(has_research)}")
             
             if not has_html_report:
                 print(f"⚠️ DEBUG: Company {company_name} (ID: {company_id}) has no html_report")
@@ -298,54 +298,59 @@ class DeepResearchEmailComposer:
             print(f"📤 DEBUG: Headers: {headers_safe}")
             print(f"📦 DEBUG: Payload size: {len(raw_body)} bytes")
             
-            # Make the request to publish (using raw JSON string)
-            response = requests.post(
-                NETLIFY_PUBLISH_URL,
-                headers=headers,
-                data=raw_body,  # Use raw JSON string for signature validation
-                timeout=30
-            )
-            
-            print(f"📥 DEBUG: Response status: {response.status_code}")
-            print(f"📄 DEBUG: Response content-type: {response.headers.get('content-type', 'unknown')}")
-            
-            if response.status_code == 200:
-                result = response.json()
-                # Extract publishUrl from the nested data structure
-                public_url = result.get('data', {}).get('publishUrl') or result.get('public_url')
+            # Make the request to publish (using raw JSON string) with session for proper cleanup
+            with requests.Session() as session:
+                response = session.post(
+                    NETLIFY_PUBLISH_URL,
+                    headers=headers,
+                    data=raw_body,  # Use raw JSON string for signature validation
+                    timeout=30
+                )
                 
-                if public_url:
-                    # Extract company slug from the public URL for click tracking
-                    import re
-                    slug_match = re.search(r'/reports/([^/?]+)', public_url)
-                    company_slug = slug_match.group(1) if slug_match else company.company_name.lower().replace(' ', '-').replace('&', 'and')
-                    
-                    # Create click tracking URL that routes through the tracking function first
-                    tracking_params = {
-                        'slug': company_slug,
-                        'utm_source': 'email',
-                        'utm_medium': 'outreach',
-                        'utm_campaign': 'deep_research',
-                        'utm_content': 'strategic_analysis',
-                        'company': company.company_name.lower().replace(' ', '_'),
-                        'recipient': recipient_email.split('@')[0] if recipient_email else 'unknown',
-                        'campaign_id': campaign_id if campaign_id else 'unknown'
-                    }
-                    
-                    base_tracking_url = "https://possibleminds.in/.netlify/functions/click-tracking"
-                    url_params = urllib.parse.urlencode(tracking_params)
-                    tracked_url = f"{base_tracking_url}?{url_params}"
-                    
-                    return tracked_url
+                print(f"📥 DEBUG: Response status: {response.status_code}")
+                print(f"📄 DEBUG: Response content-type: {response.headers.get('content-type', 'unknown')}")
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    # Extract publishUrl from the nested data structure
+                    public_url = result.get('data', {}).get('publishUrl') or result.get('public_url')
+                
+                    if public_url:
+                        # Extract company slug from the public URL for click tracking
+                        import re
+                        slug_match = re.search(r'/reports/([^/?]+)', public_url)
+                        company_slug = slug_match.group(1) if slug_match else company.company_name.lower().replace(' ', '-').replace('&', 'and')
+                        
+                        # Create click tracking URL that routes through the tracking function first
+                        tracking_params = {
+                            'slug': company_slug,
+                            'utm_source': 'email',
+                            'utm_medium': 'outreach',
+                            'utm_campaign': 'deep_research',
+                            'utm_content': 'strategic_analysis',
+                            'company': company.company_name.lower().replace(' ', '_'),
+                            'recipient': recipient_email.split('@')[0] if recipient_email else 'unknown',
+                            'campaign_id': campaign_id if campaign_id else 'unknown'
+                        }
+                        
+                        base_tracking_url = "https://possibleminds.in/.netlify/functions/click-tracking"
+                        url_params = urllib.parse.urlencode(tracking_params)
+                        tracked_url = f"{base_tracking_url}?{url_params}"
+                        
+                        return tracked_url
+                    else:
+                        return ""
                 else:
+                    print(f"❌ Report publishing failed (HTTP {response.status_code}): {response.text}")
                     return ""
-            else:
-                print(f"❌ Report publishing failed (HTTP {response.status_code}): {response.text}")
-                return ""
                 
         except Exception as e:
             print(f"❌ Report publishing error: {e}")
             return ""
+        finally:
+            # Force garbage collection to clean up HTTP resources
+            import gc
+            gc.collect()
 
     def _get_company_research_with_full_report(self, company_name: str, auto_trigger: bool = True) -> tuple[str, int]:
         """Get company research data and ensure full report is available. Returns (research_text, company_id)."""
