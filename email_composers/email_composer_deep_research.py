@@ -309,10 +309,6 @@ class DeepResearchEmailComposer:
             print(f"📥 DEBUG: Response status: {response.status_code}")
             print(f"📄 DEBUG: Response content-type: {response.headers.get('content-type', 'unknown')}")
             
-            # Only log a small portion of the response to avoid flooding logs
-            response_preview = response.text[:200] if response.text else "No response body"
-            print(f"📝 DEBUG: Response preview: {response_preview}{'...' if len(response.text) > 200 else ''}")
-            
             if response.status_code == 200:
                 result = response.json()
                 # Extract publishUrl from the nested data structure
