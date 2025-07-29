@@ -1,38 +1,21 @@
 #!/usr/bin/env python3
 """
-Complete Database Cleaning Script
+Database Cleaning Service
 
-This script completely cleans all data from all tables in the salesbot database.
-It removes all records from all tables while preserving the table structure.
-
-DANGER: This script will DELETE ALL DATA from the database.
-Use with extreme caution and only when you need a completely clean database.
+Handles complete cleaning of all database tables while preserving structure.
+Integrated into the Flask application for API access.
 """
 
 import os
-import sys
 import logging
-import argparse
-from typing import Dict, List
+from typing import Dict
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
-# Add the parent directory to sys.path to import app modules
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('clean_database_completely.log'),
-        logging.StreamHandler()
-    ]
-)
 logger = logging.getLogger(__name__)
 
-class DatabaseCleaner:
+class DatabaseCleanerService:
     """Handles complete cleaning of all database tables."""
     
     # Define table order for deletion (child tables first to avoid foreign key constraints)
@@ -61,7 +44,7 @@ class DatabaseCleaner:
             pool_pre_ping=True,   # Verify connections before use
             pool_recycle=3600     # Recycle connections every hour
         )
-        logger.info("DatabaseCleaner initialized")
+        logger.info("DatabaseCleanerService initialized")
 
     def get_table_counts(self) -> Dict[str, int]:
         """Get record counts for all tables."""
@@ -223,99 +206,24 @@ class DatabaseCleaner:
             logger.error(f"Unexpected error getting summary: {e}")
             return {}
 
-def main():
-    """Main function to run the complete database cleaning script."""
-    parser = argparse.ArgumentParser(description='Complete database cleaning - REMOVES ALL DATA from all tables')
-    parser.add_argument('--dry-run', action='store_true', 
-                       help='Show what would be deleted without actually doing it')
-    parser.add_argument('--summary', action='store_true', 
-                       help='Show database summary without cleaning')
-    parser.add_argument('--reset-sequences', action='store_true',
-                       help='Reset auto-increment sequences after cleaning')
-    parser.add_argument('--table', type=str,
-                       help='Clean only a specific table (use with caution)')
-    parser.add_argument('--yes', action='store_true',
-                       help='Skip confirmation prompts and proceed with cleaning')
-    
-    args = parser.parse_args()
-    
-    # Show summary if requested
-    if args.summary:
+    def execute_complete_clean(self) -> dict:
+        """Execute complete database cleaning and return results."""
         try:
-            cleaner = DatabaseCleaner()
-            summary = cleaner.get_database_summary()
-            if summary:
-                logger.info("📊 Database Summary:")
-                logger.info(f"   Database size: {summary.get('database_size', 'Unknown')}")
-                logger.info("   Table record counts:")
-                for table_name, count in summary.get('table_counts', {}).items():
-                    logger.info(f"     - {table_name}: {count} records")
-                logger.info("   Table sizes:")
-                for table_info in summary.get('tables', []):
-                    logger.info(f"     - {table_info['table_name']}: {table_info['table_size']}")
-        except Exception as e:
-            logger.error(f"Error getting summary: {e}")
-        return
-    
-    try:
-        cleaner = DatabaseCleaner()
-        
-        if args.dry_run:
-            logger.info("🔍 DRY RUN MODE - No actual cleaning will occur")
+            # Get initial counts for reporting
+            initial_counts = self.get_table_counts()
+            initial_total = sum(initial_counts.values())
             
-            if args.table:
-                if cleaner.verify_table_exists(args.table):
-                    with cleaner.engine.connect() as conn:
-                        result = conn.execute(text(f"SELECT COUNT(*) as count FROM {args.table}"))
-                        count = result.fetchone().count
-                        logger.info(f"Would clean table '{args.table}' with {count} records")
-                else:
-                    logger.warning(f"Table '{args.table}' does not exist")
-            else:
-                table_counts = cleaner.get_table_counts()
-                total = sum(table_counts.values())
-                logger.info(f"Would clean all tables with a total of {total} records:")
-                for table_name, count in table_counts.items():
-                    if count > 0:
-                        logger.info(f"  - {table_name}: {count} records")
-            return
-        
-        # Confirmation step (unless --yes flag is used)
-        if not args.yes:
-            table_counts = cleaner.get_table_counts()
-            total_records = sum(table_counts.values())
+            logger.info(f"Starting database cleaning - {initial_total} total records to delete")
             
-            logger.warning("⚠️  DANGER: This operation will permanently delete ALL DATA from the database!")
-            logger.warning(f"   Total records to be deleted: {total_records}")
-            logger.warning("   This action cannot be undone!")
-            
-            if args.table:
-                logger.warning(f"   Target table: {args.table}")
-            else:
-                logger.warning("   Target: ALL TABLES")
-            
-            confirmation = input("\nType 'DELETE ALL DATA' to confirm: ")
-            if confirmation != "DELETE ALL DATA":
-                logger.info("Operation cancelled by user")
-                return
-        
-        # Perform the cleaning
-        if args.table:
-            # Clean single table
-            if cleaner.verify_table_exists(args.table):
-                deleted_count = cleaner.clean_table(args.table)
-                if deleted_count >= 0:
-                    logger.info(f"✅ Successfully cleaned table '{args.table}' - {deleted_count} records deleted")
-                else:
-                    logger.error(f"❌ Failed to clean table '{args.table}'")
-            else:
-                logger.error(f"❌ Table '{args.table}' does not exist")
-        else:
             # Clean all tables
-            results = cleaner.clean_all_tables()
+            results = self.clean_all_tables()
             
             if results:
                 total_deleted = sum(results.values())
+                
+                # Reset sequences
+                sequences_reset = self.reset_sequences()
+                
                 logger.info("✅ Database cleaning completed successfully!")
                 logger.info("📊 Deletion Summary:")
                 for table_name, count in results.items():
@@ -323,19 +231,27 @@ def main():
                         logger.info(f"   - {table_name}: {count} records deleted")
                 logger.info(f"   Total records deleted: {total_deleted}")
                 
-                # Reset sequences if requested
-                if args.reset_sequences:
-                    if cleaner.reset_sequences():
-                        logger.info("✅ Auto-increment sequences reset successfully")
-                    else:
-                        logger.warning("⚠️  Some sequences could not be reset")
+                return {
+                    'success': True,
+                    'message': f'Database cleaned successfully. {total_deleted} records deleted.',
+                    'details': {
+                        'total_deleted': total_deleted,
+                        'tables_cleaned': results,
+                        'sequences_reset': sequences_reset
+                    }
+                }
             else:
                 logger.error("❌ Database cleaning failed")
-                sys.exit(1)
-            
-    except Exception as e:
-        logger.error(f"Script execution error: {e}")
-        sys.exit(1)
-
-if __name__ == "__main__":
-    main()
+                return {
+                    'success': False,
+                    'message': 'Database cleaning failed - no results returned',
+                    'details': {}
+                }
+                
+        except Exception as e:
+            logger.error(f"Database cleaning execution error: {e}")
+            return {
+                'success': False,
+                'message': f'Database cleaning failed: {str(e)}',
+                'details': {}
+            }

@@ -307,35 +307,32 @@ def not_found(error):
 
 @api_bp.route('/clean-database', methods=['POST'])
 def clean_database():
-    """Execute the database cleaning script."""
+    """Execute the database cleaning operation."""
     try:
-        import subprocess
-        import os
+        from app.services.database_cleaner import DatabaseCleanerService
         
-        # Get the absolute path to the script
-        script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'scripts', 'clean_database_completely.py')
+        logger.info("Starting database cleaning via API")
         
-        # Use the virtual environment python interpreter
-        venv_python = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'salesbot', 'bin', 'python')
+        # Initialize the database cleaner service
+        cleaner = DatabaseCleanerService()
         
-        # Execute the script with --yes flag to skip confirmation
-        result = subprocess.run(
-            [venv_python, script_path, '--yes'],
-            capture_output=True,
-            text=True,
-            timeout=60  # 1 minute timeout
-        )
+        # Execute the complete cleaning operation
+        result = cleaner.execute_complete_clean()
         
-        if result.returncode == 0:
-            logger.info("Database cleaned successfully via API")
-            return jsonify({'success': True, 'message': 'Database cleaned successfully'})
+        if result['success']:
+            logger.info(f"Database cleaning completed: {result['message']}")
+            return jsonify({
+                'success': True, 
+                'message': result['message'],
+                'details': result['details']
+            })
         else:
-            logger.error(f"Database cleaning failed: {result.stderr}")
-            return jsonify({'success': False, 'error': result.stderr or 'Unknown error'}), 500
+            logger.error(f"Database cleaning failed: {result['message']}")
+            return jsonify({
+                'success': False, 
+                'error': result['message']
+            }), 500
             
-    except subprocess.TimeoutExpired:
-        logger.error("Database cleaning timed out")
-        return jsonify({'success': False, 'error': 'Operation timed out'}), 500
     except Exception as e:
         logger.error(f"Error cleaning database: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
