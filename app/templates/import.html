@@ -406,6 +406,21 @@ function importContacts() {
             displayResults(data);
             setStep(3);
             showToast('successToast', data.message);
+            
+            // Add a button to redirect to dashboard after successful import
+            setTimeout(() => {
+                const resultsContent = document.getElementById('results-content');
+                if (resultsContent) {
+                    const redirectButton = document.createElement('div');
+                    redirectButton.className = 'text-center mt-4';
+                    redirectButton.innerHTML = `
+                        <a href="/" class="btn btn-primary btn-lg">
+                            <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                        </a>
+                    `;
+                    resultsContent.appendChild(redirectButton);
+                }
+            }, 1000);
         } else {
             showToast('errorToast', data.error || 'Import failed');
         }

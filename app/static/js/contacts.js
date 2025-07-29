@@ -10,6 +10,10 @@ function initializeContacts() {
     setupContactSearch();
     setupContactFilters();
     setupContactEventListeners();
+    
+    // Load the first page of contacts on initialization
+    console.log("Loading initial contacts data...");
+    changePage(1);
 }
 
 // Contact search functionality

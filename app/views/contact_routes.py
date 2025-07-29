@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, render_template
 from datetime import datetime
 import os
 import tempfile
@@ -36,10 +36,38 @@ def clean_data_for_json(data):
 
 @contact_bp.route('/contacts', methods=['GET'])
 def get_contacts():
-    """Get all contacts."""
+    """Get contacts with pagination support."""
     try:
-        contacts = Contact.load_all()
-        return jsonify([contact.to_dict() for contact in contacts])
+        # Get pagination parameters from query string
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 50, type=int)
+        
+        # Ensure reasonable limits
+        if per_page > 200:
+            per_page = 200
+        if per_page < 1:
+            per_page = 50
+        if page < 1:
+            page = 1
+            
+        # Get paginated contacts
+        contact_data = Contact.get_paginated(page=page, per_page=per_page)
+        
+        # Generate HTML for the contacts table
+        contacts_html = render_template('components/contacts_table.html', 
+                                      contacts=contact_data['contacts'],
+                                      current_page=contact_data['current_page'],
+                                      total_pages=contact_data['total_pages'],
+                                      per_page=contact_data['per_page'])
+        
+        return jsonify({
+            'html': contacts_html,
+            'contacts': [contact.to_dict() for contact in contact_data['contacts']],
+            'current_page': contact_data['current_page'],
+            'total_pages': contact_data['total_pages'],
+            'per_page': contact_data['per_page'],
+            'total': contact_data['total_contacts']
+        })
     except Exception as e:
         current_app.logger.error(f"Error getting contacts: {str(e)}")
         return jsonify({'error': 'Failed to load contacts'}), 500
