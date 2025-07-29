@@ -68,6 +68,7 @@ def execute_campaign_job(campaign_id: int):
     from flask import current_app
     from app import create_app
     import random
+    import gc
     
     # Create application context for background job
     app = create_app()
@@ -200,6 +201,9 @@ def execute_campaign_job(campaign_id: int):
         except Exception as e:
             current_app.logger.error(f"Error scheduling campaign {campaign_id}: {e}")
             Campaign.update_status(campaign_id, 'failed')
+        finally:
+            # Force garbage collection to clean up resources
+            gc.collect()
 
 # Static function to execute a single email within a campaign
 def execute_single_email_job(campaign_id: int, contact: Dict, settings: Dict):
@@ -367,6 +371,7 @@ def process_pending_email_jobs():
     """Process pending email jobs from the database."""
     from flask import current_app
     from app import create_app
+    import gc
     
     # Create application context for background job
     app = create_app()
@@ -408,6 +413,9 @@ def process_pending_email_jobs():
                     
         except Exception as e:
             current_app.logger.error(f"Error processing pending email jobs: {e}")
+        finally:
+            # Force garbage collection to clean up resources
+            gc.collect()
 
 def _execute_email_job(job: CampaignEmailJob) -> bool:
     """Execute a single email job."""
@@ -733,7 +741,7 @@ class CampaignScheduler:
             }
             
             executors = {
-                'default': ThreadPoolExecutor(2),  # Further reduced to 2 threads for Railway's limited resources
+                'default': ThreadPoolExecutor(1),  # Reduced to 1 thread to prevent malloc conflicts
             }
             
             job_defaults = {
