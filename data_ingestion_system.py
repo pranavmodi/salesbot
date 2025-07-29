@@ -196,14 +196,66 @@ class ContactDataIngester:
             return 0, 0, 1
     
     def upsert_contact(self, email: str, contact_data: Dict, all_data: Dict, source_file: str):
-        """Insert new contact or update existing one"""
+        """Insert new contact or update existing one, automatically creating and linking companies"""
         
         try:
             with self.engine.connect() as conn:
                 with conn.begin():
+                    # First, handle company creation/linking if company info exists
+                    company_id = None
+                    company_name = contact_data.get('company_name', '').strip()
+                    company_domain = contact_data.get('company_domain', '').strip()
+                    
+                    if company_name or company_domain:
+                        # Check if company already exists (by name first, then domain)
+                        if company_name:
+                            result = conn.execute(text("""
+                                SELECT id FROM companies 
+                                WHERE LOWER(company_name) = LOWER(:company_name) 
+                                LIMIT 1
+                            """), {"company_name": company_name})
+                            row = result.fetchone()
+                            if row:
+                                company_id = row.id
+                        
+                        # If not found by name, check by domain
+                        if not company_id and company_domain:
+                            domain_pattern = f"%{company_domain.lower()}%"
+                            result = conn.execute(text("""
+                                SELECT id FROM companies 
+                                WHERE LOWER(website_url) LIKE :domain_pattern 
+                                LIMIT 1
+                            """), {"domain_pattern": domain_pattern})
+                            row = result.fetchone()
+                            if row:
+                                company_id = row.id
+                        
+                        # Create new company if it doesn't exist
+                        if not company_id:
+                            website_url = ''
+                            if company_domain:
+                                website_url = company_domain if company_domain.startswith(('http://', 'https://')) else f"https://{company_domain}"
+                            
+                            fallback_name = company_name or company_domain or 'Unknown'
+                            result = conn.execute(text("""
+                                INSERT INTO companies (
+                                    company_name, website_url, company_research, 
+                                    research_status, created_at, updated_at
+                                ) VALUES (
+                                    :company_name, :website_url, :company_research,
+                                    'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                                ) RETURNING id
+                            """), {
+                                "company_name": fallback_name,
+                                "website_url": website_url,
+                                "company_research": f"Company automatically created during contact import from {source_file}. Research pending."
+                            })
+                            company_id = result.fetchone().id
+                            logger.info(f"Created new company '{fallback_name}' with ID {company_id}")
+                    
                     # Check if contact exists
                     result = conn.execute(
-                        text("SELECT source_files, all_data FROM contacts WHERE email = :email"),
+                        text("SELECT source_files, all_data, company_id FROM contacts WHERE email = :email"),
                         {"email": email}
                     )
                     existing = result.fetchone()
@@ -212,6 +264,7 @@ class ContactDataIngester:
                         # Update existing contact
                         existing_source_files = existing[0] if existing[0] else []
                         existing_all_data = existing[1] if existing[1] else {}
+                        existing_company_id = existing[2]
                         
                         # Add new source file if not already present
                         if source_file not in existing_source_files:
@@ -229,6 +282,11 @@ class ContactDataIngester:
                                 update_fields.append(f"{field} = :{field}")
                                 update_params[field] = value
                         
+                        # Update company_id if we found/created one and it's different
+                        if company_id and company_id != existing_company_id:
+                            update_fields.append("company_id = :company_id")
+                            update_params["company_id"] = company_id
+                        
                         if update_fields:
                             update_fields.extend([
                                 "source_files = :source_files",
@@ -244,7 +302,7 @@ class ContactDataIngester:
                             query = f"UPDATE contacts SET {', '.join(update_fields)} WHERE email = :email"
                             conn.execute(text(query), update_params)
                     else:
-                        # Insert new contact
+                        # Insert new contact with company_id
                         insert_params = {
                             "email": email,
                             "first_name": contact_data.get('first_name', ''),
@@ -257,6 +315,7 @@ class ContactDataIngester:
                             "location": contact_data.get('location', ''),
                             "phone": contact_data.get('phone', ''),
                             "linkedin_message": contact_data.get('linkedin_message', ''),
+                            "company_id": company_id,
                             "source_files": json.dumps([source_file]),
                             "all_data": json.dumps(all_data)
                         }
@@ -265,11 +324,11 @@ class ContactDataIngester:
                             INSERT INTO contacts (
                                 email, first_name, last_name, full_name, job_title, 
                                 company_name, company_domain, linkedin_profile, location, 
-                                phone, linkedin_message, source_files, all_data
+                                phone, linkedin_message, company_id, source_files, all_data
                             ) VALUES (
                                 :email, :first_name, :last_name, :full_name, :job_title,
                                 :company_name, :company_domain, :linkedin_profile, :location,
-                                :phone, :linkedin_message, :source_files, :all_data
+                                :phone, :linkedin_message, :company_id, :source_files, :all_data
                             )
                         """), insert_params)
                         
