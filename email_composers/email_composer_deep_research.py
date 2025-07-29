@@ -221,7 +221,7 @@ class DeepResearchEmailComposer:
             # Check if company has html_report
             has_html_report = hasattr(company, 'html_report') and company.html_report
             has_research = hasattr(company, 'company_research') and company.company_research
-            print(f"📊 DEBUG: Company data check - has_html_report: {has_html_report}, has_company_research: {len(has_research)}")
+            print(f"📊 DEBUG: Company data check - has_html_report: {len(has_html_report)}, has_company_research: {len(has_research)}")
             
             if not has_html_report:
                 print(f"⚠️ DEBUG: Company {company_name} (ID: {company_id}) has no html_report")
