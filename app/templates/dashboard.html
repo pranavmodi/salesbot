@@ -37,7 +37,16 @@
     </div>
 </div>
 
-
+<!-- Admin Actions -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-end">
+            <button id="cleanDatabaseBtn" class="btn btn-danger btn-sm">
+                <i class="fas fa-trash me-1"></i> Clean Database
+            </button>
+        </div>
+    </div>
+</div>
 
 <!-- Tab Navigation -->
 <ul class="nav nav-tabs main-tabs" id="myTab" role="tablist">
@@ -184,6 +193,48 @@
 <script src="{{ url_for('static', filename='js/email.js') }}"></script>
 <script src="{{ url_for('static', filename='js/campaigns.js') }}"></script>
 <script src="{{ url_for('static', filename='js/companies.js') }}"></script>
+
+<!-- Clean Database functionality -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const cleanDatabaseBtn = document.getElementById('cleanDatabaseBtn');
+    
+    if (cleanDatabaseBtn) {
+        cleanDatabaseBtn.addEventListener('click', function() {
+            // Change button to loading state
+            const originalHTML = this.innerHTML;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Cleaning...';
+            this.disabled = true;
+            
+            fetch('/api/clean-database', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Database cleaned successfully!', 'success');
+                    // Refresh the page to update stats
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    showToast('Failed to clean database: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Error cleaning database: ' + error.message, 'error');
+            })
+            .finally(() => {
+                // Restore button state
+                this.innerHTML = originalHTML;
+                this.disabled = false;
+            });
+        });
+    }
+});
+</script>
 
 <!-- Main dashboard coordination script -->
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>

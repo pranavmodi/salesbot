@@ -305,6 +305,41 @@ def not_found(error):
         'message': error.description or 'The requested resource was not found'
     }, 404
 
+@api_bp.route('/clean-database', methods=['POST'])
+def clean_database():
+    """Execute the database cleaning script."""
+    try:
+        import subprocess
+        import os
+        
+        # Get the absolute path to the script
+        script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'scripts', 'clean_database_completely.py')
+        
+        # Use the virtual environment python interpreter
+        venv_python = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'salesbot', 'bin', 'python')
+        
+        # Execute the script with --yes flag to skip confirmation
+        result = subprocess.run(
+            [venv_python, script_path, '--yes'],
+            capture_output=True,
+            text=True,
+            timeout=60  # 1 minute timeout
+        )
+        
+        if result.returncode == 0:
+            logger.info("Database cleaned successfully via API")
+            return jsonify({'success': True, 'message': 'Database cleaned successfully'})
+        else:
+            logger.error(f"Database cleaning failed: {result.stderr}")
+            return jsonify({'success': False, 'error': result.stderr or 'Unknown error'}), 500
+            
+    except subprocess.TimeoutExpired:
+        logger.error("Database cleaning timed out")
+        return jsonify({'success': False, 'error': 'Operation timed out'}), 500
+    except Exception as e:
+        logger.error(f"Error cleaning database: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @api_bp.errorhandler(500)
 def internal_error(error):
     """Handle 500 errors for API routes."""

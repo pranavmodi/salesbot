@@ -234,6 +234,8 @@ def main():
                        help='Reset auto-increment sequences after cleaning')
     parser.add_argument('--table', type=str,
                        help='Clean only a specific table (use with caution)')
+    parser.add_argument('--yes', action='store_true',
+                       help='Skip confirmation prompts and proceed with cleaning')
     
     args = parser.parse_args()
     
@@ -277,6 +279,25 @@ def main():
                     if count > 0:
                         logger.info(f"  - {table_name}: {count} records")
             return
+        
+        # Confirmation step (unless --yes flag is used)
+        if not args.yes:
+            table_counts = cleaner.get_table_counts()
+            total_records = sum(table_counts.values())
+            
+            logger.warning("⚠️  DANGER: This operation will permanently delete ALL DATA from the database!")
+            logger.warning(f"   Total records to be deleted: {total_records}")
+            logger.warning("   This action cannot be undone!")
+            
+            if args.table:
+                logger.warning(f"   Target table: {args.table}")
+            else:
+                logger.warning("   Target: ALL TABLES")
+            
+            confirmation = input("\nType 'DELETE ALL DATA' to confirm: ")
+            if confirmation != "DELETE ALL DATA":
+                logger.info("Operation cancelled by user")
+                return
         
         # Perform the cleaning
         if args.table:
