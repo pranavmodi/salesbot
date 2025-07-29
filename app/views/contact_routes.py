@@ -56,8 +56,9 @@ def get_contacts():
         # Generate HTML for the contacts table
         contacts_html = render_template('components/contacts_table.html', 
                                       contacts=contact_data['contacts'],
-                                      current_page=contact_data['current_page'],
-                                      total_pages=contact_data['total_pages'],
+                                      contacts_current_page=contact_data['current_page'],
+                                      contacts_total_pages=contact_data['total_pages'],
+                                      total_contacts=contact_data['total_contacts'],
                                       per_page=contact_data['per_page'])
         
         return jsonify({
