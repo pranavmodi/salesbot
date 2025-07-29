@@ -517,8 +517,8 @@ class DeepResearchEmailComposer:
                     has_markdown = hasattr(company, 'markdown_report') and company.markdown_report
                     print(f"⚠️ DEBUG: Final status check - Status: {status}, Has markdown: {has_markdown}")
                     
-                    # If we have basic research but no markdown report, return None to prevent email sending
-                    if company.research_step_1_basic and not has_markdown:
+                    # If research is completed, allow email sending even without markdown report
+                    if company.research_step_1_basic and not has_markdown and status != 'completed':
                         print(f"🚫 DEBUG: Research in progress but report not ready - preventing email composition")
                         return None, company_id  # Return None to signal "not ready"
                     elif company.research_step_1_basic:
