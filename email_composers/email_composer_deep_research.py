@@ -497,7 +497,7 @@ class DeepResearchEmailComposer:
                         has_html_report = hasattr(company, 'html_report') and company.html_report
                         has_basic = hasattr(company, 'research_step_1_basic') and company.research_step_1_basic
                         
-                        print(f"⏳ DEBUG: Polling {elapsed_time}s/{max_wait_time}s - Status: {status}, Has HTML report: {has_html_report}, Has basic: {'YES' if has_basic else 'NO'}")
+                        print(f"⏳ DEBUG: Polling {elapsed_time}s/{max_wait_time}s - Status: {status}, Has HTML report: {len(has_html_report)}, Has basic: {'YES' if has_basic else 'NO'}")
                         
                         # Only return when we have BOTH completed status AND html_report
                         if status == 'completed' and has_html_report:
@@ -516,7 +516,7 @@ class DeepResearchEmailComposer:
                 if company:
                     status = getattr(company, 'research_status', 'unknown')
                     has_html_report = hasattr(company, 'html_report') and company.html_report
-                    print(f"⚠️ DEBUG: Final status check - Status: {status}, Has HTML report: {has_html_report}")
+                    print(f"⚠️ DEBUG: Final status check - Status: {status}, Has HTML report: {len(has_html_report)}")
                     
                     # If research is completed, allow email sending even without HTML report
                     if company.research_step_1_basic and not has_html_report and status != 'completed':
