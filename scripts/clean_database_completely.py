@@ -226,8 +226,6 @@ class DatabaseCleaner:
 def main():
     """Main function to run the complete database cleaning script."""
     parser = argparse.ArgumentParser(description='Complete database cleaning - REMOVES ALL DATA from all tables')
-    parser.add_argument('--confirm', action='store_true', 
-                       help='Confirm that you want to delete ALL data (required for execution)')
     parser.add_argument('--dry-run', action='store_true', 
                        help='Show what would be deleted without actually doing it')
     parser.add_argument('--summary', action='store_true', 
@@ -257,13 +255,6 @@ def main():
             logger.error(f"Error getting summary: {e}")
         return
     
-    # Validate arguments for cleaning operations
-    if args.table:
-        if not args.confirm and not args.dry_run:
-            parser.error("Must use --confirm or --dry-run when specifying --table")
-    elif not args.confirm and not args.dry_run:
-        parser.error("Must use --confirm or --dry-run for database cleaning operations")
-    
     try:
         cleaner = DatabaseCleaner()
         
@@ -285,24 +276,6 @@ def main():
                 for table_name, count in table_counts.items():
                     if count > 0:
                         logger.info(f"  - {table_name}: {count} records")
-            return
-        
-        # Perform the actual cleaning
-        if not args.confirm:
-            logger.error("❌ --confirm flag is required for actual database cleaning")
-            return
-            
-        # Final confirmation prompt
-        if args.table:
-            confirmation_text = f"clean table '{args.table}'"
-        else:
-            confirmation_text = "clean ALL TABLES in the database"
-            
-        user_input = input(f"⚠️  Are you ABSOLUTELY SURE you want to {confirmation_text}? This cannot be undone!\n"
-                          f"Type 'DELETE ALL DATA' to confirm: ")
-        
-        if user_input != 'DELETE ALL DATA':
-            logger.info("❌ Operation cancelled - confirmation text did not match")
             return
         
         # Perform the cleaning
