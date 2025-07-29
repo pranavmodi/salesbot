@@ -218,17 +218,17 @@ class DeepResearchEmailComposer:
             
             print(f"✅ DEBUG: Company {company_id} found in database: {company.company_name}")
             
-            # Check if company has markdown_report
-            has_markdown = hasattr(company, 'markdown_report') and company.markdown_report
+            # Check if company has html_report
+            has_html_report = hasattr(company, 'html_report') and company.html_report
             has_research = hasattr(company, 'company_research') and company.company_research
-            print(f"📊 DEBUG: Company data check - has_markdown_report: {has_markdown}, has_company_research: {has_research}")
+            print(f"📊 DEBUG: Company data check - has_html_report: {has_html_report}, has_company_research: {has_research}")
             
-            if not has_markdown:
-                print(f"⚠️ DEBUG: Company {company_name} (ID: {company_id}) has no markdown_report")
+            if not has_html_report:
+                print(f"⚠️ DEBUG: Company {company_name} (ID: {company_id}) has no html_report")
                 print(f"📊 DEBUG: Available fields: company_research={bool(company.company_research)}, research_status={getattr(company, 'research_status', 'unknown')}")
                 return ""
             
-            print(f"✅ DEBUG: Company {company_name} has markdown_report ({len(company.markdown_report)} chars), proceeding with publishing")
+            print(f"✅ DEBUG: Company {company_name} has html_report ({len(company.html_report)} chars), proceeding with publishing")
             
             # First, publish the report to possibleminds.in
             print(f"🌐 DEBUG: Attempting to publish report to Netlify...")
@@ -257,7 +257,7 @@ class DeepResearchEmailComposer:
             
             print(f"🌐 DEBUG: Starting Netlify publish for company {company.company_name} (ID: {company.id})")
             print(f"📧 DEBUG: Recipient: {recipient_email}, Campaign: {campaign_id}")
-            print(f"📄 DEBUG: Report length: {len(company.markdown_report) if company.markdown_report else 0} chars")
+            print(f"📄 DEBUG: Report length: {len(company.html_report) if company.html_report else 0} chars")
             print(f"🔧 DEBUG: NETLIFY_PUBLISH_URL: {NETLIFY_PUBLISH_URL}")
             print(f"🔐 DEBUG: NETLIFY_SECRET configured: {bool(NETLIFY_SECRET)}")
             
@@ -268,14 +268,14 @@ class DeepResearchEmailComposer:
                 "company_website": company.website_url or "",
                 "contact_id": f"contact_{recipient_email.split('@')[0]}",
                 "generated_date": datetime.now().strftime("%Y-%m-%d"),
-                "markdown_report": company.markdown_report
+                "html_report": company.html_report
             }
             
             print(f"📦 DEBUG: Payload prepared - company_id: {payload['company_id']}, name: {payload['company_name']}")
             
             # Create payload without the full report for logging
-            payload_for_logging = {k: v for k, v in payload.items() if k != 'markdown_report'}
-            payload_for_logging['markdown_report'] = f"[{len(payload['markdown_report'])} chars]"
+            payload_for_logging = {k: v for k, v in payload.items() if k != 'html_report'}
+            payload_for_logging['html_report'] = f"[{len(payload['html_report'])} chars]"
             
             raw_body = json.dumps(payload, separators=(',', ':'))
             
@@ -378,9 +378,9 @@ class DeepResearchEmailComposer:
             
             company = companies[0]  # Take first match
             
-            # Check if we have a markdown report (full research completed)
-            if hasattr(company, 'markdown_report') and company.markdown_report:
-                print(f"✅ DEBUG: Company {company_name} has markdown report - ensuring it's published")
+            # Check if we have an HTML report (full research completed)
+            if hasattr(company, 'html_report') and company.html_report:
+                print(f"✅ DEBUG: Company {company_name} has HTML report - ensuring it's published")
                 # We have the report, now ensure it gets published when email is composed
                 # Don't return yet - let the normal flow handle publishing in _get_or_publish_report_url
                 research_text = company.research_step_1_basic or company.company_research or "Research completed - see full report for details."
@@ -493,14 +493,14 @@ class DeepResearchEmailComposer:
                     company = Company.get_by_id(company_id)
                     if company:
                         status = getattr(company, 'research_status', 'unknown')
-                        has_markdown = hasattr(company, 'markdown_report') and company.markdown_report
+                        has_html_report = hasattr(company, 'html_report') and company.html_report
                         has_basic = hasattr(company, 'research_step_1_basic') and company.research_step_1_basic
                         
-                        print(f"⏳ DEBUG: Polling {elapsed_time}s/{max_wait_time}s - Status: {status}, Has markdown: {has_markdown}, Has basic: {'YES' if has_basic else 'NO'}")
+                        print(f"⏳ DEBUG: Polling {elapsed_time}s/{max_wait_time}s - Status: {status}, Has HTML report: {has_html_report}, Has basic: {'YES' if has_basic else 'NO'}")
                         
-                        # Only return when we have BOTH completed status AND markdown_report
-                        if status == 'completed' and has_markdown:
-                            print(f"✅ DEBUG: Research fully completed with markdown report after {elapsed_time}s")
+                        # Only return when we have BOTH completed status AND html_report
+                        if status == 'completed' and has_html_report:
+                            print(f"✅ DEBUG: Research fully completed with HTML report after {elapsed_time}s")
                             research_text = company.research_step_1_basic or company.company_research or "Research completed - see full report for details."
                             return research_text, company_id
                         elif status == 'failed':
@@ -514,11 +514,11 @@ class DeepResearchEmailComposer:
                 company = Company.get_by_id(company_id)
                 if company:
                     status = getattr(company, 'research_status', 'unknown')
-                    has_markdown = hasattr(company, 'markdown_report') and company.markdown_report
-                    print(f"⚠️ DEBUG: Final status check - Status: {status}, Has markdown: {has_markdown}")
+                    has_html_report = hasattr(company, 'html_report') and company.html_report
+                    print(f"⚠️ DEBUG: Final status check - Status: {status}, Has HTML report: {has_html_report}")
                     
-                    # If research is completed, allow email sending even without markdown report
-                    if company.research_step_1_basic and not has_markdown and status != 'completed':
+                    # If research is completed, allow email sending even without HTML report
+                    if company.research_step_1_basic and not has_html_report and status != 'completed':
                         print(f"🚫 DEBUG: Research in progress but report not ready - preventing email composition")
                         return None, company_id  # Return None to signal "not ready"
                     elif company.research_step_1_basic:
