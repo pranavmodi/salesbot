@@ -700,6 +700,36 @@ def get_uncontacted_contacts():
         current_app.logger.error(f"Error getting uncontacted contacts: {str(e)}")
         return jsonify({'error': 'Failed to load uncontacted contacts'}), 500
 
+@contact_bp.route('/contacts/for-campaign', methods=['GET'])
+def get_contacts_for_campaign():
+    """Get contacts specifically for campaign selection with simplified format."""
+    try:
+        # Get limit parameter
+        limit = request.args.get('limit', 100, type=int)
+        if limit > 200:
+            limit = 200
+        if limit < 1:
+            limit = 100
+            
+        # Get contacts using the existing pagination method
+        contact_data = Contact.get_paginated(page=1, per_page=limit)
+        
+        return jsonify({
+            'success': True,
+            'contacts': [contact.to_dict() for contact in contact_data['contacts']],
+            'count': len(contact_data['contacts']),
+            'total': contact_data['total_contacts']
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting contacts for campaign: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to load contacts',
+            'contacts': [],
+            'count': 0
+        }), 500
+
 @contact_bp.route('/contacts/count-filtered', methods=['POST'])
 def count_filtered_contacts():
     """Count contacts based on filter criteria for campaign selection."""

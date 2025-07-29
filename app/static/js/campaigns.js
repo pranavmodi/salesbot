@@ -670,14 +670,12 @@ function loadContactsForManualSelection() {
         </div>
     `;
     
-    fetch('/api/contacts?limit=100')
+    fetch('/api/contacts/for-campaign?limit=100')
         .then(response => response.json())
         .then(data => {
-            // Handle both response formats: array or {success: true, contacts: [...]}
+            // Handle the API response format: {success: true, contacts: [...], ...}
             let contacts = [];
-            if (Array.isArray(data)) {
-                contacts = data;
-            } else if (data.success && data.contacts) {
+            if (data.success && data.contacts && Array.isArray(data.contacts)) {
                 contacts = data.contacts;
             } else if (data.error) {
                 throw new Error(data.error);
