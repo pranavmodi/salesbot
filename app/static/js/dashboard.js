@@ -5,17 +5,47 @@
 document.addEventListener('DOMContentLoaded', function() {
     console.log("Dashboard initializing...");
     
-    // Initialize all modules
-    initializeContacts();
-    initializeEmail();
-    initializeCampaigns();
-    initializeCompanies();
-    
-    // Setup additional dashboard-specific functionality
-    setupMainEventListeners();
-    setupInboxPagination();
-    
-    console.log("Dashboard initialized successfully");
+    // Wait a bit for all scripts to load, then initialize
+    setTimeout(function() {
+        try {
+            // Initialize all modules with error checking
+            if (typeof initializeContacts === 'function') {
+                initializeContacts();
+                console.log("Contacts module initialized");
+            } else {
+                console.error("initializeContacts function not found");
+            }
+            
+            if (typeof initializeEmail === 'function') {
+                initializeEmail();
+                console.log("Email module initialized");
+            } else {
+                console.error("initializeEmail function not found");
+            }
+            
+            if (typeof initializeCampaigns === 'function') {
+                initializeCampaigns();
+                console.log("Campaigns module initialized");
+            } else {
+                console.error("initializeCampaigns function not found");
+            }
+            
+            if (typeof initializeCompanies === 'function') {
+                initializeCompanies();
+                console.log("Companies module initialized");
+            } else {
+                console.error("initializeCompanies function not found");
+            }
+            
+            // Setup additional dashboard-specific functionality
+            setupMainEventListeners();
+            setupInboxPagination();
+            
+            console.log("Dashboard initialized successfully");
+        } catch (error) {
+            console.error("Error during dashboard initialization:", error);
+        }
+    }, 100); // Small delay to ensure scripts are loaded
 });
 
 // Main dashboard event listeners
