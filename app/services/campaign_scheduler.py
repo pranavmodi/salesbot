@@ -741,7 +741,7 @@ class CampaignScheduler:
             }
             
             executors = {
-                'default': ThreadPoolExecutor(1),  # Reduced to 1 thread to prevent malloc conflicts
+                'default': ThreadPoolExecutor(3),  # Increased to 3 threads for Railway deployment
             }
             
             job_defaults = {
@@ -765,6 +765,50 @@ class CampaignScheduler:
             
         except Exception as e:
             current_app.logger.error(f"Failed to setup campaign scheduler: {e}")
+    
+    def _setup_scheduler_minimal(self):
+        """Setup minimal APScheduler configuration as fallback."""
+        try:
+            # Configure job store to use same database
+            database_url = os.getenv("DATABASE_URL")
+            if not database_url:
+                current_app.logger.error("DATABASE_URL not configured for scheduler")
+                return
+            
+            # Use shared database engine for APScheduler job store
+            from app.database import get_shared_engine
+            scheduler_engine = get_shared_engine()
+            
+            jobstores = {
+                'default': SQLAlchemyJobStore(engine=scheduler_engine, tablename='scheduler_jobs')
+            }
+            
+            executors = {
+                'default': ThreadPoolExecutor(1),  # Minimal 1 thread configuration
+            }
+            
+            job_defaults = {
+                'coalesce': True,   # Combine multiple pending jobs into one
+                'max_instances': 1,  # Only one instance of each job type at a time
+                'misfire_grace_time': 120  # Allow 2 minutes grace time for delayed execution
+            }
+            
+            self.scheduler = BackgroundScheduler(
+                jobstores=jobstores,
+                executors=executors,
+                job_defaults=job_defaults,
+                timezone=pytz.UTC
+            )
+            
+            # Add event listeners using static methods to avoid serialization issues
+            self.scheduler.add_listener(job_executed_listener, EVENT_JOB_EXECUTED)
+            self.scheduler.add_listener(job_error_listener, EVENT_JOB_ERROR)
+            
+            current_app.logger.info("Minimal scheduler configuration initialized")
+            
+        except Exception as e:
+            current_app.logger.error(f"Failed to setup minimal scheduler: {e}")
+            self.scheduler = None
     
     def _setup_background_jobs(self):
         """Setup recurring background jobs with proper error handling for concurrent instances."""
@@ -797,12 +841,12 @@ class CampaignScheduler:
             except Exception as e:
                 current_app.logger.warning(f"Could not check email queue: {e}")
             
-            # Add recurring job to process pending email jobs every 60 seconds (reduced to conserve threads)
+            # Add recurring job to process pending email jobs every 60 seconds
             try:
                 self.scheduler.add_job(
                     func=process_pending_email_jobs,
                     trigger='interval', 
-                    seconds=60,  # Increased to 60 seconds to reduce resource usage
+                    seconds=60,  # Process every 60 seconds
                     id='process_pending_emails',
                     replace_existing=True,
                     max_instances=1,  # Prevent overlapping executions
@@ -813,9 +857,19 @@ class CampaignScheduler:
                 
             except Exception as job_error:
                 # If job registration fails due to threading issues, degrade gracefully
-                if "can't start new thread" in str(job_error).lower():
+                if "can't start new thread" in str(job_error).lower() or "thread" in str(job_error).lower():
                     current_app.logger.warning("Thread limit reached - running without background email processor")
                     current_app.logger.warning("Campaigns will need manual triggering via dashboard")
+                    # Try to fall back to a simpler configuration
+                    try:
+                        # Reduce thread pool to 1 and try again
+                        self.scheduler.shutdown(wait=False)
+                        self._setup_scheduler_minimal()
+                        if self.scheduler:
+                            self.scheduler.start()
+                            current_app.logger.info("Scheduler started with minimal configuration")
+                    except:
+                        current_app.logger.warning("Minimal scheduler configuration also failed")
                 elif "already exists" in str(job_error).lower() or "duplicate key" in str(job_error).lower():
                     current_app.logger.info("Background email processor already registered by another instance")
                 else:
