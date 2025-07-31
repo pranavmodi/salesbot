@@ -7,6 +7,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR
+from sqlalchemy import text
 import os
 import logging
 
@@ -314,22 +315,28 @@ def _reschedule_for_business_hours(campaign_id: int, contact: Dict, settings: Di
                     break
         
         if next_send_time:
-            # Convert to UTC for scheduler
+            # Convert to UTC for database storage
             next_send_time_utc = next_send_time.astimezone(pytz.UTC).replace(tzinfo=None)
             
-            job_id = f"campaign_{campaign_id}_email_rescheduled_{contact['email'].replace('@', '_at_').replace('.', '_dot_')}"
+            # Create a new CampaignEmailJob in the database instead of using scheduler
+            from app.models.campaign_email_job import CampaignEmailJob
+            from flask import current_app
             
-            campaign_scheduler.scheduler.add_job(
-                func=execute_single_email_job,
-                args=[campaign_id, contact, settings],
-                trigger='date',
-                run_date=next_send_time_utc,
-                id=job_id,
-                replace_existing=True
+            # Create a new database job for the rescheduled email
+            email_job = CampaignEmailJob(
+                campaign_id=campaign_id,
+                contact_email=contact['email'],
+                contact_data=contact,
+                campaign_settings=settings,
+                scheduled_time=next_send_time_utc,
+                status='pending'
             )
             
-            from flask import current_app
-            current_app.logger.info(f"Rescheduled email to {contact['email']} for next business hours: {next_send_time}")
+            if email_job.save():
+                current_app.logger.info(f"📅 Rescheduled email to {contact['email']} for next business hours: {next_send_time}")
+            else:
+                current_app.logger.error(f"❌ Failed to reschedule email for {contact['email']}")
+                raise Exception("Failed to save rescheduled email job")
             
     except Exception as e:
         from flask import current_app
@@ -348,19 +355,25 @@ def _reschedule_for_next_day(campaign_id: int, contact: Dict, settings: Dict):
         random_minute = random.randint(0, 59)
         next_send_time = tomorrow.replace(hour=random_hour, minute=random_minute, second=0, microsecond=0)
         
-        job_id = f"campaign_{campaign_id}_email_nextday_{contact['email'].replace('@', '_at_').replace('.', '_dot_')}"
+        # Create a new CampaignEmailJob in the database instead of using scheduler
+        from app.models.campaign_email_job import CampaignEmailJob
+        from flask import current_app
         
-        campaign_scheduler.scheduler.add_job(
-            func=execute_single_email_job,
-            args=[campaign_id, contact, settings],
-            trigger='date',
-            run_date=next_send_time,
-            id=job_id,
-            replace_existing=True
+        # Create a new database job for the rescheduled email
+        email_job = CampaignEmailJob(
+            campaign_id=campaign_id,
+            contact_email=contact['email'],
+            contact_data=contact,
+            campaign_settings=settings,
+            scheduled_time=next_send_time,
+            status='pending'
         )
         
-        from flask import current_app
-        current_app.logger.info(f"Rescheduled email to {contact['email']} for next day: {next_send_time}")
+        if email_job.save():
+            current_app.logger.info(f"📅 Rescheduled email to {contact['email']} for next day: {next_send_time}")
+        else:
+            current_app.logger.error(f"❌ Failed to reschedule email for {contact['email']}")
+            raise Exception("Failed to save rescheduled email job")
         
     except Exception as e:
         from flask import current_app
@@ -395,9 +408,12 @@ def process_pending_email_jobs():
                     try:
                         current_app.logger.info(f"Processing email job {job.id} for {job.contact_email}")
                         # Execute the email job
-                        success = _execute_email_job(job)
+                        result = _execute_email_job(job)
                         
-                        if success:
+                        if result == 'rescheduled':
+                            CampaignEmailJob.mark_as_executed(job.id)
+                            current_app.logger.info(f"📅 Email job processed - rescheduled for {job.contact_email} (campaign {job.campaign_id})")
+                        elif result:
                             CampaignEmailJob.mark_as_executed(job.id)
                             current_app.logger.info(f"✅ Email sent to {job.contact_email} (campaign {job.campaign_id})")
                         else:
@@ -443,7 +459,7 @@ def _execute_email_job(job: CampaignEmailJob) -> bool:
         if respect_business_hours and not _is_business_hours(timezone_str, business_hours):
             # Reschedule for next business hour
             _reschedule_for_business_hours(job.campaign_id, contact_data, settings, timezone_str, business_hours)
-            return True  # Mark as success since it was rescheduled
+            return 'rescheduled'  # Mark as rescheduled, not sent
         
         # Check daily limit
         from app.models.email_history import EmailHistory
@@ -453,7 +469,7 @@ def _execute_email_job(job: CampaignEmailJob) -> bool:
         if emails_sent_today >= daily_limit:
             # Reschedule for tomorrow
             _reschedule_for_next_day(job.campaign_id, contact_data, settings)
-            return True  # Mark as success since it was rescheduled
+            return 'rescheduled'  # Mark as rescheduled, not sent
         
         # Send email to contact
         success = _send_campaign_email(job.campaign_id, contact_data, settings)
@@ -558,6 +574,10 @@ def _send_campaign_email(campaign_id: int, contact: Dict, settings: Dict) -> boo
         
         # Get campaign details for email composition
         campaign = Campaign.get_by_id(campaign_id)
+        
+        if not campaign:
+            current_app.logger.error(f"Campaign {campaign_id} not found during email sending")
+            return False
         
         current_app.logger.info(f"🔄 DEBUG: _send_campaign_email called for campaign {campaign_id}, contact {contact.get('email')}, template: {settings.get('email_template', 'warm')}")
         

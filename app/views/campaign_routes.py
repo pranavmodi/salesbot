@@ -319,13 +319,24 @@ def delete_campaign(campaign_id):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
         
-        campaign.delete()
-        campaign_scheduler.cancel_campaign(campaign_id) # Also cancel any scheduled jobs
+        campaign_name = campaign.name  # Store name for logging
+        current_app.logger.info(f"Deleting campaign {campaign_id}: {campaign_name}")
         
-        return jsonify({'success': True, 'message': 'Campaign deleted successfully'})
+        # Cancel any scheduled jobs first (this handles campaign_email_jobs)
+        campaign_scheduler.cancel_campaign(campaign_id)
+        
+        # Delete the campaign and all associated data
+        success = Campaign.delete(campaign_id)  # Use class method directly
+        
+        if success:
+            current_app.logger.info(f"Successfully deleted campaign {campaign_id}: {campaign_name}")
+            return jsonify({'success': True, 'message': f'Campaign "{campaign_name}" deleted successfully'})
+        else:
+            return jsonify({'error': 'Failed to delete campaign from database'}), 500
+            
     except Exception as e:
-        current_app.logger.error(f"Error deleting campaign: {str(e)}")
-        return jsonify({'error': 'Failed to delete campaign'}), 500
+        current_app.logger.error(f"Error deleting campaign {campaign_id}: {str(e)}")
+        return jsonify({'error': f'Failed to delete campaign: {str(e)}'}), 500
 
 @campaign_bp.route('/campaigns/<int:campaign_id>/schedule', methods=['POST'])
 def schedule_campaign_route(campaign_id):

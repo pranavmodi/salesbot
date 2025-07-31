@@ -256,7 +256,7 @@ class Campaign:
 
     @classmethod
     def delete(cls, campaign_id: int) -> bool:
-        """Delete a campaign from the database."""
+        """Delete a campaign and all its associated data from the database."""
         engine = cls._get_db_engine()
         if not engine:
             current_app.logger.error("Failed to delete campaign: Database engine not available.")
@@ -265,14 +265,57 @@ class Campaign:
         try:
             with engine.connect() as conn:
                 with conn.begin():
-                    delete_query = text("DELETE FROM campaigns WHERE id = :id")
-                    result = conn.execute(delete_query, {"id": campaign_id})
+                    # First, log what we're about to delete for audit purposes
+                    campaign_check = conn.execute(text("SELECT name FROM campaigns WHERE id = :id"), {"id": campaign_id})
+                    campaign_row = campaign_check.fetchone()
                     
-                    if result.rowcount > 0:
-                        current_app.logger.info(f"Successfully deleted campaign ID: {campaign_id}")
+                    if not campaign_row:
+                        current_app.logger.warning(f"No campaign found with ID: {campaign_id}")
+                        return False
+                    
+                    campaign_name = campaign_row[0]
+                    current_app.logger.info(f"Deleting campaign '{campaign_name}' (ID: {campaign_id}) and all associated data")
+                    
+                    # Delete from report_clicks first to avoid foreign key violations
+                    report_clicks_result = conn.execute(text("""
+                        DELETE FROM report_clicks
+                        WHERE campaign_id = :campaign_id
+                    """), {"campaign_id": campaign_id})
+                    report_clicks_count = report_clicks_result.rowcount
+                    
+                    # Delete campaign email jobs (pending emails)
+                    email_jobs_result = conn.execute(text("""
+                        DELETE FROM campaign_email_jobs
+                        WHERE campaign_id = :campaign_id
+                    """), {"campaign_id": campaign_id})
+                    email_jobs_count = email_jobs_result.rowcount
+                    
+                    # Delete associated email history records
+                    email_history_result = conn.execute(text("""
+                        DELETE FROM email_history 
+                        WHERE campaign_id = :campaign_id
+                    """), {"campaign_id": campaign_id})
+                    email_history_count = email_history_result.rowcount
+                    
+                    # Delete campaign contacts associations
+                    campaign_contacts_result = conn.execute(text("""
+                        DELETE FROM campaign_contacts
+                        WHERE campaign_id = :campaign_id
+                    """), {"campaign_id": campaign_id})
+                    campaign_contacts_count = campaign_contacts_result.rowcount
+                    
+                    # Finally, delete the campaign itself
+                    campaign_result = conn.execute(text("DELETE FROM campaigns WHERE id = :id"), {"id": campaign_id})
+                    
+                    if campaign_result.rowcount > 0:
+                        current_app.logger.info(
+                            f"Successfully deleted campaign '{campaign_name}' (ID: {campaign_id}) with associated data: "
+                            f"{campaign_contacts_count} contact associations, {email_history_count} email history records, "
+                            f"{email_jobs_count} email jobs, {report_clicks_count} report clicks"
+                        )
                         return True
                     else:
-                        current_app.logger.warning(f"No campaign found with ID: {campaign_id}")
+                        current_app.logger.error(f"Failed to delete campaign with ID: {campaign_id}")
                         return False
                         
         except SQLAlchemyError as e:
@@ -839,7 +882,7 @@ class Campaign:
             current_app.logger.error(f"Unexpected error saving campaign: {e}")
             return False
     
-    def delete(self):
+    def delete_instance(self):
         """Delete this campaign instance from the database."""
         if self.id:
             return self.__class__.delete(self.id)

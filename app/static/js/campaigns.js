@@ -1171,6 +1171,11 @@ function displayCampaignList(campaigns, containerId, type) {
                                     title="Duplicate Campaign">
                                 <i class="fas fa-copy"></i>
                             </button>
+                            <button type="button" class="btn btn-outline-danger btn-sm rounded-pill me-1" 
+                                    onclick="deleteSingleCampaign('${campaign.id}', '${campaign.name.replace(/'/g, '&apos;')}')"
+                                    title="Delete Campaign">
+                                <i class="fas fa-trash"></i>
+                            </button>
                             ${campaign.status === 'draft' ? 
                                 `<button type="button" class="btn btn-success btn-sm rounded-pill" 
                                          onclick="launchCampaign('${campaign.id}')"
@@ -1467,12 +1472,33 @@ function populateCampaignDetails(campaign) {
     setElementText('detailsEmailTemplate', getEmailTemplateDisplayName(campaign.email_template || 'deep_research'));
     setElementText('detailsFollowupDays', `${campaign.followup_days || 3} days`);
     
-    // Dates
+    // Helper function to format dates in campaign timezone
+    const campaignTimezone = campaign.timezone || 'UTC';
+    const formatDateInTimezone = (dateString, defaultText = '') => {
+        if (!dateString) return defaultText;
+        const date = new Date(dateString);
+        try {
+            return date.toLocaleString('en-US', {
+                timeZone: campaignTimezone === 'UTC' ? 'UTC' : campaignTimezone,
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                timeZoneName: 'short'
+            });
+        } catch (e) {
+            // Fallback if timezone is invalid
+            return date.toLocaleString() + ` (${campaignTimezone})`;
+        }
+    };
+    
+    // Dates - show in campaign timezone
     if (campaign.created_at) {
-        setElementText('detailsCreatedAt', new Date(campaign.created_at).toLocaleString());
+        setElementText('detailsCreatedAt', formatDateInTimezone(campaign.created_at));
     }
     if (campaign.updated_at) {
-        setElementText('detailsUpdatedAt', new Date(campaign.updated_at).toLocaleString());
+        setElementText('detailsUpdatedAt', formatDateInTimezone(campaign.updated_at));
     }
     
     // Status badges
@@ -1490,11 +1516,9 @@ function populateCampaignDetails(campaign) {
     setElementText('detailsResponses', campaign.responses_received || 0);
     setElementText('detailsActiveContacts', campaign.active_contacts || 0);
     
-    // Timeline
-    setElementText('detailsFirstEmail', campaign.first_email_date ? 
-        new Date(campaign.first_email_date).toLocaleString() : 'No emails sent yet');
-    setElementText('detailsLastEmail', campaign.last_email_date ? 
-        new Date(campaign.last_email_date).toLocaleString() : 'No emails sent yet');
+    // Timeline - show in campaign timezone
+    setElementText('detailsFirstEmail', formatDateInTimezone(campaign.first_email_date, 'No emails sent yet'));
+    setElementText('detailsLastEmail', formatDateInTimezone(campaign.last_email_date, 'No emails sent yet'));
     setElementText('detailsUniqueRecipients', campaign.unique_recipients || 0);
     setElementText('detailsTotalEmails', campaign.total_emails || 0);
     
@@ -2437,6 +2461,10 @@ function displayCampaignSchedule(data) {
     
     const { campaign, pending_emails, sent_emails, stats } = data;
     
+    // Debug: Log campaign data to see timezone info
+    console.log('Campaign data received:', campaign);
+    console.log('Campaign timezone setting:', campaign.timezone);
+    
     let html = `
         <!-- Campaign Overview -->
         <div class="card mb-4">
@@ -2459,7 +2487,7 @@ function displayCampaignSchedule(data) {
                         <table class="table table-sm">
                             <tr><th>Daily Limit:</th><td>${campaign.daily_email_limit || 50} emails</td></tr>
                             <tr><th>Frequency:</th><td>${campaign.email_frequency || 'N/A'}</td></tr>
-                            <tr><th>Timezone:</th><td>${campaign.timezone || 'UTC'}</td></tr>
+                            <tr><th>Timezone:</th><td>${getTimezoneDisplayName(campaign.timezone || 'UTC')}</td></tr>
                             <tr><th>Business Hours:</th><td>${campaign.respect_business_hours ? 'Enabled' : 'Disabled'}</td></tr>
                         </table>
                     </div>
@@ -2493,15 +2521,42 @@ function displayCampaignSchedule(data) {
         
         pending_emails.slice(0, 50).forEach(email => {
             const scheduledTime = new Date(email.scheduled_time);
-            const timeFormatted = scheduledTime.toLocaleString();
+            let campaignTimezone = campaign.timezone || 'America/Los_Angeles';
+            
+            // Handle legacy campaigns that might have UTC set - convert to Pacific Time as default
+            if (campaignTimezone === 'UTC') {
+                campaignTimezone = 'America/Los_Angeles';
+                console.log('Campaign uses UTC timezone, defaulting to Pacific Time for display');
+            }
+            
+            // Format time in campaign timezone if available
+            let timeFormatted;
+            try {
+                timeFormatted = scheduledTime.toLocaleString('en-US', {
+                    timeZone: campaignTimezone,
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    timeZoneName: 'short'
+                });
+            } catch (e) {
+                console.error('Timezone formatting error:', e);
+                // Fallback if timezone is invalid
+                timeFormatted = scheduledTime.toLocaleString() + ` (${campaignTimezone})`;
+            }
+            
             const isToday = scheduledTime.toDateString() === new Date().toDateString();
+            const isNext24Hours = scheduledTime.getTime() - Date.now() < 24 * 60 * 60 * 1000 && scheduledTime > new Date();
             
             html += `
-                <tr class="${isToday ? 'table-warning' : ''}">
+                <tr class="${isToday ? 'table-warning' : isNext24Hours ? 'table-info' : ''}">
                     <td>${email.contact_email}</td>
                     <td>
                         ${timeFormatted}
                         ${isToday ? '<span class="badge bg-info ms-2">Today</span>' : ''}
+                        ${isNext24Hours && !isToday ? '<span class="badge bg-warning ms-2">Next 24h</span>' : ''}
                     </td>
                     <td><span class="badge bg-secondary">${email.status || 'Pending'}</span></td>
                 </tr>
@@ -2551,7 +2606,25 @@ function displayCampaignSchedule(data) {
         
         sent_emails.slice(0, 20).forEach(email => {
             const sentTime = new Date(email.date || email.sent_time);
-            const timeFormatted = sentTime.toLocaleString();
+            const campaignTimezone = campaign.timezone || 'UTC';
+            
+            // Format time in campaign timezone
+            let timeFormatted;
+            try {
+                timeFormatted = sentTime.toLocaleString('en-US', {
+                    timeZone: campaignTimezone === 'UTC' ? 'UTC' : campaignTimezone,
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    timeZoneName: 'short'
+                });
+            } catch (e) {
+                // Fallback if timezone is invalid
+                timeFormatted = sentTime.toLocaleString() + ` (${campaignTimezone})`;
+            }
+            
             const statusColor = email.status === 'sent' ? 'success' : email.status === 'failed' ? 'danger' : 'secondary';
             
             html += `
@@ -2595,6 +2668,26 @@ function getStatusColor(status) {
     return colors[status] || 'secondary';
 }
 
+function getTimezoneDisplayName(timezone) {
+    const timezoneNames = {
+        'Pacific/Honolulu': 'Hawaii Time (HST)',
+        'America/Anchorage': 'Alaska Time (AKST/AKDT)',
+        'America/Los_Angeles': 'Pacific Time (PST/PDT)',
+        'America/Phoenix': 'Arizona Time (MST - No DST)',
+        'America/Denver': 'Mountain Time (MST/MDT)',
+        'America/Chicago': 'Central Time (CST/CDT)',
+        'America/New_York': 'Eastern Time (EST/EDT)',
+        'America/Halifax': 'Atlantic Time (AST/ADT)',
+        'UTC': 'Coordinated Universal Time (UTC)',
+        'Europe/London': 'London Time (GMT/BST)',
+        'Europe/Paris': 'Paris Time (CET/CEST)',
+        'Asia/Tokyo': 'Tokyo Time (JST)',
+        'Asia/Shanghai': 'Shanghai Time (CST)',
+        'Australia/Sydney': 'Sydney Time (AEST/AEDT)'
+    };
+    return timezoneNames[timezone] || timezone;
+}
+
 function duplicateCampaign(campaignId, campaignName) {
     if (!confirm(`Are you sure you want to duplicate the campaign "${campaignName}"?`)) {
         return;
@@ -2627,6 +2720,55 @@ function duplicateCampaign(campaignId, campaignName) {
     });
 }
 
+function deleteSingleCampaign(campaignId, campaignName) {
+    // Enhanced confirmation dialog with warning about pending emails
+    const confirmMessage = `⚠️ WARNING: This will permanently delete the campaign "${campaignName}" and all associated data including:
+
+• All pending email jobs
+• Email history records
+• Contact associations
+• Analytics data
+
+This action cannot be undone. Are you absolutely sure you want to proceed?`;
+    
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+    
+    // Second confirmation for extra safety
+    const secondConfirm = prompt(`To confirm deletion, please type the campaign name: "${campaignName}"`);
+    if (secondConfirm !== campaignName) {
+        showToast('errorToast', 'Campaign name does not match. Deletion cancelled.');
+        return;
+    }
+    
+    console.log(`Deleting campaign ${campaignId}: ${campaignName}`);
+    
+    // Show loading state
+    showToast('infoToast', 'Deleting campaign and all associated data...', 8000);
+    
+    fetch(`/api/campaigns/${campaignId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('successToast', `Campaign "${campaignName}" deleted successfully.`);
+            
+            // Reload campaigns list to reflect the deletion
+            setTimeout(() => {
+                loadCampaigns();
+            }, 1500);
+        } else {
+            throw new Error(data.message || data.error || 'Failed to delete campaign');
+        }
+    })
+    .catch(error => {
+        console.error('Error deleting campaign:', error);
+        showToast('errorToast', 'Failed to delete campaign: ' + error.message);
+    });
+}
+
 // Global function assignments for HTML onclick handlers
 window.nextStep = nextStep;
 window.previousStep = previousStep;
@@ -2649,3 +2791,4 @@ window.resumeCampaign = resumeCampaign;
 window.resetCampaignForTesting = resetCampaignForTesting;
 window.deleteAllCampaigns = deleteAllCampaigns;
 window.duplicateCampaign = duplicateCampaign;
+window.deleteSingleCampaign = deleteSingleCampaign;

@@ -385,16 +385,22 @@
                                             <div class="mb-3">
                                                 <label for="campaignTimezone" class="form-label fw-semibold">Campaign Timezone</label>
                                                 <select class="form-select" id="campaignTimezone">
-                                                    <option value="America/New_York">Eastern Time (ET)</option>
-                                                    <option value="America/Chicago">Central Time (CT)</option>
-                                                    <option value="America/Denver">Mountain Time (MT)</option>
-                                                    <option value="America/Los_Angeles" selected>Pacific Time (PT)</option>
+                                                    <!-- American Time Zones -->
+                                                    <option value="Pacific/Honolulu">Hawaii Time (HST)</option>
+                                                    <option value="America/Anchorage">Alaska Time (AKST)</option>
+                                                    <option value="America/Los_Angeles" selected>Pacific Time (PST/PDT)</option>
+                                                    <option value="America/Phoenix">Arizona Time (MST - No DST)</option>
+                                                    <option value="America/Denver">Mountain Time (MST/MDT)</option>
+                                                    <option value="America/Chicago">Central Time (CST/CDT)</option>
+                                                    <option value="America/New_York">Eastern Time (EST/EDT)</option>
+                                                    <option value="America/Halifax">Atlantic Time (AST/ADT)</option>
+                                                    <!-- Other Major Time Zones -->
                                                     <option value="UTC">UTC</option>
-                                                    <option value="Europe/London">London (GMT)</option>
-                                                    <option value="Europe/Paris">Paris (CET)</option>
+                                                    <option value="Europe/London">London (GMT/BST)</option>
+                                                    <option value="Europe/Paris">Paris (CET/CEST)</option>
                                                     <option value="Asia/Tokyo">Tokyo (JST)</option>
                                                     <option value="Asia/Shanghai">Shanghai (CST)</option>
-                                                    <option value="Australia/Sydney">Sydney (AEST)</option>
+                                                    <option value="Australia/Sydney">Sydney (AEST/AEDT)</option>
                                                 </select>
                                                 <div class="form-text">Timezone for scheduling and limits</div>
                                             </div>
