@@ -2595,10 +2595,10 @@ function displayCampaignSchedule(data) {
                     </div>
                     <div class="col-md-6">
                         <table class="table table-sm">
-                            <tr><th>Daily Limit:</th><td>${campaign.daily_email_limit || 50} emails</td></tr>
-                            <tr><th>Frequency:</th><td>${campaign.email_frequency || 'N/A'}</td></tr>
+                            <tr><th>Daily Limit:</th><td>${getCampaignDailyLimit(campaign)} emails</td></tr>
+                            <tr><th>Frequency:</th><td>${getCampaignFrequency(campaign)}</td></tr>
                             <tr><th>Timezone:</th><td>${getTimezoneDisplayName(getCampaignTimezone(campaign))}</td></tr>
-                            <tr><th>Business Hours:</th><td>${campaign.respect_business_hours ? 'Enabled' : 'Disabled'}</td></tr>
+                            <tr><th>Business Hours:</th><td>${getCampaignBusinessHours(campaign)}</td></tr>
                         </table>
                     </div>
                 </div>
@@ -2633,11 +2633,8 @@ function displayCampaignSchedule(data) {
             const scheduledTime = new Date(email.scheduled_time);
             let campaignTimezone = getCampaignTimezone(campaign);
             
-            // Handle legacy campaigns that might have UTC set - convert to Pacific Time as default
-            if (campaignTimezone === 'UTC') {
-                campaignTimezone = 'America/Los_Angeles';
-                console.log('Campaign uses UTC timezone, defaulting to Pacific Time for display');
-            }
+            // Remove legacy UTC fallback - use actual campaign timezone
+            console.log('Campaign timezone for email display:', campaignTimezone);
             
             // Format time in campaign timezone if available
             let timeFormatted;
@@ -2722,7 +2719,7 @@ function displayCampaignSchedule(data) {
             let timeFormatted;
             try {
                 timeFormatted = sentTime.toLocaleString('en-US', {
-                    timeZone: campaignTimezone === 'UTC' ? 'UTC' : campaignTimezone,
+                    timeZone: campaignTimezone,
                     year: 'numeric',
                     month: 'short',
                     day: 'numeric',
@@ -2791,6 +2788,58 @@ function getCampaignTimezone(campaign) {
     } catch (error) {
         console.warn('Error parsing campaign settings for timezone:', error);
         return 'America/Los_Angeles';
+    }
+}
+
+// Helper function to extract email frequency from campaign settings
+function getCampaignFrequency(campaign) {
+    try {
+        if (campaign.campaign_settings) {
+            const settings = typeof campaign.campaign_settings === 'string' 
+                ? JSON.parse(campaign.campaign_settings) 
+                : campaign.campaign_settings;
+            
+            if (settings.email_frequency) {
+                const freq = settings.email_frequency;
+                return `${freq.value} ${freq.unit}`;
+            }
+        }
+        return 'N/A';
+    } catch (error) {
+        console.warn('Error parsing campaign settings for frequency:', error);
+        return 'N/A';
+    }
+}
+
+// Helper function to extract daily limit from campaign settings
+function getCampaignDailyLimit(campaign) {
+    try {
+        if (campaign.campaign_settings) {
+            const settings = typeof campaign.campaign_settings === 'string' 
+                ? JSON.parse(campaign.campaign_settings) 
+                : campaign.campaign_settings;
+            return settings.daily_email_limit || 50;
+        }
+        return campaign.daily_email_limit || 50;
+    } catch (error) {
+        console.warn('Error parsing campaign settings for daily limit:', error);
+        return 50;
+    }
+}
+
+// Helper function to extract business hours setting from campaign settings
+function getCampaignBusinessHours(campaign) {
+    try {
+        if (campaign.campaign_settings) {
+            const settings = typeof campaign.campaign_settings === 'string' 
+                ? JSON.parse(campaign.campaign_settings) 
+                : campaign.campaign_settings;
+            return settings.respect_business_hours ? 'Enabled' : 'Disabled';
+        }
+        return campaign.respect_business_hours ? 'Enabled' : 'Disabled';
+    } catch (error) {
+        console.warn('Error parsing campaign settings for business hours:', error);
+        return 'Disabled';
     }
 }
 

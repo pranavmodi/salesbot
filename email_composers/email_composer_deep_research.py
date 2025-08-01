@@ -221,7 +221,10 @@ class DeepResearchEmailComposer:
             # Check if company has html_report
             has_html_report = hasattr(company, 'html_report') and company.html_report
             has_research = hasattr(company, 'company_research') and company.company_research
-            print(f"📊 DEBUG: Company data check - has_html_report: {len(has_html_report)}, has_company_research: {len(has_research)}")
+            # Safe length check - handle None values
+            html_report_len = len(company.html_report) if company.html_report else 0
+            research_len = len(company.company_research) if company.company_research else 0
+            print(f"📊 DEBUG: Company data check - has_html_report: {html_report_len}, has_company_research: {research_len}")
             
             if not has_html_report:
                 print(f"⚠️ DEBUG: Company {company_name} (ID: {company_id}) has no html_report")
@@ -497,7 +500,9 @@ class DeepResearchEmailComposer:
                         has_html_report = hasattr(company, 'html_report') and company.html_report
                         has_basic = hasattr(company, 'research_step_1_basic') and company.research_step_1_basic
                         
-                        print(f"⏳ DEBUG: Polling {elapsed_time}s/{max_wait_time}s - Status: {status}, Has HTML report: {len(has_html_report)}, Has basic: {'YES' if has_basic else 'NO'}")
+                        # Safe length check for polling
+                        html_report_len = len(company.html_report) if company.html_report else 0
+                        print(f"⏳ DEBUG: Polling {elapsed_time}s/{max_wait_time}s - Status: {status}, Has HTML report: {html_report_len}, Has basic: {'YES' if has_basic else 'NO'}")
                         
                         # Only return when we have BOTH completed status AND html_report
                         if status == 'completed' and has_html_report:
@@ -516,7 +521,9 @@ class DeepResearchEmailComposer:
                 if company:
                     status = getattr(company, 'research_status', 'unknown')
                     has_html_report = hasattr(company, 'html_report') and company.html_report
-                    print(f"⚠️ DEBUG: Final status check - Status: {status}, Has HTML report: {len(has_html_report)}")
+                    # Safe length check for final status
+                    html_report_len = len(company.html_report) if company.html_report else 0
+                    print(f"⚠️ DEBUG: Final status check - Status: {status}, Has HTML report: {html_report_len}")
                     
                     # If research is completed, allow email sending even without HTML report
                     if company.research_step_1_basic and not has_html_report and status != 'completed':

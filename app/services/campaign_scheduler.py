@@ -794,7 +794,8 @@ class CampaignScheduler:
             job_defaults = {
                 'coalesce': True,   # Combine multiple pending jobs into one
                 'max_instances': 1,  # Only one instance of each job type at a time
-                'misfire_grace_time': 60  # Allow 60 seconds grace time for delayed execution
+                'misfire_grace_time': 60,  # Allow 60 seconds grace time for delayed execution
+                'replace_existing': True   # Replace existing jobs with same ID to prevent conflicts
             }
             
             self.scheduler = BackgroundScheduler(
@@ -869,10 +870,7 @@ class CampaignScheduler:
                 return
             
             # Remove existing job if it exists (belt and suspenders approach)
-            try:
-                self.scheduler.remove_job('process_pending_emails')
-            except:
-                pass
+            self._safe_remove_job('process_pending_emails')
             
             # Count pending emails in queue
             try:
@@ -926,6 +924,24 @@ class CampaignScheduler:
         except Exception as e:
             current_app.logger.error(f"Failed to setup background jobs: {e}")
     
+    def _safe_remove_job(self, job_id: str) -> bool:
+        """Safely remove a job if it exists."""
+        try:
+            if self.scheduler and self.scheduler.running:
+                # Check if job exists first
+                job = self.scheduler.get_job(job_id)
+                if job:
+                    self.scheduler.remove_job(job_id)
+                    current_app.logger.debug(f"Successfully removed job: {job_id}")
+                    return True
+                else:
+                    current_app.logger.debug(f"Job {job_id} does not exist, nothing to remove")
+                    return False
+            return False
+        except Exception as e:
+            current_app.logger.debug(f"Error removing job {job_id}: {e}")
+            return False
+
     def start(self):
         """Start the scheduler with thread exhaustion handling."""
         if self.scheduler and not self.scheduler.running:
@@ -1143,11 +1159,10 @@ class CampaignScheduler:
             # Only try to remove scheduler jobs if scheduler is available
             if self.scheduler:
                 for job_id in main_job_ids:
-                    try:
-                        self.scheduler.remove_job(job_id)
+                    if self._safe_remove_job(job_id):
                         current_app.logger.info(f"Removed main job {job_id}")
-                    except:
-                        pass  # Job might not exist
+                    else:
+                        current_app.logger.debug(f"Job {job_id} was not found or could not be removed")
             else:
                 current_app.logger.info(f"Scheduler unavailable - campaign {campaign_id} jobs cannot be removed from scheduler")
             

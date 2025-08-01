@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test IST Campaign Display</title>
+</head>
+<body>
+    <h3>Testing IST Campaign Timezone Display</h3>
+    <div id="results"></div>
+
+    <script>
+        // Test campaign data (IST timezone)
+        const testCampaign = {
+            'id': 6,
+            'name': 'A2',
+            'campaign_settings': '{"email_frequency": {"value": 2, "unit": "minutes"}, "random_delay": {"min_minutes": 1, "max_minutes": 2}, "timezone": "Asia/Kolkata", "daily_email_limit": 50, "respect_business_hours": true}'
+        };
+
+        // Helper functions from campaigns.js
+        function getCampaignTimezone(campaign) {
+            try {
+                if (campaign.campaign_settings) {
+                    const settings = typeof campaign.campaign_settings === 'string' 
+                        ? JSON.parse(campaign.campaign_settings) 
+                        : campaign.campaign_settings;
+                    return settings.timezone || 'America/Los_Angeles';
+                }
+                return campaign.timezone || 'America/Los_Angeles';
+            } catch (error) {
+                console.warn('Error parsing campaign settings for timezone:', error);
+                return 'America/Los_Angeles';
+            }
+        }
+
+        function getCampaignFrequency(campaign) {
+            try {
+                if (campaign.campaign_settings) {
+                    const settings = typeof campaign.campaign_settings === 'string' 
+                        ? JSON.parse(campaign.campaign_settings) 
+                        : campaign.campaign_settings;
+                    
+                    if (settings.email_frequency) {
+                        const freq = settings.email_frequency;
+                        return `${freq.value} ${freq.unit}`;
+                    }
+                }
+                return 'N/A';
+            } catch (error) {
+                console.warn('Error parsing campaign settings for frequency:', error);
+                return 'N/A';
+            }
+        }
+
+        function getTimezoneDisplayName(timezone) {
+            const timezoneNames = {
+                'Asia/Kolkata': 'India Standard Time (IST)',
+                'America/Los_Angeles': 'Pacific Time (PST/PDT)',
+                'UTC': 'Coordinated Universal Time (UTC)'
+            };
+            return timezoneNames[timezone] || timezone;
+        }
+
+        // Test extraction
+        const extractedTimezone = getCampaignTimezone(testCampaign);
+        const extractedFrequency = getCampaignFrequency(testCampaign);
+        const timezoneDisplayName = getTimezoneDisplayName(extractedTimezone);
+        
+        // Test time formatting
+        const now = new Date();
+        const istTime = now.toLocaleString('en-US', {
+            timeZone: 'Asia/Kolkata',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+        });
+        
+        // Display results
+        document.getElementById('results').innerHTML = `
+            <h4>Campaign Settings Parse Test:</h4>
+            <p><strong>Raw Settings:</strong> ${testCampaign.campaign_settings}</p>
+            <p><strong>Extracted Timezone:</strong> ${extractedTimezone}</p>
+            <p><strong>Timezone Display Name:</strong> ${timezoneDisplayName}</p>
+            <p><strong>Extracted Frequency:</strong> ${extractedFrequency}</p>
+            <p><strong>Test Results:</strong></p>
+            <ul>
+                <li>Timezone: ${extractedTimezone === 'Asia/Kolkata' ? '✅ PASS' : '❌ FAIL'}</li>
+                <li>Display: ${timezoneDisplayName === 'India Standard Time (IST)' ? '✅ PASS' : '❌ FAIL'}</li>
+                <li>Frequency: ${extractedFrequency === '2 minutes' ? '✅ PASS' : '❌ FAIL'}</li>
+            </ul>
+            <hr>
+            <h4>Time Display Test:</h4>
+            <p><strong>Current Time in IST:</strong> ${istTime}</p>
+            <p><strong>Should show IST timezone, not PDT</strong></p>
+        `;
+    </script>
+</body>
+</html>
