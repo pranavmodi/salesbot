@@ -59,7 +59,7 @@ class DeepResearchEmailComposer:
             2. Add a blank line after the greeting
             3. First paragraph (2-3 sentences): Reference a specific business challenge, growth signal, or pain point from the company research. Show you understand their situation. Be specific and credible.
             4. Add a blank line between paragraphs
-            5. Second paragraph (2-3 sentences): Brief intro starting with "I'm Pranav, founder of Possible Minds" and connect our bespoke AI agent solutions to their specific challenge mentioned above.
+            5. Second paragraph (3-4 sentences): Create a smooth transition that bridges their challenges to AI solutions. Start with a connecting sentence like "These are exactly the types of scaling challenges where AI agents can make the biggest impact" or "This is precisely why companies at your stage are turning to AI agents." Then introduce yourself: "I'm Pranav, founder of Possible Minds, and we've helped similar companies solve these specific challenges through bespoke AI agent solutions."
             6. Add a blank line
             7. Third paragraph (2-4 bullet points): Use ONLY the benefits provided in the "AI Agent Benefits" section. If AI Agent Benefits are provided, use those exact benefits. If not provided, use general AI agent benefits relevant to their pain points. Use **bold** for key benefits.
             8. Add a blank line

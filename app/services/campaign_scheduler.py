@@ -154,6 +154,8 @@ def execute_campaign_job(campaign_id: int):
             # Create persistent email jobs in database
             cumulative_delay = 0
             scheduled_count = 0
+            business_hours_base_time = None  # Track business hours adjusted base time
+            business_hours_cumulative_delay = 0  # Track delay from business hours base
             
             from app.models.campaign_email_job import CampaignEmailJob
             
@@ -191,6 +193,19 @@ def execute_campaign_job(campaign_id: int):
                     import pytz
                     utc_now = datetime.now(pytz.UTC)  # timezone-aware UTC
                     run_time = utc_now + timedelta(seconds=cumulative_delay)
+                    
+                    # Adjust for business hours if required - maintain spacing between emails
+                    if respect_business_hours:
+                        if i == 0:
+                            # For first email, find next business hour
+                            run_time = _adjust_for_business_hours(run_time, timezone_str, business_hours)
+                            # Store the adjusted base time for subsequent emails
+                            business_hours_base_time = run_time
+                        else:
+                            # For subsequent emails, add delay to the business hours base time
+                            business_hours_cumulative_delay += delay_seconds
+                            run_time = business_hours_base_time + timedelta(seconds=business_hours_cumulative_delay)
+                    
                     # Keep timezone-aware for proper database storage
                     # PostgreSQL will convert this correctly to its local timezone
                     
@@ -871,6 +886,72 @@ def _is_business_hours(timezone_str: str, business_hours: Dict) -> bool:
         current_app.logger.error(f"Error checking business hours: {e}")
         return True  # Default to allowing emails
 
+def _adjust_for_business_hours(scheduled_time: datetime, timezone_str: str, business_hours: Dict) -> datetime:
+    """Adjust scheduled time to fall within business hours."""
+    try:
+        if not business_hours:
+            return scheduled_time
+        
+        import pytz
+        tz = pytz.timezone(timezone_str)
+        
+        # Convert UTC scheduled time to campaign timezone
+        if scheduled_time.tzinfo is None:
+            scheduled_time = pytz.UTC.localize(scheduled_time)
+        
+        local_time = scheduled_time.astimezone(tz)
+        
+        # Get business hours
+        start_time = datetime.strptime(business_hours.get('start_time', '09:00'), '%H:%M').time()
+        end_time = datetime.strptime(business_hours.get('end_time', '17:00'), '%H:%M').time()
+        
+        # Check if day is a business day
+        weekday = local_time.strftime('%A').lower()
+        business_days = business_hours.get('days', {})
+        
+        # If not a business day or outside business hours, find next business hour
+        while True:
+            weekday = local_time.strftime('%A').lower()
+            is_business_day = business_days.get(weekday, True)
+            current_time_only = local_time.time()
+            
+            if is_business_day and start_time <= current_time_only <= end_time:
+                # Already in business hours - no adjustment needed
+                break
+            elif is_business_day and current_time_only < start_time:
+                # Same day, but before business hours - calculate offset from start time
+                time_offset_from_start = (local_time.hour * 3600 + local_time.minute * 60 + local_time.second) - (start_time.hour * 3600 + start_time.minute * 60)
+                
+                # If the offset is positive (email was scheduled after business start), preserve it
+                if time_offset_from_start > 0:
+                    adjusted_start_time = datetime.combine(local_time.date(), start_time) + timedelta(seconds=time_offset_from_start)
+                    # Make sure we don't go past business end time
+                    adjusted_end_time = datetime.combine(local_time.date(), end_time)
+                    if adjusted_start_time.time() <= end_time:
+                        local_time = local_time.replace(hour=adjusted_start_time.hour, minute=adjusted_start_time.minute, second=adjusted_start_time.second, microsecond=0)
+                    else:
+                        # If it would go past end time, set to start time
+                        local_time = local_time.replace(hour=start_time.hour, minute=start_time.minute, second=0, microsecond=0)
+                else:
+                    # Set to business start time
+                    local_time = local_time.replace(hour=start_time.hour, minute=start_time.minute, second=0, microsecond=0)
+                break
+            else:
+                # Move to next business day start time, but preserve minute/second if reasonable
+                local_time = local_time + timedelta(days=1)
+                # Preserve original minute/second within the business start hour if it was reasonable
+                original_minute = local_time.minute
+                original_second = local_time.second
+                local_time = local_time.replace(hour=start_time.hour, minute=original_minute if original_minute < 60 else 0, second=original_second if original_second < 60 else 0, microsecond=0)
+        
+        # Convert back to UTC
+        return local_time.astimezone(pytz.UTC)
+        
+    except Exception as e:
+        from flask import current_app
+        current_app.logger.error(f"Error adjusting for business hours: {e}")
+        return scheduled_time  # Return original time if adjustment fails
+
 class CampaignScheduler:
     """Background campaign scheduler with pause/resume functionality."""
     
@@ -880,6 +961,12 @@ class CampaignScheduler:
     
     def init_app(self, app):
         """Initialize the scheduler with the Flask app context."""
+        # Prevent multiple initialization in development mode
+        if self.scheduler is not None:
+            from flask import current_app
+            current_app.logger.info("Campaign scheduler already initialized, skipping")
+            return
+            
         with app.app_context():
             self._setup_scheduler()
             self._setup_background_jobs()
@@ -1054,7 +1141,12 @@ class CampaignScheduler:
                     return False
             return False
         except Exception as e:
-            current_app.logger.debug(f"Error removing job {job_id}: {e}")
+            # Handle JobLookupError and other APScheduler exceptions gracefully
+            from apscheduler.jobstores.base import JobLookupError
+            if isinstance(e, JobLookupError):
+                current_app.logger.debug(f"Job {job_id} already removed by another process")
+            else:
+                current_app.logger.debug(f"Error removing job {job_id}: {e}")
             return False
 
     def start(self):
