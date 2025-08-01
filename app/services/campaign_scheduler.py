@@ -813,7 +813,24 @@ def _can_send_email_now(campaign_id: int) -> bool:
                 return True  # No previous emails, allow sending
             
             last_email_time = row.last_email_time
-            time_since_last = datetime.utcnow() - last_email_time.replace(tzinfo=None)
+            
+            # Database times are stored in campaign timezone, convert to UTC for comparison  
+            import pytz
+            
+            # Get campaign timezone from settings
+            campaign_timezone_str = settings.get('timezone', 'UTC')
+            campaign_tz = pytz.timezone(campaign_timezone_str)
+            utc_tz = pytz.UTC
+            
+            # If last_email_time is timezone-naive, assume it's in campaign timezone
+            if last_email_time.tzinfo is None:
+                last_email_time_campaign_tz = campaign_tz.localize(last_email_time)
+                last_email_time_utc = last_email_time_campaign_tz.astimezone(utc_tz)
+            else:
+                last_email_time_utc = last_email_time.astimezone(utc_tz)
+            
+            current_utc = datetime.now(utc_tz)
+            time_since_last = current_utc - last_email_time_utc
             required_delay = timedelta(minutes=min_delay_minutes)
             
             can_send = time_since_last >= required_delay
