@@ -1473,7 +1473,7 @@ function populateCampaignDetails(campaign) {
     setElementText('detailsFollowupDays', `${campaign.followup_days || 3} days`);
 
     // Dates - show in campaign timezone
-    const campaignTimezone = campaign.timezone || 'UTC';
+    const campaignTimezone = getCampaignTimezone(campaign);
     if (campaign.created_at) {
         setElementText('detailsCreatedAt', formatDateInTimezone(campaign.created_at, campaignTimezone));
     }
@@ -2393,7 +2393,7 @@ function viewCampaignSchedule(campaignId, campaignName) {
 
     // Get campaign data to access timezone
     const campaignData = getCurrentCampaignData(campaignId);
-    const campaignTimezone = campaignData ? campaignData.timezone : 'UTC'; // Default to UTC
+    const campaignTimezone = campaignData ? getCampaignTimezone(campaignData) : 'UTC'; // Default to UTC
 
     // Show the schedule modal immediately with loading state
     const modal = new bootstrap.Modal(document.getElementById('campaignScheduleModal'));
@@ -2597,7 +2597,7 @@ function displayCampaignSchedule(data) {
                         <table class="table table-sm">
                             <tr><th>Daily Limit:</th><td>${campaign.daily_email_limit || 50} emails</td></tr>
                             <tr><th>Frequency:</th><td>${campaign.email_frequency || 'N/A'}</td></tr>
-                            <tr><th>Timezone:</th><td>${getTimezoneDisplayName(campaign.timezone || 'UTC')}</td></tr>
+                            <tr><th>Timezone:</th><td>${getTimezoneDisplayName(getCampaignTimezone(campaign))}</td></tr>
                             <tr><th>Business Hours:</th><td>${campaign.respect_business_hours ? 'Enabled' : 'Disabled'}</td></tr>
                         </table>
                     </div>
@@ -2631,7 +2631,7 @@ function displayCampaignSchedule(data) {
         
         pending_emails.slice(0, 50).forEach(email => {
             const scheduledTime = new Date(email.scheduled_time);
-            let campaignTimezone = campaign.timezone || 'America/Los_Angeles';
+            let campaignTimezone = getCampaignTimezone(campaign);
             
             // Handle legacy campaigns that might have UTC set - convert to Pacific Time as default
             if (campaignTimezone === 'UTC') {
@@ -2716,7 +2716,7 @@ function displayCampaignSchedule(data) {
         
         sent_emails.slice(0, 20).forEach(email => {
             const sentTime = new Date(email.date || email.sent_time);
-            const campaignTimezone = campaign.timezone || 'UTC';
+            const campaignTimezone = getCampaignTimezone(campaign);
             
             // Format time in campaign timezone
             let timeFormatted;
@@ -2778,6 +2778,22 @@ function getStatusColor(status) {
     return colors[status] || 'secondary';
 }
 
+// Helper function to extract timezone from campaign settings
+function getCampaignTimezone(campaign) {
+    try {
+        if (campaign.campaign_settings) {
+            const settings = typeof campaign.campaign_settings === 'string' 
+                ? JSON.parse(campaign.campaign_settings) 
+                : campaign.campaign_settings;
+            return settings.timezone || 'America/Los_Angeles';
+        }
+        return campaign.timezone || 'America/Los_Angeles';
+    } catch (error) {
+        console.warn('Error parsing campaign settings for timezone:', error);
+        return 'America/Los_Angeles';
+    }
+}
+
 function getTimezoneDisplayName(timezone) {
     const timezoneNames = {
         'Pacific/Honolulu': 'Hawaii Time (HST)',
@@ -2791,6 +2807,7 @@ function getTimezoneDisplayName(timezone) {
         'UTC': 'Coordinated Universal Time (UTC)',
         'Europe/London': 'London Time (GMT/BST)',
         'Europe/Paris': 'Paris Time (CET/CEST)',
+        'Asia/Kolkata': 'India Standard Time (IST)',
         'Asia/Tokyo': 'Tokyo Time (JST)',
         'Asia/Shanghai': 'Shanghai Time (CST)',
         'Australia/Sydney': 'Sydney Time (AEST/AEDT)'

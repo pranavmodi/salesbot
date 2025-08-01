@@ -143,7 +143,7 @@ class EmailService:
     @staticmethod
     def compose_email(contact_id: int, calendar_url: str = None, extra_context: str = None, composer_type: str = "warm", campaign_id: int = None) -> Dict[str, str] | None:
         """
-        Compose an email for a given contact.
+        Thread-safe email composition for a given contact.
         
         Args:
             contact_id: ID of the contact
@@ -154,69 +154,92 @@ class EmailService:
         Returns:
             Dictionary with subject and body, or None if failed
         """
-        # For this application, we need to find the contact by email since we don't have contact IDs
-        # This is a limitation of the current database structure
-        # We'll need to modify this to work with the existing Contact model
+        import threading
+        thread_id = threading.get_ident()
+        current_app.logger.info(f"Thread {thread_id}: Starting email composition for contact {contact_id}")
         
-        # Since Contact model doesn't have get by ID, we'll need to handle this differently
-        # For now, let's assume contact_id is actually the contact email or we need to find another way
-        
-        # This is a temporary workaround - in a real application, you'd want proper ID-based lookups
-        all_contacts = Contact.load_all()
-        contact = None
-        
-        # Try to find contact by ID (assuming it's an index) or by email
         try:
-            if isinstance(contact_id, int) and contact_id < len(all_contacts):
-                contact = all_contacts[contact_id]
-            else:
-                # Try to find by email if contact_id is actually an email
-                for c in all_contacts:
-                    if c.email == str(contact_id):
-                        contact = c
-                        break
-        except:
-            pass
+            # For this application, we need to find the contact by email since we don't have contact IDs
+            # This is a limitation of the current database structure
+            # We'll need to modify this to work with the existing Contact model
             
-        if not contact:
-            current_app.logger.error(f"Contact not found for ID: {contact_id}")
-            return None
+            # Since Contact model doesn't have get by ID, we'll need to handle this differently
+            # For now, let's assume contact_id is actually the contact email or we need to find another way
+            
+            # This is a temporary workaround - in a real application, you'd want proper ID-based lookups
+            all_contacts = Contact.load_all()
+            contact = None
+            
+            # Try to find contact by ID (assuming it's an index) or by email
+            try:
+                if isinstance(contact_id, int) and contact_id < len(all_contacts):
+                    contact = all_contacts[contact_id]
+                else:
+                    # Try to find by email if contact_id is actually an email
+                    for c in all_contacts:
+                        if c.email == str(contact_id):
+                            contact = c
+                            break
+            except:
+                pass
+                
+            if not contact:
+                current_app.logger.error(f"Thread {thread_id}: Contact not found for ID: {contact_id}")
+                return None
 
-        lead_data = {
-            "name": contact.display_name,
-            "email": contact.email,
-            "company": contact.company,
-            "position": contact.job_title,
-            "website": contact.company_domain,
-            "notes": "",
-        }
-        
-        if composer_type == "alt_subject":
-            composer = AltSubjectEmailComposer()
-        elif composer_type == "deep_research":
-            composer = DeepResearchEmailComposer()
-        elif composer_type == "possible_minds":
-            from email_composers.email_composer_possible_minds import PossibleMindsEmailComposer
-            composer = PossibleMindsEmailComposer()
-        else: # Default to warm
-            composer = WarmEmailComposer()
-
-        # Get the default calendar URL if not provided
-        effective_calendar_url = calendar_url or os.getenv("CALENDAR_URL", "https://calendly.com/pranav-modi/15-minute-meeting")
-
-        # Pass campaign_id to composer if it supports it (like DeepResearchEmailComposer)
-        if composer_type == "deep_research" and hasattr(composer, 'compose_email'):
-            email_content = composer.compose_email(lead=lead_data, calendar_url=effective_calendar_url, extra_context=extra_context, campaign_id=campaign_id)
-        else:
-            email_content = composer.compose_email(lead=lead_data, calendar_url=effective_calendar_url, extra_context=extra_context)
-        
-        if email_content and 'subject' in email_content and 'body' in email_content:
-            return {
-                'subject': email_content['subject'],
-                'body': email_content['body']
+            lead_data = {
+                "name": contact.display_name,
+                "email": contact.email,
+                "company": contact.company,
+                "position": contact.job_title,
+                "website": contact.company_domain,
+                "notes": "",
             }
-        else:
-            current_app.logger.error(f"Invalid email content returned: {email_content}")
+            
+            # Get the default calendar URL if not provided
+            effective_calendar_url = calendar_url or os.getenv("CALENDAR_URL", "https://calendly.com/pranav-modi/15-minute-meeting")
+            
+            # Use thread-safe composer for deep_research type (most memory intensive)
+            if composer_type == "deep_research":
+                current_app.logger.info(f"Thread {thread_id}: Using thread-safe deep research composer")
+                from app.services.thread_safe_email_composer import get_thread_safe_composer
+                
+                thread_safe_composer = get_thread_safe_composer()
+                email_content = thread_safe_composer.compose_email_safely(
+                    lead=lead_data, 
+                    calendar_url=effective_calendar_url, 
+                    extra_context=extra_context,
+                    composer_type=composer_type,
+                    campaign_id=campaign_id
+                )
+            else:
+                # Use regular composers for other types (legacy support)
+                if composer_type == "alt_subject":
+                    composer = AltSubjectEmailComposer()
+                elif composer_type == "possible_minds":
+                    from email_composers.email_composer_possible_minds import PossibleMindsEmailComposer
+                    composer = PossibleMindsEmailComposer()
+                else: # Default to warm
+                    composer = WarmEmailComposer()
+
+                # Pass campaign_id to composer if it supports it
+                if hasattr(composer, 'compose_email'):
+                    email_content = composer.compose_email(lead=lead_data, calendar_url=effective_calendar_url, extra_context=extra_context)
+                else:
+                    email_content = composer.compose_email(lead=lead_data, calendar_url=effective_calendar_url, extra_context=extra_context)
+            
+            if email_content and 'subject' in email_content and 'body' in email_content:
+                current_app.logger.info(f"Thread {thread_id}: Email composition successful")
+                return {
+                    'subject': email_content['subject'],
+                    'body': email_content['body']
+                }
+            else:
+                current_app.logger.error(f"Thread {thread_id}: Invalid email content returned: {email_content}")
+                return None
+                
+        except Exception as e:
+            current_app.logger.error(f"Thread {thread_id}: Email composition failed: {str(e)}")
             return None
                 
     @staticmethod

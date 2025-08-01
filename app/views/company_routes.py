@@ -496,3 +496,46 @@ def clean_all_research():
             'success': False,
             'message': f'Failed to clean research data: {str(e)}'
         }), 500
+
+@company_bp.route('/companies/<int:company_id>/delete-reset', methods=['DELETE'])
+def delete_and_reset_company(company_id):
+    """Reset all deep research data for a single company (keeps company record)."""
+    try:
+        current_app.logger.info(f"Resetting research data for company {company_id}")
+        
+        # Get company details before reset for logging
+        company = Company.get_by_id(company_id)
+        if not company:
+            current_app.logger.warning(f"Company {company_id} not found for research reset")
+            return jsonify({
+                'success': False,
+                'message': 'Company not found'
+            }), 404
+        
+        company_name = company.company_name
+        current_app.logger.info(f"Found company: {company_name} (ID: {company_id})")
+        
+        # Reset all research data for the company
+        success = Company.delete_company(company_id)
+        
+        if success:
+            current_app.logger.info(f"Successfully reset research data for company: {company_name} (ID: {company_id})")
+            return jsonify({
+                'success': True,
+                'message': f'Research data for "{company_name}" reset successfully',
+                'company_id': company_id,
+                'company_name': company_name
+            })
+        else:
+            current_app.logger.error(f"Failed to reset research for company: {company_name} (ID: {company_id})")
+            return jsonify({
+                'success': False,
+                'message': 'Failed to reset research data - database operation failed'
+            }), 500
+            
+    except Exception as e:
+        current_app.logger.error(f"Error resetting research for company {company_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Failed to reset research data: {str(e)}'
+        }), 500

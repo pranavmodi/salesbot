@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Timezone Fix</title>
+</head>
+<body>
+    <h3>Testing Campaign Timezone Extraction</h3>
+    <div id="results"></div>
+
+    <script>
+        // Helper function to extract timezone from campaign settings
+        function getCampaignTimezone(campaign) {
+            try {
+                if (campaign.campaign_settings) {
+                    const settings = typeof campaign.campaign_settings === 'string' 
+                        ? JSON.parse(campaign.campaign_settings) 
+                        : campaign.campaign_settings;
+                    return settings.timezone || 'America/Los_Angeles';
+                }
+                return campaign.timezone || 'America/Los_Angeles';
+            } catch (error) {
+                console.warn('Error parsing campaign settings for timezone:', error);
+                return 'America/Los_Angeles';
+            }
+        }
+
+        // Test data
+        const testCampaign = {
+            'id': 5,
+            'name': 'A1',
+            'campaign_settings': '{"email_frequency": {"value": 2, "unit": "minutes"}, "random_delay": {"min_minutes": 1, "max_minutes": 5}, "timezone": "Asia/Kolkata", "daily_email_limit": 50, "respect_business_hours": true}'
+        };
+
+        // Test extraction
+        const extractedTimezone = getCampaignTimezone(testCampaign);
+        
+        // Display results
+        document.getElementById('results').innerHTML = `
+            <p><strong>Campaign Settings:</strong> ${testCampaign.campaign_settings}</p>
+            <p><strong>Extracted Timezone:</strong> ${extractedTimezone}</p>
+            <p><strong>Expected:</strong> Asia/Kolkata</p>
+            <p><strong>Test Result:</strong> ${extractedTimezone === 'Asia/Kolkata' ? '✅ PASS' : '❌ FAIL'}</p>
+        `;
+
+        // Test timezone display
+        const now = new Date();
+        const istTime = now.toLocaleString('en-US', {
+            timeZone: 'Asia/Kolkata',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+        });
+        
+        document.getElementById('results').innerHTML += `
+            <hr>
+            <p><strong>Current Time in IST:</strong> ${istTime} IST</p>
+        `;
+    </script>
+</body>
+</html>

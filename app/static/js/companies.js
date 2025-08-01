@@ -28,6 +28,9 @@ function setupCompanyEventListeners() {
     
     // Setup company details modal
     setupCompanyDetailsModal();
+    
+    // Setup delete and reset company buttons
+    setupDeleteResetCompanyButtons();
 }
 
 // Setup company details modal functionality
@@ -885,6 +888,71 @@ function extractCompaniesFromContacts() {
         extractBtn.innerHTML = originalText;
         extractBtn.disabled = false;
     });
+}
+
+// Setup delete and reset company buttons
+function setupDeleteResetCompanyButtons() {
+    console.log('Setting up delete and reset company buttons...');
+    
+    // Use event delegation since buttons are dynamically generated
+    document.addEventListener('click', function(event) {
+        if (event.target.closest('.delete-reset-company-btn')) {
+            const button = event.target.closest('.delete-reset-company-btn');
+            const companyId = button.dataset.companyId;
+            const companyName = button.dataset.companyName;
+            
+            console.log(`Delete and reset clicked for company: ${companyName} (ID: ${companyId})`);
+            deleteAndResetCompany(companyId, companyName);
+        }
+    });
+}
+
+// Delete and reset company function
+function deleteAndResetCompany(companyId, companyName) {
+    console.log(`Deleting and resetting company: ${companyName} (ID: ${companyId})`);
+    
+    // Show loading state
+    const button = document.querySelector(`[data-company-id="${companyId}"].delete-reset-company-btn`);
+    if (button) {
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Resetting...';
+        button.disabled = true;
+        
+        // Send delete request
+        fetch(`/api/companies/${companyId}/delete-reset`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('successToast', `Research data for "${companyName}" reset successfully!`);
+                // Refresh the current page
+                changeCompaniesPage(getCurrentCompaniesPage());
+            } else {
+                throw new Error(data.message || 'Failed to reset research');
+            }
+        })
+        .catch(error => {
+            console.error('Error resetting research:', error);
+            showToast('errorToast', 'Failed to reset research: ' + error.message);
+        })
+        .finally(() => {
+            // Restore button state
+            if (button) {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }
+        });
+    }
+}
+
+// Helper function to get current companies page
+function getCurrentCompaniesPage() {
+    const urlParams = new URLSearchParams(window.location.search);
+    return parseInt(urlParams.get('companies_page')) || 1;
 }
 
 // Export functions for use in other modules

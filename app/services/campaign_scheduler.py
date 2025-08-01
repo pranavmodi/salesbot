@@ -65,17 +65,19 @@ def job_error_listener(event):
 
 # Static campaign execution function - starts individual email scheduling
 def execute_campaign_job(campaign_id: int):
-    """Static function to start a campaign by scheduling individual emails."""
+    """Thread-safe function to start a campaign by scheduling individual emails."""
     from flask import current_app
     from app import create_app
     import random
     import gc
+    import threading
     
     # Create application context for background job
     app = create_app()
     with app.app_context():
+        thread_id = threading.get_ident()
         try:
-            current_app.logger.info(f"🚀 DEBUG: Starting execution of campaign {campaign_id}")
+            current_app.logger.info(f"🚀 Thread {thread_id}: Starting execution of campaign {campaign_id}")
             
             # Get campaign details
             campaign = Campaign.get_by_id(campaign_id)
@@ -637,17 +639,7 @@ def _compose_fallback_email(campaign: Campaign, contact: Dict, settings: Dict) -
         
         template_type = settings.get('email_template', 'deep_research')  # Changed default to deep_research
         
-        if template_type == "alt_subject":
-            composer = AltSubjectEmailComposer()
-        elif template_type == "deep_research":
-            composer = DeepResearchEmailComposer()
-        elif template_type == "possible_minds":
-            from email_composers.email_composer_possible_minds import PossibleMindsEmailComposer
-            composer = PossibleMindsEmailComposer()
-        else:
-            composer = WarmEmailComposer()
-        
-        # Extract company name with smart fallback from website domain
+        # Extract company name with smart fallback from website domain (needed for all composers)
         company_name = contact.get('company_name') or contact.get('company')
         current_app.logger.info(f"📊 DEBUG: Contact company data - company_name: '{contact.get('company_name')}', company: '{contact.get('company')}', domain: '{contact.get('company_domain')}'")
         
@@ -659,6 +651,41 @@ def _compose_fallback_email(campaign: Campaign, contact: Dict, settings: Dict) -
             current_app.logger.info(f"🌐 DEBUG: Extracted company name from domain: '{company_name}' from '{contact.get('company_domain')}'")
             
         current_app.logger.info(f"🏢 DEBUG: Final company name for email composer: '{company_name}'")
+        
+        if template_type == "alt_subject":
+            composer = AltSubjectEmailComposer()
+        elif template_type == "deep_research":
+            # Use thread-safe composer for deep research to prevent malloc errors
+            from app.services.thread_safe_email_composer import get_thread_safe_composer
+            thread_safe_composer = get_thread_safe_composer()
+            
+            # Use the thread-safe compose method instead of creating direct instance
+            lead_data = {
+                "name": contact.get('first_name') or contact.get('name') or 'there',
+                "email": contact.get('email'),
+                "company": company_name or 'your company',
+                "position": contact.get('job_title') or contact.get('title') or '',
+                "website": contact.get('company_domain') or '',
+                "notes": "",
+            }
+            
+            calendar_url = os.getenv("CALENDAR_URL", "https://calendly.com/pranav-modi/15-minute-meeting")
+            extra_context = f"This email is part of the '{campaign.name}' campaign."
+            
+            current_app.logger.info(f"🛡️ DEBUG: Using thread-safe deep research composer for campaign {campaign.id}")
+            
+            return thread_safe_composer.compose_email_safely(
+                lead=lead_data,
+                calendar_url=calendar_url,
+                extra_context=extra_context,
+                composer_type="deep_research",
+                campaign_id=campaign.id
+            )
+        elif template_type == "possible_minds":
+            from email_composers.email_composer_possible_minds import PossibleMindsEmailComposer
+            composer = PossibleMindsEmailComposer()
+        else:
+            composer = WarmEmailComposer()
         
         lead_data = {
             "name": contact.get('display_name') or contact.get('full_name') or f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip(),
@@ -761,7 +788,7 @@ class CampaignScheduler:
             }
             
             executors = {
-                'default': ThreadPoolExecutor(3),  # Increased to 3 threads for Railway deployment
+                'default': ThreadPoolExecutor(3),  # Use standard APScheduler ThreadPoolExecutor
             }
             
             job_defaults = {

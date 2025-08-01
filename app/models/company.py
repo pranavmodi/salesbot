@@ -377,6 +377,55 @@ class Company:
             return False
 
     @classmethod
+    def delete_company(cls, company_id: int) -> bool:
+        """Reset all deep research data for a company (keeps company record)."""
+        engine = cls._get_db_engine()
+        if not engine:
+            current_app.logger.error("Failed to reset company research: Database engine not available.")
+            return False
+
+        try:
+            with engine.connect() as conn:
+                with conn.begin():
+                    # First, get company info for logging
+                    select_query = text("SELECT company_name FROM companies WHERE id = :id")
+                    result = conn.execute(select_query, {"id": company_id})
+                    company_row = result.fetchone()
+                    
+                    if not company_row:
+                        current_app.logger.warning(f"No company found with ID: {company_id}")
+                        return False
+                    
+                    company_name = company_row[0]
+                    current_app.logger.info(f"Resetting all research data for company: {company_name} (ID: {company_id})")
+                    
+                    # Reset all research data fields to NULL and status to 'pending'
+                    reset_query = text("""
+                        UPDATE companies 
+                        SET company_research = NULL,
+                            research_step_1_basic = NULL,
+                            research_step_2_strategic = NULL,
+                            research_step_3_report = NULL,
+                            html_report = NULL,
+                            research_status = 'pending',
+                            research_error = NULL,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :id
+                    """)
+                    conn.execute(reset_query, {"id": company_id})
+                    
+                    current_app.logger.info(f"Successfully reset all research data for company: {company_name} (ID: {company_id})")
+                    
+            return True
+            
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Database error resetting company research {company_id}: {e}")
+            return False
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error resetting company research {company_id}: {e}")
+            return False
+
+    @classmethod
     def update_research_status(cls, company_id: int, status: str, error: str = None) -> bool:
         """Update research status for a company."""
         engine = cls._get_db_engine()
