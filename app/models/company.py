@@ -19,6 +19,7 @@ class Company:
         self.pdf_report_base64 = data.get('pdf_report_base64', '')
         self.strategic_imperatives = data.get('strategic_imperatives', '')
         self.agent_recommendations = data.get('agent_recommendations', '')
+        self.ai_agent_recommendations = data.get('ai_agent_recommendations', [])
         
         # Research step tracking fields
         self.research_status = data.get('research_status', 'pending')  # pending, in_progress, completed, failed
@@ -63,6 +64,7 @@ class Company:
                            COALESCE(pdf_report_base64, '') as pdf_report_base64, 
                            COALESCE(strategic_imperatives, '') as strategic_imperatives, 
                            COALESCE(agent_recommendations, '') as agent_recommendations,
+                           COALESCE(ai_agent_recommendations, '[]'::json) as ai_agent_recommendations,
                            COALESCE(research_status, 'pending') as research_status, 
                            COALESCE(research_step_1_basic, '') as research_step_1_basic, 
                            COALESCE(research_step_2_strategic, '') as research_step_2_strategic, 
@@ -118,6 +120,7 @@ class Company:
                            COALESCE(pdf_report_base64, '') as pdf_report_base64, 
                            COALESCE(strategic_imperatives, '') as strategic_imperatives, 
                            COALESCE(agent_recommendations, '') as agent_recommendations,
+                           COALESCE(ai_agent_recommendations, '[]'::json) as ai_agent_recommendations,
                            COALESCE(research_status, 'pending') as research_status, 
                            COALESCE(research_step_1_basic, '') as research_step_1_basic, 
                            COALESCE(research_step_2_strategic, '') as research_step_2_strategic, 
@@ -163,7 +166,7 @@ class Company:
                 result = conn.execute(text("""
                     SELECT id, company_name, website_url, company_research, markdown_report,
                            html_report, pdf_report_base64, strategic_imperatives, agent_recommendations,
-                           research_status, research_step_1_basic, research_step_2_strategic, 
+                           ai_agent_recommendations, research_status, research_step_1_basic, research_step_2_strategic, 
                            research_step_3_report, research_started_at, research_completed_at, 
                            research_error, created_at, updated_at
                     FROM companies 
@@ -196,7 +199,7 @@ class Company:
                 result = conn.execute(text("""
                     SELECT id, company_name, website_url, company_research, markdown_report,
                            html_report, pdf_report_base64, strategic_imperatives, agent_recommendations,
-                           research_status, research_step_1_basic, research_step_2_strategic, 
+                           ai_agent_recommendations, research_status, research_step_1_basic, research_step_2_strategic, 
                            research_step_3_report, research_started_at, research_completed_at, 
                            research_error, created_at, updated_at
                     FROM companies 
@@ -228,7 +231,7 @@ class Company:
                 result = conn.execute(text("""
                     SELECT id, company_name, website_url, company_research, markdown_report,
                            html_report, pdf_report_base64, strategic_imperatives, agent_recommendations,
-                           research_status, research_step_1_basic, research_step_2_strategic, 
+                           ai_agent_recommendations, research_status, research_step_1_basic, research_step_2_strategic, 
                            research_step_3_report, research_started_at, research_completed_at, 
                            research_error, created_at, updated_at
                     FROM companies 
@@ -527,6 +530,42 @@ class Company:
             return False
 
     @classmethod
+    def update_ai_agent_recommendations(cls, company_id: int, recommendations: list) -> bool:
+        """Update AI agent recommendations for a company."""
+        engine = cls._get_db_engine()
+        if not engine:
+            current_app.logger.error("Failed to update AI recommendations: Database engine not available.")
+            return False
+
+        try:
+            import json
+            with engine.connect() as conn:
+                with conn.begin():
+                    update_query = text("""
+                        UPDATE companies 
+                        SET ai_agent_recommendations = :recommendations,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :id
+                    """)
+                    result = conn.execute(update_query, {
+                        'id': company_id,
+                        'recommendations': json.dumps(recommendations)
+                    })
+                    
+                    if result.rowcount == 0:
+                        current_app.logger.warning(f"No company found with ID: {company_id}")
+                        return False
+                        
+            current_app.logger.info(f"Successfully updated AI agent recommendations for company ID: {company_id}")
+            return True
+        except SQLAlchemyError as e:
+            current_app.logger.error(f"Database error updating AI recommendations: {e}")
+            return False
+        except Exception as e:
+            current_app.logger.error(f"Unexpected error updating AI recommendations: {e}")
+            return False
+
+    @classmethod
     def update_full_research(cls, company_id: int, basic_research: str, strategic_analysis: str, markdown_report: str) -> bool:
         """Update all research steps and markdown report for a company."""
         engine = cls._get_db_engine()
@@ -582,6 +621,7 @@ class Company:
             'pdf_report_base64': self.pdf_report_base64,
             'strategic_imperatives': self.strategic_imperatives,
             'agent_recommendations': self.agent_recommendations,
+            'ai_agent_recommendations': self.ai_agent_recommendations,
             'research_status': self.research_status,
             'research_step_1_basic': self.research_step_1_basic,
             'research_step_2_strategic': self.research_step_2_strategic,
@@ -604,7 +644,8 @@ class Company:
             with engine.connect() as conn:
                 query = text("""
                     SELECT id, company_name, website_url, company_research, markdown_report,
-                           html_report, pdf_report_base64, strategic_imperatives, agent_recommendations
+                           html_report, pdf_report_base64, strategic_imperatives, agent_recommendations,
+                           ai_agent_recommendations
                     FROM companies 
                     WHERE LOWER(company_name) LIKE LOWER(:company_name)
                     ORDER BY company_name
@@ -623,7 +664,8 @@ class Company:
                         'html_report': row.html_report,
                         'pdf_report_base64': row.pdf_report_base64,
                         'strategic_imperatives': row.strategic_imperatives,
-                        'agent_recommendations': row.agent_recommendations
+                        'agent_recommendations': row.agent_recommendations,
+                        'ai_agent_recommendations': row.ai_agent_recommendations
                     })
                 
                 return companies

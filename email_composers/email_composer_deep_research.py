@@ -21,17 +21,17 @@ NETLIFY_SECRET    = os.getenv("NETLIFY_WEBHOOK_SECRET", "")  # Add this to your 
 # ---- Context about the sender and product ----
 SENDER_INFO = """
 Pranav Modi is the founder of Possible Minds and a seasoned product manager and AI engineer.
-The team at Possible Minds has developed an AI chatbot product that is deployed in customer support and sales contexts.
+The team at Possible Minds specializes in generating bespoke AI agents for enterprises across various industries.
 
-The chatbot:
-- is trained on the customer's website or docs
-- answers queries 24/7 in multiple languages
-- integrates easily with existing workflows
-- deploys in under 30 minutes
-- reduces operational load while improving engagement
+Our AI agent solutions:
+- are custom-built for specific business workflows and challenges
+- integrate seamlessly with existing enterprise systems
+- deploy rapidly with minimal operational disruption
+- deliver measurable ROI through automation and enhanced capabilities
 
-It is currently deployed at Precise Imaging, a diagnostic imaging company, where it's helping reduce appointment no-shows and improving patient engagement.
-We're in active conversations with several other healthcare and service companies exploring similar use cases.
+We've created impactful AI projects including healthcare AI chatbots, customer service automation, and specialized business process agents.
+One notable example is our deployment at Precise Imaging, a diagnostic imaging company, where our healthcare AI agent helps reduce appointment no-shows and improves patient engagement.
+We're actively working with enterprises across healthcare, finance, and service industries on transformative AI agent implementations.
 """
 
 class DeepResearchEmailComposer:
@@ -42,7 +42,6 @@ class DeepResearchEmailComposer:
 
     def __init__(self) -> None:
         self.client         = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        self.product_desc   = self._load_text(PRODUCT_DESC_PATH)
         self.proof_points   = self._load_text(PROOF_POINTS_PATH).splitlines()
 
         self.system_prompt = textwrap.dedent("""
@@ -60,9 +59,9 @@ class DeepResearchEmailComposer:
             2. Add a blank line after the greeting
             3. First paragraph (2-3 sentences): Reference a specific business challenge, growth signal, or pain point from the company research. Show you understand their situation. Be specific and credible.
             4. Add a blank line between paragraphs
-            5. Second paragraph (2-3 sentences): Brief intro starting with "I'm Pranav, founder of Possible Minds" and connect your AI solution to their specific challenge mentioned above.
+            5. Second paragraph (2-3 sentences): Brief intro starting with "I'm Pranav, founder of Possible Minds" and connect our bespoke AI agent solutions to their specific challenge mentioned above.
             6. Add a blank line
-            7. Third paragraph (2-4 bullet points): Specific benefits relevant to their pain points. Use **bold** for key benefits. Reference similar outcomes from your proof points when relevant.
+            7. Third paragraph (2-4 bullet points): Use ONLY the benefits provided in the "AI Agent Benefits" section. If AI Agent Benefits are provided, use those exact benefits. If not provided, use general AI agent benefits relevant to their pain points. Use **bold** for key benefits.
             8. Add a blank line
             9. Fourth paragraph: Direct, specific call to action with calendar link as linked text. Use format like "Worth exploring? <a href="CALENDAR_URL">Let's schedule 15 minutes</a>" instead of showing the full URL.
             10. Add a blank line
@@ -83,9 +82,6 @@ class DeepResearchEmailComposer:
             """ + SENDER_INFO)
 
     def compose_email(self, lead: Dict[str, str], calendar_url: str = DEFAULT_CALENDAR, extra_context: str | None = None, auto_research: bool = None, campaign_id: int = None) -> Dict[str, str] | None:
-        if not self.product_desc:
-            print("❗ productdescription.txt missing – aborting.")
-            return None
 
         first_name = lead.get("name", "").split()[0] if lead.get("name") else "there"
         company_name = lead.get("company", "")
@@ -124,6 +120,18 @@ class DeepResearchEmailComposer:
         else:
             print(f"❌ STEP 2 FAILED: No company_id found, cannot publish report")
 
+        # STEP 2.5: Get structured AI agent recommendations for this company
+        print(f"📋 STEP 2.5: Getting structured AI agent recommendations for company_id={company_id}")
+        ai_agent_benefits = ""
+        if company_id:
+            ai_recommendations = self._get_ai_agent_recommendations(company_id)
+            if ai_recommendations:
+                ai_agent_benefits = self._format_ai_recommendations_for_email(ai_recommendations)
+                print(f"✅ STEP 2.5 COMPLETED: Found {len(ai_recommendations)} AI agent recommendations")
+                print(f"📋 STEP 2.5 RESULT: Formatted benefits for email composition")
+            else:
+                print(f"⚠️ STEP 2.5 WARNING: No structured AI recommendations found, using general benefits")
+
         user_prompt = f"""
         === Lead ===
         {self._fmt_dict(lead)}
@@ -134,14 +142,14 @@ class DeepResearchEmailComposer:
         === Company name ===
         {company_name}
 
-        === Product description ===
-        {self.product_desc}
-
         === Proof point (optional) ===
         {proof}
 
         === Company Research (if available) ===
         {company_research if company_research else "No specific company research available - use general industry insights"}
+
+        === AI Agent Benefits (use ONLY these in benefits section) ===
+        {ai_agent_benefits if ai_agent_benefits else "Use general AI agent benefits relevant to their industry"}
 
         === Calendar URL ===
         {calendar_url}
@@ -354,6 +362,69 @@ class DeepResearchEmailComposer:
             # Force garbage collection to clean up HTTP resources
             import gc
             gc.collect()
+
+    def _get_ai_agent_recommendations(self, company_id: int) -> list:
+        """Get structured AI agent recommendations for a company."""
+        try:
+            from app.models.company import Company
+            
+            company = Company.get_by_id(company_id)
+            if not company:
+                print(f"🚫 DEBUG: No company found with ID {company_id}")
+                return []
+            
+            print(f"🔍 DEBUG: Company {company_id} ({company.company_name}) - checking AI recommendations")
+            print(f"📊 DEBUG: ai_agent_recommendations attribute exists: {hasattr(company, 'ai_agent_recommendations')}")
+            
+            # Check if company has structured AI agent recommendations
+            if hasattr(company, 'ai_agent_recommendations') and company.ai_agent_recommendations:
+                print(f"📋 DEBUG: ai_agent_recommendations value: {company.ai_agent_recommendations}")
+                print(f"📋 DEBUG: ai_agent_recommendations type: {type(company.ai_agent_recommendations)}")
+                
+                if isinstance(company.ai_agent_recommendations, list):
+                    print(f"✅ DEBUG: Found {len(company.ai_agent_recommendations)} AI recommendations (list format)")
+                    return company.ai_agent_recommendations
+                elif isinstance(company.ai_agent_recommendations, str):
+                    import json
+                    try:
+                        recommendations = json.loads(company.ai_agent_recommendations)
+                        print(f"✅ DEBUG: Found {len(recommendations)} AI recommendations (JSON string format)")
+                        return recommendations
+                    except json.JSONDecodeError as je:
+                        print(f"❌ DEBUG: JSON decode error: {je}")
+                        return []
+            else:
+                print(f"⚠️ DEBUG: No AI agent recommendations found for company {company_id}")
+                if hasattr(company, 'ai_agent_recommendations'):
+                    print(f"📋 DEBUG: ai_agent_recommendations value is: {repr(company.ai_agent_recommendations)}")
+            
+            return []
+            
+        except Exception as e:
+            print(f"❌ Error getting AI agent recommendations for company {company_id}: {e}")
+            return []
+
+    def _format_ai_recommendations_for_email(self, recommendations: list) -> str:
+        """Format AI agent recommendations as email-friendly bullet points."""
+        try:
+            if not recommendations:
+                return ""
+            
+            formatted_benefits = []
+            for rec in recommendations:
+                if isinstance(rec, dict):
+                    title = rec.get('title', 'AI Agent Solution')
+                    business_impact = rec.get('business_impact', 'Improved efficiency')
+                    
+                    # Create a concise benefit bullet point
+                    benefit = f"**{title}**: {business_impact}"
+                    formatted_benefits.append(f"• {benefit}")
+            
+            return "\n".join(formatted_benefits)
+            
+        except Exception as e:
+            print(f"❌ Error formatting AI recommendations: {e}")
+            return ""
 
     def _get_company_research_with_full_report(self, company_name: str, auto_trigger: bool = True) -> tuple[str, int]:
         """Get company research data and ensure full report is available. Returns (research_text, company_id)."""

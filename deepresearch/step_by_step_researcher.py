@@ -95,12 +95,32 @@ class StepByStepResearcher:
             
             # Step 2: Strategic Analysis
             logger.info(f"Step 2: Starting strategic analysis for {company.company_name}")
-            strategic_analysis = self._perform_strategic_analysis(company, basic_research)
+            strategic_result = self._perform_strategic_analysis(company, basic_research)
             
-            if not strategic_analysis:
+            if not strategic_result:
                 Company.update_research_status(company_id, 'failed', 'Failed at strategic analysis step')
                 return {'success': False, 'error': 'Failed to complete strategic analysis'}
             
+            # Extract structured AI agent recommendations if available
+            if isinstance(strategic_result, dict) and 'structured_data' in strategic_result:
+                structured_data = strategic_result['structured_data']
+                strategic_analysis = strategic_result['json_string']
+                
+                # Extract and store AI agent recommendations
+                if 'ai_agent_recommendations' in structured_data:
+                    ai_recommendations = structured_data['ai_agent_recommendations']['priorities']
+                    logger.info(f"🤖 DEBUG: Found AI agent recommendations in structured data, storing {len(ai_recommendations)} recommendations")
+                    success = Company.update_ai_agent_recommendations(company_id, ai_recommendations)
+                    if success:
+                        logger.info(f"✅ DEBUG: Successfully stored {len(ai_recommendations)} AI agent recommendations for {company.company_name}")
+                    else:
+                        logger.error(f"❌ DEBUG: Failed to store AI agent recommendations for {company.company_name}")
+                else:
+                    logger.warning(f"⚠️ DEBUG: No 'ai_agent_recommendations' found in structured_data for {company.company_name}")
+                    logger.info(f"📋 DEBUG: Available keys in structured_data: {list(structured_data.keys())}")
+            else:
+                strategic_analysis = strategic_result
+                
             # Store step 2 results
             Company.update_research_step(company_id, 2, strategic_analysis)
             logger.info(f"Step 2 completed for {company.company_name}")
@@ -251,7 +271,7 @@ class StepByStepResearcher:
                 if isinstance(strategic_result, dict) and 'json_string' in strategic_result:
                     json_string = strategic_result['json_string']
                     logger.info(f"Strategic analysis completed for {company.company_name}: {len(json_string)} characters")
-                    return json_string  # Return JSON string for database storage
+                    return strategic_result  # Return full dict with both structured_data and json_string
                 else:
                     # Legacy format support
                     logger.info(f"Strategic analysis completed for {company.company_name}: {len(strategic_result)} characters")
@@ -328,10 +348,30 @@ class StepByStepResearcher:
                 logger.info(f"Resuming from step 2 for {company.company_name}")
                 Company.update_research_status(company_id, 'in_progress')
                 
-                strategic_analysis = self._perform_strategic_analysis(company, company.research_step_1_basic)
-                if not strategic_analysis:
+                strategic_result = self._perform_strategic_analysis(company, company.research_step_1_basic)
+                if not strategic_result:
                     Company.update_research_status(company_id, 'failed', 'Failed at strategic analysis step (resume)')
                     return {'success': False, 'error': 'Failed to complete strategic analysis'}
+                
+                # Extract structured AI agent recommendations if available
+                if isinstance(strategic_result, dict) and 'structured_data' in strategic_result:
+                    structured_data = strategic_result['structured_data']
+                    strategic_analysis = strategic_result['json_string']
+                    
+                    # Extract and store AI agent recommendations
+                    if 'ai_agent_recommendations' in structured_data:
+                        ai_recommendations = structured_data['ai_agent_recommendations']['priorities']
+                        logger.info(f"🤖 DEBUG: Found AI agent recommendations in structured data, storing {len(ai_recommendations)} recommendations")
+                        success = Company.update_ai_agent_recommendations(company_id, ai_recommendations)
+                        if success:
+                            logger.info(f"✅ DEBUG: Successfully stored {len(ai_recommendations)} AI agent recommendations for {company.company_name}")
+                        else:
+                            logger.error(f"❌ DEBUG: Failed to store AI agent recommendations for {company.company_name}")
+                    else:
+                        logger.warning(f"⚠️ DEBUG: No 'ai_agent_recommendations' found in structured_data for {company.company_name}")
+                        logger.info(f"📋 DEBUG: Available keys in structured_data: {list(structured_data.keys())}")
+                else:
+                    strategic_analysis = strategic_result
                 
                 Company.update_research_step(company_id, 2, strategic_analysis)
                 

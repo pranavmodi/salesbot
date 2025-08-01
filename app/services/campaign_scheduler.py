@@ -92,6 +92,24 @@ def execute_campaign_job(campaign_id: int):
                 current_app.logger.info(f"⏸️ DEBUG: Campaign {campaign_id} is paused, skipping execution")
                 return
             
+            # Check if campaign already has jobs scheduled (prevent duplicate execution)
+            from app.database import get_shared_engine
+            try:
+                engine = get_shared_engine()
+                if engine:
+                    with engine.connect() as conn:
+                        jobs_count_result = conn.execute(text("""
+                            SELECT COUNT(*) FROM campaign_email_jobs 
+                            WHERE campaign_id = :campaign_id
+                        """), {"campaign_id": campaign_id})
+                        existing_jobs_count = jobs_count_result.scalar()
+                        if existing_jobs_count > 0:
+                            current_app.logger.warning(f"🚫 DEBUG: Campaign {campaign_id} already has {existing_jobs_count} jobs scheduled, skipping duplicate execution")
+                            return
+            except Exception as e:
+                current_app.logger.warning(f"Could not check existing jobs count: {e}")
+                # Continue with execution if check fails
+            
             current_app.logger.info(f"🔄 DEBUG: Updating campaign {campaign_id} status to active")
             # Update status to active
             Campaign.update_status(campaign_id, 'active')
@@ -141,6 +159,24 @@ def execute_campaign_job(campaign_id: int):
             
             for i, contact in enumerate(pending_contacts):
                 try:
+                    # Check if jobs already exist for this contact in this campaign
+                    from app.database import get_shared_engine
+                    existing_jobs_check = False
+                    try:
+                        engine = get_shared_engine()
+                        if engine:
+                            with engine.connect() as conn:
+                                existing_result = conn.execute(text("""
+                                    SELECT COUNT(*) FROM campaign_email_jobs 
+                                    WHERE campaign_id = :campaign_id AND contact_email = :contact_email
+                                """), {"campaign_id": campaign_id, "contact_email": contact['email']})
+                                existing_count = existing_result.scalar()
+                                if existing_count > 0:
+                                    current_app.logger.info(f"⚠️ DEBUG: Skipping {contact['email']} - {existing_count} jobs already exist")
+                                    continue
+                    except Exception as check_error:
+                        current_app.logger.warning(f"Could not check for existing jobs: {check_error}")
+                        # Continue with job creation if check fails
                     if i == 0:
                         # First email can be sent immediately or with minimal delay
                         delay_seconds = random.randint(30, 120)  # 30 seconds to 2 minutes
@@ -151,7 +187,12 @@ def execute_campaign_job(campaign_id: int):
                     cumulative_delay += delay_seconds
                     
                     # Schedule the individual email in database
-                    run_time = datetime.utcnow() + timedelta(seconds=cumulative_delay)
+                    # Use timezone-aware UTC time so PostgreSQL handles it correctly
+                    import pytz
+                    utc_now = datetime.now(pytz.UTC)  # timezone-aware UTC
+                    run_time = utc_now + timedelta(seconds=cumulative_delay)
+                    # Keep timezone-aware for proper database storage
+                    # PostgreSQL will convert this correctly to its local timezone
                     
                     # Create a serializable version of the contact data
                     serializable_contact = {
@@ -404,7 +445,14 @@ def process_pending_email_jobs():
             
             current_app.logger.info(f"🚀 DEBUG: Processing {len(pending_jobs)} pending email jobs")
             
-            for job in pending_jobs:
+            # Process only ONE job per cycle to respect timing intervals
+            # This prevents multiple emails from being sent simultaneously
+            for job in pending_jobs[:1]:  # Only process the first job
+                # Check if enough time has passed since last email from this campaign
+                if not _can_send_email_now(job.campaign_id):
+                    current_app.logger.info(f"⏱️ Timing constraint: Skipping job {job.id} - not enough time since last email from campaign {job.campaign_id}")
+                    break
+                
                 # Attempt to lock the job for processing to prevent race conditions
                 if CampaignEmailJob.mark_as_processing(job.id):
                     try:
@@ -729,6 +777,56 @@ def _compose_fallback_email(campaign: Campaign, contact: Dict, settings: Dict) -
         # current_app is already imported at the top of the function
         current_app.logger.error(f"Error in fallback email composition: {e}")
         return {}
+
+def _can_send_email_now(campaign_id: int) -> bool:
+    """Check if enough time has passed since the last email from this campaign to respect timing rules."""
+    try:
+        from app.models.email_history import EmailHistory
+        from app.models.campaign import Campaign
+        from datetime import datetime, timedelta
+        
+        # Get campaign settings to determine minimum delay
+        settings = Campaign.get_campaign_settings(campaign_id)
+        email_frequency = settings.get('email_frequency', {'value': 30, 'unit': 'minutes'})
+        
+        # Convert frequency to minutes
+        if email_frequency['unit'] == 'hours':
+            min_delay_minutes = email_frequency['value'] * 60
+        else:  # assume minutes
+            min_delay_minutes = email_frequency['value']
+        
+        # Get the last email sent for this campaign
+        engine = Campaign._get_db_engine()
+        if not engine:
+            return True  # Allow if we can't check
+        
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT MAX(date) as last_email_time
+                FROM email_history 
+                WHERE campaign_id = :campaign_id 
+                AND status = 'sent'
+            """), {"campaign_id": campaign_id})
+            
+            row = result.fetchone()
+            if not row or not row.last_email_time:
+                return True  # No previous emails, allow sending
+            
+            last_email_time = row.last_email_time
+            time_since_last = datetime.utcnow() - last_email_time.replace(tzinfo=None)
+            required_delay = timedelta(minutes=min_delay_minutes)
+            
+            can_send = time_since_last >= required_delay
+            
+            if not can_send:
+                remaining_minutes = (required_delay - time_since_last).total_seconds() / 60
+                current_app.logger.info(f"⏱️ Campaign {campaign_id}: Need to wait {remaining_minutes:.1f} more minutes (last email: {last_email_time})")
+            
+            return can_send
+            
+    except Exception as e:
+        current_app.logger.error(f"Error checking timing constraints: {e}")
+        return True  # Allow sending if check fails
 
 def _is_business_hours(timezone_str: str, business_hours: Dict) -> bool:
     """Check if current time is within business hours."""

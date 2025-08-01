@@ -116,7 +116,7 @@ class Campaign:
             with engine.connect() as conn:
                 result = conn.execute(text("""
                     SELECT id, name, type, description, email_template, priority, 
-                           schedule_date, followup_days, selection_criteria, status, 
+                           schedule_date, followup_days, selection_criteria, campaign_settings, status, 
                            created_at, updated_at
                     FROM campaigns 
                     WHERE status = 'active'
@@ -145,7 +145,7 @@ class Campaign:
             with engine.connect() as conn:
                 result = conn.execute(text("""
                     SELECT id, name, type, description, email_template, priority, 
-                           schedule_date, followup_days, selection_criteria, status, 
+                           schedule_date, followup_days, selection_criteria, campaign_settings, status, 
                            created_at, updated_at
                     FROM campaigns 
                     WHERE id = :id
