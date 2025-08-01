@@ -185,7 +185,7 @@ class DeepResearchEmailComposer:
         elif "[REPORT_LINK_PLACEHOLDER]" in body:
             # If no report URL available, fall back to generic message
             fallback_msg = "Happy to share how we helped Precise Imaging reduce appointment no-shows by 40% - similar healthcare operational challenges."
-            body = body.replace("P.S. I put together a strategic analysis for [Company] that covers these opportunities in detail. You can review it here: [REPORT_LINK_PLACEHOLDER]", f"P.S. {fallback_msg}")
+            body = body.replace("I put together a strategic analysis for [Company] that covers these opportunities in detail. You can review it here: [REPORT_LINK_PLACEHOLDER]", fallback_msg)
             print(f"❌ STEP 3 FALLBACK: No report URL available, used generic message")
         else:
             print(f"⚠️ STEP 3 WARNING: No placeholder found in email body - report link cannot be added")
