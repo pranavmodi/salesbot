@@ -61,12 +61,12 @@ class DeepResearchEmailComposer:
             4. Add a blank line between paragraphs
             5. Second paragraph (3-4 sentences): Create a smooth transition that bridges their challenges to AI solutions. Start with a connecting sentence like "These are exactly the types of scaling challenges where AI agents can make the biggest impact" or "This is precisely why companies at your stage are turning to AI agents." Then introduce yourself: "I'm Pranav, founder of Possible Minds, and we've helped similar companies solve these specific challenges through bespoke AI agent solutions."
             6. Add a blank line
-            7. Third paragraph (2-4 bullet points): Use ONLY the benefits provided in the "AI Agent Benefits" section. If AI Agent Benefits are provided, use those exact benefits. If not provided, use general AI agent benefits relevant to their pain points. Use **bold** for key benefits.
-            8. Add a blank line
-            9. Fourth paragraph: Direct, specific call to action with calendar link as linked text. Use format like "Worth exploring? <a href="CALENDAR_URL">Let's schedule 15 minutes</a>" instead of showing the full URL.
-            10. Add a blank line
-            11. Sign-off on its own line (e.g., "Best," - DO NOT include name here, it will be added later)
-            12. Add a blank line, then include: "P.S. I put together a strategic analysis for [Company] that covers these opportunities in detail. You can review it here: [REPORT_LINK_PLACEHOLDER]"
+            7. Third paragraph: Start with an intro sentence like "Here are a couple of AI agent ideas specifically for your organization, based on our research:" then add a blank line and include 2-4 bullet points using ONLY the benefits provided in the "AI Agent Benefits" section. If AI Agent Benefits are provided, use those exact benefits. If not provided, use general AI agent benefits relevant to their pain points. Use **bold** for key benefits.
+            8. Add a blank line, then include: "I put together a strategic analysis for [Company] that covers these opportunities in detail. You can review it here: [REPORT_LINK_PLACEHOLDER]"
+            9. Add a blank line
+            10. Fourth paragraph: Direct, specific call to action with calendar link as linked text. Use format like "Worth exploring? <a href="CALENDAR_URL">Let's schedule 15 minutes</a>" instead of showing the full URL.
+            11. Add a blank line
+            12. Sign-off on its own line (e.g., "Best," - DO NOT include name here, it will be added later)
 
             IMPORTANT: 
             - If company research is provided, MUST use specific insights from it

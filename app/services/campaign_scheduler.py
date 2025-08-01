@@ -829,18 +829,17 @@ def _can_send_email_now(campaign_id: int) -> bool:
             
             last_email_time = row.last_email_time
             
-            # Database times are stored in campaign timezone, convert to UTC for comparison  
+            # Database times are stored in server timezone (IST), convert to UTC for comparison  
             import pytz
             
-            # Get campaign timezone from settings
-            campaign_timezone_str = settings.get('timezone', 'UTC')
-            campaign_tz = pytz.timezone(campaign_timezone_str)
+            # Server timezone (where database is running)
+            server_tz = pytz.timezone('Asia/Kolkata')  # IST
             utc_tz = pytz.UTC
             
-            # If last_email_time is timezone-naive, assume it's in campaign timezone
+            # If last_email_time is timezone-naive, assume it's in server timezone (IST)
             if last_email_time.tzinfo is None:
-                last_email_time_campaign_tz = campaign_tz.localize(last_email_time)
-                last_email_time_utc = last_email_time_campaign_tz.astimezone(utc_tz)
+                last_email_time_server_tz = server_tz.localize(last_email_time)
+                last_email_time_utc = last_email_time_server_tz.astimezone(utc_tz)
             else:
                 last_email_time_utc = last_email_time.astimezone(utc_tz)
             
