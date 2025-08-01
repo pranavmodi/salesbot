@@ -1454,60 +1454,50 @@ function setDetailsLoadingState(isLoading) {
 
 function populateCampaignDetails(campaign) {
     if (!campaign) return;
-    
+
     // Update modal title
     const titleElement = document.getElementById('campaignDetailsTitle');
     if (titleElement) {
         titleElement.textContent = `${campaign.name} - Details`;
     }
-    
+
     // Basic Information
     const setElementText = (id, value) => {
         const element = document.getElementById(id);
         if (element) element.textContent = value;
     };
-    
+
     setElementText('detailsCampaignName', campaign.name || 'N/A');
     setElementText('detailsCampaignType', (campaign.type || 'cold_outreach').replace('_', ' ').toUpperCase());
     setElementText('detailsEmailTemplate', getEmailTemplateDisplayName(campaign.email_template || 'deep_research'));
     setElementText('detailsFollowupDays', `${campaign.followup_days || 3} days`);
-    
-    // Helper function to format dates in campaign timezone
-    const campaignTimezone = campaign.timezone || 'UTC';
-    const formatDateInTimezone = (dateString, defaultText = '') => {
-        if (!dateString) return defaultText;
-        const date = new Date(dateString);
-        try {
-            return date.toLocaleString('en-US', {
-                timeZone: campaignTimezone === 'UTC' ? 'UTC' : campaignTimezone,
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                timeZoneName: 'short'
-            });
-        } catch (e) {
-            // Fallback if timezone is invalid
-            return date.toLocaleString() + ` (${campaignTimezone})`;
-        }
-    };
-    
+
     // Dates - show in campaign timezone
+    const campaignTimezone = campaign.timezone || 'UTC';
     if (campaign.created_at) {
-        setElementText('detailsCreatedAt', formatDateInTimezone(campaign.created_at));
+        setElementText('detailsCreatedAt', formatDateInTimezone(campaign.created_at, campaignTimezone));
     }
     if (campaign.updated_at) {
-        setElementText('detailsUpdatedAt', formatDateInTimezone(campaign.updated_at));
+        setElementText('detailsUpdatedAt', formatDateInTimezone(campaign.updated_at, campaignTimezone));
     }
-    
+
+    // Add relative dates for created_at and updated_at
+    const createdAtElement = document.getElementById('detailsCreatedAt');
+    if (createdAtElement && campaign.created_at) {
+        createdAtElement.innerHTML += ` <small class="text-muted">(${getRelativeDate(campaign.created_at)})</small>`;
+    }
+    const updatedAtElement = document.getElementById('detailsUpdatedAt');
+    if (updatedAtElement && campaign.updated_at) {
+        updatedAtElement.innerHTML += ` <small class="text-muted">(${getRelativeDate(campaign.updated_at)})</small>`;
+    }
+
     // Status badges
     const statusElement = document.getElementById('detailsCampaignStatus');
     if (statusElement) {
         statusElement.className = `badge ${getStatusBadgeClass(campaign.status)}`;
         statusElement.textContent = (campaign.status || 'unknown').toUpperCase();
     }
-    
+
     // Metrics
     setElementText('detailsTotalContacts', campaign.total_contacts || campaign.target_contacts_count || 0);
     setElementText('detailsEmailsSent', campaign.sent_emails || campaign.emails_sent || 0);
@@ -1515,13 +1505,13 @@ function populateCampaignDetails(campaign) {
     setElementText('detailsSuccessRate', `${campaign.success_rate || 0}%`);
     setElementText('detailsResponses', campaign.responses_received || 0);
     setElementText('detailsActiveContacts', campaign.active_contacts || 0);
-    
+
     // Timeline - show in campaign timezone
-    setElementText('detailsFirstEmail', formatDateInTimezone(campaign.first_email_date, 'No emails sent yet'));
-    setElementText('detailsLastEmail', formatDateInTimezone(campaign.last_email_date, 'No emails sent yet'));
+    setElementText('detailsFirstEmail', formatDateInTimezone(campaign.first_email_date, campaignTimezone, 'No emails sent yet'));
+    setElementText('detailsLastEmail', formatDateInTimezone(campaign.last_email_date, campaignTimezone, 'No emails sent yet'));
     setElementText('detailsUniqueRecipients', campaign.unique_recipients || 0);
     setElementText('detailsTotalEmails', campaign.total_emails || 0);
-    
+
     // Update campaign action buttons based on status
     updateCampaignActionButtons(campaign);
 }
@@ -1633,17 +1623,26 @@ function getStatusBadge(status) {
 }
 
 function getRelativeDate(dateString) {
+    if (!dateString) return '';
     const date = new Date(dateString);
     const now = new Date();
-    const diffTime = Math.abs(now - date);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const diffTime = now - date;
+    const diffSeconds = Math.round(diffTime / 1000);
+    const diffMinutes = Math.round(diffSeconds / 60);
+    const diffHours = Math.round(diffMinutes / 60);
+    const diffDays = Math.round(diffHours / 24);
+
+    if (diffSeconds < 60) return `${diffSeconds}s ago`;
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays === 1) return `Yesterday`;
+    if (diffDays < 7) return `${diffDays}d ago`;
     
-    if (diffDays === 1) return 'Today';
-    if (diffDays === 2) return 'Yesterday';
-    if (diffDays <= 7) return `${diffDays} days ago`;
-    if (diffDays <= 30) return `${Math.ceil(diffDays / 7)} weeks ago`;
-    if (diffDays <= 365) return `${Math.ceil(diffDays / 30)} months ago`;
-    return `${Math.ceil(diffDays / 365)} years ago`;
+    return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+    });
 }
 
 
@@ -2366,19 +2365,46 @@ function resetCampaignForTesting(campaignId) {
     });
 }
 
+// Helper function to format a date string into a more readable format in a specific timezone.
+function formatDateInTimezone(dateString, timeZone, format = 'long') {
+    if (!dateString) {
+        return 'N/A';
+    }
+    try {
+        const date = new Date(dateString);
+        const options = {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZoneName: 'short',
+            timeZone: timeZone,
+        };
+        return new Intl.DateTimeFormat('en-US', options).format(date);
+    } catch (e) {
+        console.error(`Error formatting date: ${e}`);
+        return dateString; // Fallback to original string
+    }
+}
+
 function viewCampaignSchedule(campaignId, campaignName) {
     console.log('Loading campaign schedule for:', campaignId, campaignName);
-    
+
+    // Get campaign data to access timezone
+    const campaignData = getCurrentCampaignData(campaignId);
+    const campaignTimezone = campaignData ? campaignData.timezone : 'UTC'; // Default to UTC
+
     // Show the schedule modal immediately with loading state
     const modal = new bootstrap.Modal(document.getElementById('campaignScheduleModal'));
     modal.show();
-    
+
     // Set modal title
     const titleElement = document.getElementById('campaignScheduleTitle');
     if (titleElement) {
         titleElement.textContent = `${campaignName} - Schedule`;
     }
-    
+
     // Set loading state for schedule content
     const scheduleContent = document.getElementById('scheduleContent');
     if (scheduleContent) {
@@ -2391,10 +2417,94 @@ function viewCampaignSchedule(campaignId, campaignName) {
             </div>
         `;
     }
-    
-    // Initialize schedule data loading
-    initializeCampaignSchedule(campaignId);
+
+    // Fetch schedule data
+    fetch(`/api/campaigns/${campaignId}/schedule`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayCampaignSchedule(data, campaignName, campaignId, campaignTimezone);
+            } else {
+                throw new Error(data.message || 'Failed to load schedule');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading campaign schedule:', error);
+            if (scheduleContent) {
+                scheduleContent.innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                        <h5 class="text-danger">Failed to Load Schedule</h5>
+                        <p class="text-muted">${error.message}</p>
+                        <button class="btn btn-outline-primary" onclick="viewCampaignSchedule(${campaignId}, '${campaignName.replace(/'/g, '&apos;')}')">
+                            <i class="fas fa-refresh me-2"></i>Retry
+                        </button>
+                    </div>
+                `;
+            }
+        });
 }
+
+function displayCampaignSchedule(scheduleData, campaignName, campaignId, timeZone) {
+    const scheduleContent = document.getElementById('scheduleContent');
+    if (!scheduleContent) {
+        console.error('scheduleContent element not found');
+        return;
+    }
+
+    const pendingEmails = scheduleData.pending_emails || [];
+    const sentEmails = scheduleData.sent_emails || [];
+
+    const renderTable = (title, emails, isPending) => {
+        let rows = '';
+        if (emails.length === 0) {
+            rows = '<tr><td colspan="4" class="text-center text-muted">No emails in this category.</td></tr>';
+        } else {
+            emails.forEach(job => {
+                const time = isPending ? job.scheduled_time : job.sent_time;
+                const formattedTime = formatDateInTimezone(time, timeZone);
+                const relativeTime = getRelativeDate(time);
+                const statusBadge = getStatusBadge(job.status);
+                
+                rows += `
+                    <tr>
+                        <td>${job.recipient_email}</td>
+                        <td>${formattedTime}</td>
+                        <td>${relativeTime}</td>
+                        <td>${statusBadge}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        return `
+            <div class="mb-4">
+                <h5 class="mb-3">${title} (${emails.length})</h5>
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Contact</th>
+                                <th>${isPending ? 'Scheduled Time' : 'Sent Time'}</th>
+                                <th>Relative Time</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    };
+
+    scheduleContent.innerHTML = `
+        ${renderTable('Pending Emails', pendingEmails, true)}
+        ${renderTable('Sent Emails', sentEmails, false)}
+    `;
+}
+
 
 function initializeCampaignSchedule(campaignId) {
     // Store current campaign ID for auto-refresh
