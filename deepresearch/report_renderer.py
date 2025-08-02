@@ -153,13 +153,19 @@ class ReportRenderer:
             # Render HTML
             html_content = self._render_html_template(template_vars)
             
-            # Generate PDF if WeasyPrint is available
-            if self._init_weasyprint():
+            # Generate PDF if WeasyPrint is available and not disabled
+            import os
+            pdf_disabled = os.getenv('DISABLE_PDF_GENERATION', 'false').lower() == 'true'
+            
+            if pdf_disabled:
+                pdf_bytes = b''  # Skip PDF generation
+                logger.info(f"Successfully rendered HTML report for {company_name} (HTML: {len(html_content)} chars, PDF disabled by environment variable)")
+            elif self._init_weasyprint():
                 pdf_bytes = self._generate_pdf_from_html(html_content)
                 logger.info(f"Successfully rendered report for {company_name} (HTML: {len(html_content)} chars, PDF: {len(pdf_bytes)} bytes)")
             else:
                 pdf_bytes = b''  # Empty bytes for PDF
-                logger.info(f"Successfully rendered HTML report for {company_name} (HTML: {len(html_content)} chars, PDF disabled)")
+                logger.info(f"Successfully rendered HTML report for {company_name} (HTML: {len(html_content)} chars, PDF disabled - WeasyPrint unavailable)")
             
             return html_content, pdf_bytes
             
@@ -183,17 +189,30 @@ class ReportRenderer:
             logger.warning("WeasyPrint not available, cannot generate PDF")
             return b''
             
+        html_doc = None
         try:
             # Create HTML document
             html_doc = HTML(string=html_content)
             
-            # Generate PDF (modern WeasyPrint API)
+            # Generate PDF (modern WeasyPrint API)  
             pdf_bytes = html_doc.write_pdf()
             
             return pdf_bytes
         except Exception as e:
             logger.error(f"Error generating PDF from HTML: {e}")
-            raise
+            # Return empty bytes instead of raising to prevent crashes
+            return b''
+        finally:
+            # Cleanup resources to prevent semaphore leaks
+            if html_doc is not None:
+                try:
+                    del html_doc
+                except:
+                    pass
+            
+            # Force garbage collection to clean up WeasyPrint resources
+            import gc
+            gc.collect()
 
     def _format_strategic_content_for_html(self, content: str) -> str:
         """Format strategic content from markdown to HTML-friendly format with structured output support."""

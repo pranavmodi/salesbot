@@ -309,51 +309,90 @@ class DeepResearchEmailComposer:
             print(f"📤 DEBUG: Headers: {headers_safe}")
             print(f"📦 DEBUG: Payload size: {len(raw_body)} bytes")
             
-            # Make the request to publish (using raw JSON string) with session for proper cleanup
-            with requests.Session() as session:
-                response = session.post(
+            # Use urllib3 directly to avoid requests connection pooling that causes semaphore leaks
+            import urllib3
+            import json as json_module
+            from urllib.parse import urlparse
+            
+            # Disable urllib3 warnings for unverified HTTPS
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            
+            # Parse URL to get host and path
+            parsed_url = urlparse(NETLIFY_PUBLISH_URL)
+            
+            # Create a single-use HTTP pool manager
+            http = urllib3.PoolManager(
+                num_pools=1,
+                maxsize=1,
+                block=False,
+                timeout=urllib3.Timeout(connect=10, read=30)
+            )
+            
+            try:
+                response = http.request(
+                    'POST',
                     NETLIFY_PUBLISH_URL,
-                    headers=headers,
-                    data=raw_body,  # Use raw JSON string for signature validation
-                    timeout=30
+                    body=raw_body,
+                    headers=headers
                 )
                 
-                print(f"📥 DEBUG: Response status: {response.status_code}")
-                print(f"📄 DEBUG: Response content-type: {response.headers.get('content-type', 'unknown')}")
+                # Convert urllib3 response to requests-like response object for compatibility
+                class ResponseWrapper:
+                    def __init__(self, urllib3_response):
+                        self.status_code = urllib3_response.status
+                        self.headers = dict(urllib3_response.headers)
+                        self._content = urllib3_response.data
+                        self.text = urllib3_response.data.decode('utf-8')
+                    
+                    def json(self):
+                        return json_module.loads(self.text)
                 
-                if response.status_code == 200:
-                    result = response.json()
-                    # Extract publishUrl from the nested data structure
-                    public_url = result.get('data', {}).get('publishUrl') or result.get('public_url')
+                response = ResponseWrapper(response)
                 
-                    if public_url:
-                        # Extract company slug from the public URL for click tracking
-                        import re
-                        slug_match = re.search(r'/reports/([^/?]+)', public_url)
-                        company_slug = slug_match.group(1) if slug_match else company.company_name.lower().replace(' ', '-').replace('&', 'and')
-                        
-                        # Create click tracking URL that routes through the tracking function first
-                        tracking_params = {
-                            'slug': company_slug,
-                            'utm_source': 'email',
-                            'utm_medium': 'outreach',
-                            'utm_campaign': 'deep_research',
-                            'utm_content': 'strategic_analysis',
-                            'company': company.company_name.lower().replace(' ', '_'),
-                            'recipient': recipient_email.split('@')[0] if recipient_email else 'unknown',
-                            'campaign_id': campaign_id if campaign_id else 'unknown'
-                        }
-                        
-                        base_tracking_url = "https://possibleminds.in/.netlify/functions/click-tracking"
-                        url_params = urllib.parse.urlencode(tracking_params)
-                        tracked_url = f"{base_tracking_url}?{url_params}"
-                        
-                        return tracked_url
-                    else:
-                        return ""
+            finally:
+                # Clean up the pool manager
+                http.clear()
+                del http
+                # Force garbage collection to clean up any lingering HTTP resources
+                import gc
+                gc.collect()
+            
+            print(f"📥 DEBUG: Response status: {response.status_code}")
+            print(f"📄 DEBUG: Response content-type: {response.headers.get('content-type', 'unknown')}")
+            
+            if response.status_code == 200:
+                result = response.json()
+                # Extract publishUrl from the nested data structure
+                public_url = result.get('data', {}).get('publishUrl') or result.get('public_url')
+            
+                if public_url:
+                    # Extract company slug from the public URL for click tracking
+                    import re
+                    slug_match = re.search(r'/reports/([^/?]+)', public_url)
+                    company_slug = slug_match.group(1) if slug_match else company.company_name.lower().replace(' ', '-').replace('&', 'and')
+                    
+                    # Create click tracking URL that routes through the tracking function first
+                    tracking_params = {
+                        'slug': company_slug,
+                        'utm_source': 'email',
+                        'utm_medium': 'outreach',
+                        'utm_campaign': 'deep_research',
+                        'utm_content': 'strategic_analysis',
+                        'company': company.company_name.lower().replace(' ', '_'),
+                        'recipient': recipient_email.split('@')[0] if recipient_email else 'unknown',
+                        'campaign_id': campaign_id if campaign_id else 'unknown'
+                    }
+                    
+                    base_tracking_url = "https://possibleminds.in/.netlify/functions/click-tracking"
+                    url_params = urllib.parse.urlencode(tracking_params)
+                    tracked_url = f"{base_tracking_url}?{url_params}"
+                    
+                    return tracked_url
                 else:
-                    print(f"❌ Report publishing failed (HTTP {response.status_code}): {response.text}")
                     return ""
+            else:
+                print(f"❌ Report publishing failed (HTTP {response.status_code}): {response.text}")
+                return ""
                 
         except Exception as e:
             print(f"❌ Report publishing error: {e}")

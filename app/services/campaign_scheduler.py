@@ -718,11 +718,10 @@ def _compose_fallback_email(campaign: Campaign, contact: Dict, settings: Dict) -
         if template_type == "alt_subject":
             composer = AltSubjectEmailComposer()
         elif template_type == "deep_research":
-            # Use thread-safe composer for deep research to prevent malloc errors
-            from app.services.thread_safe_email_composer import get_thread_safe_composer
-            thread_safe_composer = get_thread_safe_composer()
+            # Use direct composer to avoid thread-safe wrapper malloc issues
+            from email_composers.email_composer_deep_research import DeepResearchEmailComposer
+            composer = DeepResearchEmailComposer()
             
-            # Use the thread-safe compose method instead of creating direct instance
             lead_data = {
                 "name": contact.get('first_name') or contact.get('name') or 'there',
                 "email": contact.get('email'),
@@ -735,13 +734,12 @@ def _compose_fallback_email(campaign: Campaign, contact: Dict, settings: Dict) -
             calendar_url = os.getenv("CALENDAR_URL", "https://calendly.com/pranav-modi/15-minute-meeting")
             extra_context = f"This email is part of the '{campaign.name}' campaign."
             
-            current_app.logger.info(f"🛡️ DEBUG: Using thread-safe deep research composer for campaign {campaign.id}")
+            current_app.logger.info(f"📧 DEBUG: Using direct deep research composer for campaign {campaign.id}")
             
-            return thread_safe_composer.compose_email_safely(
+            return composer.compose_email(
                 lead=lead_data,
                 calendar_url=calendar_url,
                 extra_context=extra_context,
-                composer_type="deep_research",
                 campaign_id=campaign.id
             )
         elif template_type == "possible_minds":
