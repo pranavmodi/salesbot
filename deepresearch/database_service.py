@@ -425,3 +425,124 @@ class DatabaseService:
         except Exception as e:
             logger.error(f"Unexpected error updating company reports {company_id}: {e}")
             return False
+
+    def update_company_llm_research(self, company_id: int, prompt: str = None, status: str = None) -> bool:
+        """Update company with LLM research prompt and status."""
+        logger.info(f"Updating LLM research data for company ID: {company_id}")
+        
+        try:
+            with self.engine.connect() as conn:
+                with conn.begin():
+                    update_params = {'company_id': company_id}
+                    update_fields = []
+                    
+                    if prompt is not None:
+                        update_fields.append('llm_research_prompt = :prompt')
+                        update_params['prompt'] = prompt
+                    
+                    if status is not None:
+                        update_fields.append('llm_research_status = :status')
+                        update_params['status'] = status
+                    
+                    if not update_fields:
+                        logger.warning(f"No fields to update for company {company_id}")
+                        return False
+                    
+                    update_query = text(f"""
+                        UPDATE companies 
+                        SET {', '.join(update_fields)}, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :company_id
+                    """)
+                    result = conn.execute(update_query, update_params)
+                    
+                    if result.rowcount > 0:
+                        logger.info(f"Successfully updated LLM research data for company ID: {company_id}")
+                        return True
+                    else:
+                        logger.warning(f"No company found with ID: {company_id}")
+                        return False
+            
+        except SQLAlchemyError as e:
+            logger.error(f"Database error updating LLM research for company {company_id}: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error updating LLM research for company {company_id}: {e}")
+            return False
+
+    def store_llm_research_results(self, company_id: int, research_results: str, 
+                                  formatted_research: dict, validation_results: dict) -> bool:
+        """Store LLM research results with metadata."""
+        logger.info(f"Storing LLM research results for company ID: {company_id}")
+        
+        try:
+            with self.engine.connect() as conn:
+                with conn.begin():
+                    update_params = {
+                        'company_id': company_id,
+                        'research_results': research_results,
+                        'research_method': formatted_research.get('research_method', 'llm_deep_research'),
+                        'word_count': formatted_research.get('word_count', 0),
+                        'character_count': formatted_research.get('character_count', 0),
+                        'quality_score': validation_results.get('quality_score', 0),
+                        'status': 'completed'
+                    }
+                    
+                    update_query = text("""
+                        UPDATE companies 
+                        SET llm_research_results = :research_results,
+                            llm_research_method = :research_method,
+                            llm_research_word_count = :word_count,
+                            llm_research_character_count = :character_count,
+                            llm_research_quality_score = :quality_score,
+                            llm_research_status = :status,
+                            llm_research_updated_at = CURRENT_TIMESTAMP,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :company_id
+                    """)
+                    result = conn.execute(update_query, update_params)
+                    
+                    if result.rowcount > 0:
+                        logger.info(f"Successfully stored LLM research results for company ID: {company_id}")
+                        return True
+                    else:
+                        logger.warning(f"No company found with ID: {company_id}")
+                        return False
+            
+        except SQLAlchemyError as e:
+            logger.error(f"Database error storing LLM research results for company {company_id}: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error storing LLM research results for company {company_id}: {e}")
+            return False
+
+    def get_all_companies(self) -> List[Dict]:
+        """Get all companies from the database."""
+        logger.info("Fetching all companies...")
+        
+        try:
+            with self.engine.connect() as conn:
+                result = conn.execute(text("""
+                    SELECT id, company_name, website_url, created_at, updated_at
+                    FROM companies 
+                    ORDER BY created_at DESC
+                """))
+                
+                companies = []
+                for row in result:
+                    companies.append({
+                        'id': row.id,
+                        'company_name': row.company_name,
+                        'website_url': row.website_url,
+                        'created_at': row.created_at,
+                        'updated_at': row.updated_at
+                    })
+                
+                logger.info(f"Found {len(companies)} companies total")
+                return companies
+                
+        except SQLAlchemyError as e:
+            logger.error(f"Database error fetching all companies: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error fetching all companies: {e}")
+            return []

@@ -35,6 +35,24 @@
         document.getElementById('viewStrategicReportBtn')?.addEventListener('click', viewStrategicReport);
         document.getElementById('publishReportBtn')?.addEventListener('click', publishReport);
 
+        // Research type selection event listeners
+        document.querySelectorAll('.research-type-card').forEach(card => {
+            card.addEventListener('click', function() {
+                const radio = this.querySelector('input[type="radio"]');
+                if (radio) {
+                    radio.checked = true;
+                    updateResearchTypeSelection();
+                }
+            });
+        });
+
+        document.querySelectorAll('input[name="researchType"]').forEach(radio => {
+            radio.addEventListener('change', updateResearchTypeSelection);
+        });
+
+        // Initialize research type selection
+        updateResearchTypeSelection();
+
         // Modal focus and accessibility management
         const modal = document.getElementById('deepResearchModal');
         if (modal) {
@@ -132,7 +150,11 @@
     }
 
     function loadResearchProgress(companyId) {
-        fetch(`/api/companies/${companyId}/research/progress`)
+        // Determine which research type is selected to use the correct endpoint
+        const selectedResearchType = getSelectedResearchType();
+        const progressUrl = getProgressUrl(selectedResearchType);
+        
+        fetch(progressUrl)
             .then(response => response.json())
             .then(data => {
                 console.log('Research progress loaded:', data);
@@ -151,7 +173,20 @@
             return;
         }
         
-        const status = data.research_status || 'pending';
+        // Determine if this is LLM research or standard research
+        const selectedResearchType = getSelectedResearchType();
+        const isLLMResearch = selectedResearchType === 'llm_step_by_step';
+        
+        let status;
+        if (isLLMResearch) {
+            // LLM research has different status structure
+            status = data.current_status || 'not_started';
+            if (data.current_step === 'completed') status = 'completed';
+            else if (data.current_status && data.current_status.includes('error')) status = 'failed';
+            else if (data.current_step && data.current_step.startsWith('step_')) status = 'in_progress';
+        } else {
+            status = data.research_status || 'pending';
+        }
         
         // Update company URL (we'll need to get it from the company details separately)
         const urlElement = document.getElementById('deepResearchCompanyUrl');
@@ -159,9 +194,9 @@
             urlElement.textContent = ''; // We'll populate this from company details if needed
         }
 
-        // Display progress based on status
-        displayProgressBar(data);
-        displayResearchSteps(data);
+        // Always display LLM research progress
+        updateLLMResearchProgress(data);
+        
         updateActionButtons(status, data);
 
         // Start polling if research is in progress
@@ -172,109 +207,6 @@
         }
     }
 
-    function displayProgressBar(data) {
-        const progressContainer = document.getElementById('deepResearchProgress');
-        if (!progressContainer) return;
-
-        const status = data.research_status || 'pending';
-        const completedSteps = data.steps_completed || 0;
-        const totalSteps = data.total_steps || 3;
-
-        const progressPercentage = status === 'completed' ? 100 : (completedSteps / totalSteps) * 100;
-
-        let progressClass = 'bg-info';
-        if (status === 'completed') progressClass = 'bg-success';
-        else if (status === 'failed') progressClass = 'bg-danger';
-        else if (status === 'in_progress') progressClass = 'bg-warning';
-
-        progressContainer.innerHTML = `
-            <div class="research-progress-header mb-3">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0">Research Progress</h6>
-                    <span class="badge ${getStatusBadgeClass(status)}">${status.replace('_', ' ').toUpperCase()}</span>
-                </div>
-            </div>
-            <div class="progress mb-2" style="height: 20px;">
-                <div class="progress-bar ${progressClass}" role="progressbar" 
-                     style="width: ${progressPercentage}%" 
-                     aria-valuenow="${progressPercentage}" 
-                     aria-valuemin="0" 
-                     aria-valuemax="100">
-                    ${Math.round(progressPercentage)}%
-                </div>
-            </div>
-            <div class="d-flex justify-content-between small text-muted">
-                <span>0%</span>
-                <span>${completedSteps} of ${totalSteps} steps completed</span>
-                <span>100%</span>
-            </div>
-        `;
-    }
-
-    function displayResearchSteps(data) {
-        const stepsContainer = document.getElementById('deepResearchSteps');
-        if (!stepsContainer) return;
-
-        const steps = [
-            { 
-                name: 'Basic Research', 
-                key: 'step_1',
-                description: 'Gathering basic company information and overview',
-                icon: 'fas fa-search'
-            },
-            { 
-                name: 'Strategic Analysis', 
-                key: 'step_2',
-                description: 'Analyzing business strategy and competitive position',
-                icon: 'fas fa-chart-line'
-            },
-            { 
-                name: 'Final Report', 
-                key: 'step_3',
-                description: 'Generating comprehensive markdown report',
-                icon: 'fas fa-file-alt'
-            }
-        ];
-
-        let stepsHtml = '<div class="research-steps-container">';
-        
-        steps.forEach((step, index) => {
-            const stepStatus = data.step_statuses?.[step.key];
-            const isCompleted = stepStatus?.completed || false;
-            const isActive = data.research_status === 'in_progress' && !isCompleted;
-            
-            let stepClass = 'step-pending';
-            if (isCompleted) stepClass = 'step-completed';
-            else if (isActive) stepClass = 'step-active';
-
-            stepsHtml += `
-                <div class="research-step ${stepClass}" data-step="${index + 1}">
-                    <div class="step-header d-flex align-items-center">
-                        <div class="step-icon me-3">
-                            <i class="${step.icon}"></i>
-                        </div>
-                        <div class="step-info flex-grow-1">
-                            <h6 class="step-title mb-1">${step.name}</h6>
-                            <p class="step-description mb-0 text-muted">${step.description}</p>
-                        </div>
-                        <div class="step-status ms-2">
-                            ${isCompleted ? '<i class="fas fa-check-circle text-success"></i>' : 
-                              isActive ? '<div class="spinner-border spinner-border-sm text-warning" role="status"></div>' :
-                              '<i class="fas fa-circle text-muted"></i>'}
-                        </div>
-                        ${isCompleted ? `
-                            <button class="btn btn-sm btn-outline-primary ms-2" onclick="window.viewStepContent(${index + 1})">
-                                <i class="fas fa-eye"></i> View
-                            </button>
-                        ` : ''}
-                    </div>
-                </div>
-            `;
-        });
-        
-        stepsHtml += '</div>';
-        stepsContainer.innerHTML = stepsHtml;
-    }
 
     function updateActionButtons(status, data = null) {
         const startBtn = document.getElementById('startDeepResearchBtn');
@@ -348,20 +280,19 @@
     function startDeepResearch(forceRefresh = false) {
         if (!currentResearchCompanyId) return;
 
-        const url = `/api/companies/${currentResearchCompanyId}/research`;
-        const method = 'POST';
-        const body = forceRefresh ? JSON.stringify({ force_refresh: true }) : JSON.stringify({});
-
+        const selectedResearchType = getSelectedResearchType();
+        const researchConfig = getResearchConfig(selectedResearchType, forceRefresh);
+        
         isResearchInProgress = true;
         showResearchLog();
-        addLogMessage('Starting deep research process...');
+        addLogMessage('Starting AI Deep Research process...');
 
-        fetch(url, {
-            method: method,
+        fetch(researchConfig.url, {
+            method: researchConfig.method,
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: body
+            body: researchConfig.body
         })
         .then(response => response.json())
         .then(data => {
@@ -384,34 +315,8 @@
     }
 
     function resumeDeepResearch() {
-        if (!currentResearchCompanyId) return;
-
-        addLogMessage('Resuming research process...');
-        
-        fetch(`/api/companies/${currentResearchCompanyId}/research/resume`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({})
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                addLogMessage('Research resumed successfully');
-                isResearchInProgress = true;
-                updateActionButtons('in_progress');
-                startProgressPolling();
-            } else {
-                addLogMessage(`Error: ${data.error}`);
-                showError(data.error);
-            }
-        })
-        .catch(error => {
-            console.error('Error resuming research:', error);
-            addLogMessage(`Error: ${error.message}`);
-            showError('Failed to resume research');
-        });
+        // Resume functionality not needed for LLM research - it handles continuation automatically
+        showError('Resume not needed - LLM research continues automatically from interruptions');
     }
 
     function stopResearch() {
@@ -511,21 +416,8 @@
     };
 
     window.viewStepContent = function(stepNumber) {
-        if (!currentResearchCompanyId) return;
-
-        fetch(`/api/companies/${currentResearchCompanyId}/research/step/${stepNumber}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showStepDetailModal(data.step_title, data.content, stepNumber);
-                } else {
-                    showError('Failed to load step content');
-                }
-            })
-            .catch(error => {
-                console.error('Error loading step content:', error);
-                showError('Failed to load step content');
-            });
+        // Old step viewing not supported - use LLM step viewing instead
+        showError('This feature is only available for LLM Deep Research. Please use the LLM research option.');
     };
 
     function showStepDetailModal(stepName, content, stepNumber) {
@@ -819,6 +711,342 @@
             debugContainer.style.display = 'none';
         }
     }
+
+    // Research Type Selection Functions
+    function getSelectedResearchType() {
+        // Always return LLM research since it's the only option
+        return 'llm_step_by_step';
+    }
+
+    function getResearchConfig(researchType, forceRefresh = false) {
+        const baseConfig = {
+            force_refresh: forceRefresh || document.getElementById('forceRefreshOption')?.checked || false
+        };
+
+        // Always use LLM deep research
+        const provider = document.getElementById('llmProviderSelect')?.value || 'claude';
+        return {
+            url: `/api/companies/${currentResearchCompanyId}/llm-step-research`,
+            method: 'POST',
+            body: JSON.stringify({
+                ...baseConfig,
+                provider: provider
+            })
+        };
+    }
+
+    function updateResearchTypeSelection() {
+        const selectedType = getSelectedResearchType();
+        
+        // Update card visual states
+        document.querySelectorAll('.research-type-card').forEach(card => {
+            const radio = card.querySelector('input[type="radio"]');
+            if (radio && radio.checked) {
+                card.classList.add('border-primary');
+                card.classList.remove('border-light');
+            } else {
+                card.classList.remove('border-primary');
+                card.classList.add('border-light');
+            }
+        });
+
+        // Update the LLM provider select visibility
+        const llmProviderSelect = document.getElementById('llmProviderSelect');
+        if (llmProviderSelect) {
+            llmProviderSelect.style.display = selectedType === 'llm_step_by_step' ? 'inline-block' : 'none';
+        }
+
+        // Update start button text
+        const startBtn = document.getElementById('startDeepResearchBtn');
+        if (startBtn) {
+            startBtn.innerHTML = '<i class="fas fa-brain me-1"></i>Start Deep Research';
+        }
+
+        console.log(`Research type updated: ${selectedType}`);
+    }
+
+    // Progress polling needs to be updated for different research types
+    function getProgressUrl(researchType) {
+        // Always use LLM progress endpoint
+        return `/api/companies/${currentResearchCompanyId}/llm-step-progress`;
+    }
+
+    // Update progress polling to handle different research types
+    function startProgressPolling() {
+        if (researchProgressInterval) {
+            clearInterval(researchProgressInterval);
+        }
+
+        const selectedResearchType = getSelectedResearchType();
+        
+        researchProgressInterval = setInterval(() => {
+            if (!isResearchInProgress || !currentResearchCompanyId) {
+                clearInterval(researchProgressInterval);
+                researchProgressInterval = null;
+                return;
+            }
+
+            const progressUrl = getProgressUrl(selectedResearchType);
+            
+            fetch(progressUrl)
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        addLogMessage(`Progress error: ${data.error || 'Unknown error'}`);
+                        return;
+                    }
+                    
+                    updateResearchProgress(data, selectedResearchType);
+                    
+                    // Check completion for LLM research
+                    const isComplete = data.current_step === 'completed' || data.is_complete;
+                    
+                    if (isComplete) {
+                        addLogMessage('Research completed successfully!');
+                        isResearchInProgress = false;
+                        updateActionButtons('completed', data);
+                        clearInterval(researchProgressInterval);
+                        researchProgressInterval = null;
+                        showSuccess('Deep research completed successfully!');
+                    } else if (data.research_status === 'failed' || (data.current_status && data.current_status.includes('error'))) {
+                        addLogMessage(`Research failed: ${data.research_error || data.error || 'Unknown error'}`);
+                        isResearchInProgress = false;
+                        updateActionButtons('failed', data);
+                        clearInterval(researchProgressInterval);
+                        researchProgressInterval = null;
+                        showError('Research failed. You can try to resume or start fresh.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error polling progress:', error);
+                    addLogMessage(`Progress polling error: ${error.message}`);
+                });
+        }, 2000); // Poll every 2 seconds
+    }
+
+    function updateResearchProgress(data, researchType) {
+        // Always use LLM research progress
+        updateLLMResearchProgress(data);
+    }
+
+    function updateLLMResearchProgress(data) {
+        const progressContainer = document.getElementById('deepResearchProgress');
+        if (!progressContainer) return;
+
+        const progressPercentage = data.progress_percentage || 0;
+        const currentStep = data.current_step || 'step_1';
+        const stepDetails = data.step_details || [];
+        const currentStatus = data.current_status || 'not_started';
+
+        // Determine progress bar class based on status
+        let progressClass = 'progress-bar-striped progress-bar-animated bg-info';
+        if (currentStep === 'completed') {
+            progressClass = 'bg-success';
+        } else if (currentStatus.includes('error')) {
+            progressClass = 'bg-danger';
+        } else if (currentStep && currentStep.startsWith('step_')) {
+            progressClass = 'progress-bar-striped progress-bar-animated bg-warning';
+        }
+
+        // Create user-friendly status text
+        let statusText = currentStatus;
+        if (currentStep === 'completed') {
+            statusText = 'Research Completed';
+        } else if (currentStatus.includes('error')) {
+            statusText = 'Research Failed';
+        } else if (currentStep === 'step_1') {
+            statusText = 'Conducting Web Research';
+        } else if (currentStep === 'step_2') {
+            statusText = 'Analyzing Strategy';
+        } else if (currentStep === 'step_3') {
+            statusText = 'Generating Report';
+        } else if (currentStatus === 'not_started') {
+            statusText = 'Ready to Start';
+        }
+
+        // Update progress bar
+        progressContainer.innerHTML = `
+            <div class="research-progress-header mb-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">AI Deep Research Progress</h6>
+                    <span class="badge ${getStatusBadgeClass(currentStatus)}">${statusText}</span>
+                </div>
+            </div>
+            <div class="progress mb-2" style="height: 20px;">
+                <div class="progress-bar ${progressClass}" 
+                     role="progressbar" 
+                     style="width: ${progressPercentage}%" 
+                     aria-valuenow="${progressPercentage}" 
+                     aria-valuemin="0" 
+                     aria-valuemax="100">
+                    ${Math.round(progressPercentage)}%
+                </div>
+            </div>
+            <div class="d-flex justify-content-between small text-muted">
+                <span>Start</span>
+                <span>${data.steps_completed || 0} of ${data.total_steps || 3} steps completed</span>
+                <span>Finished</span>
+            </div>
+        `;
+
+        // Update steps display
+        updateLLMStepsDisplay(stepDetails);
+    }
+
+    function updateLLMStepsDisplay(stepDetails) {
+        const stepsContainer = document.getElementById('deepResearchSteps');
+        if (!stepsContainer) return;
+
+        let stepsHtml = '<div class="llm-research-steps">';
+        
+        stepDetails.forEach((step, index) => {
+            const statusClass = step.status === 'completed' ? 'text-success' : 
+                               step.status === 'error' ? 'text-danger' :
+                               step.status === 'prompt_ready' ? 'text-warning' : 'text-muted';
+            const statusIcon = step.status === 'completed' ? 'fa-check-circle' :
+                              step.status === 'error' ? 'fa-exclamation-circle' :
+                              step.status === 'prompt_ready' ? 'fa-clock' : 'fa-circle';
+
+            // Get user-friendly step names
+            let stepName = step.name;
+            let stepDescription = step.description;
+            if (step.step === 1) {
+                stepName = 'Web Research & Data Collection';
+                stepDescription = 'Gathering comprehensive company intelligence using AI web search';
+            } else if (step.step === 2) {
+                stepName = 'Strategic Analysis';
+                stepDescription = 'Analyzing business strategy, market position, and opportunities';
+            } else if (step.step === 3) {
+                stepName = 'Report Generation';
+                stepDescription = 'Creating comprehensive business intelligence reports';
+            }
+
+            // Show spinner for active steps
+            const isActive = step.status === 'in_progress' || (step.status === 'prompt_ready' && !step.has_results);
+            const spinnerHtml = isActive ? `
+                <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                    <span class="visually-hidden">Processing...</span>
+                </div>
+            ` : '';
+
+            stepsHtml += `
+                <div class="llm-step-card card mb-2 ${step.status === 'completed' ? 'border-success' : step.status === 'error' ? 'border-danger' : isActive ? 'border-warning' : ''}">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="step-icon me-3">
+                                ${spinnerHtml}
+                                <i class="fas ${statusIcon} ${statusClass}"></i>
+                            </div>
+                            <div class="step-info flex-grow-1">
+                                <h6 class="mb-1">${stepName}</h6>
+                                <small class="text-muted">${stepDescription}</small>
+                                ${step.has_error ? `<div class="mt-1"><small class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>${step.error_message}</small></div>` : ''}
+                            </div>
+                            <div class="step-actions">
+                                ${step.has_error ? `
+                                    <button class="btn btn-sm btn-outline-danger" onclick="showErrorDetails('${step.error_message.replace(/'/g, "\\'")}', '${stepName}')">
+                                        <i class="fas fa-exclamation-triangle"></i> View Error
+                                    </button>
+                                ` : step.has_results ? `
+                                    <button class="btn btn-sm btn-outline-primary" onclick="viewLLMStepContent('step_${step.step}')">
+                                        <i class="fas fa-eye"></i> View Results
+                                    </button>
+                                ` : isActive ? `
+                                    <span class="badge bg-warning">Processing...</span>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        stepsHtml += '</div>';
+        stepsContainer.innerHTML = stepsHtml;
+    }
+
+
+    // Global function for viewing LLM step content
+    window.viewLLMStepContent = function(stepName) {
+        if (!currentResearchCompanyId) return;
+        
+        const url = `/api/companies/${currentResearchCompanyId}/llm-step/${stepName}`;
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show step content in modal or new window
+                    const modal = new bootstrap.Modal(document.getElementById('stepDetailModal'));
+                    document.getElementById('stepDetailModalLabel').textContent = data.step_title;
+                    document.getElementById('stepDetailContent').innerHTML = `
+                        <div class="step-content">
+                            <div class="mb-3">
+                                <strong>Content Type:</strong> <span class="badge bg-info">${data.content_type}</span>
+                                <strong class="ms-3">Length:</strong> ${data.word_count} words
+                            </div>
+                            <pre class="bg-light p-3 rounded" style="white-space: pre-wrap; max-height: 60vh; overflow-y: auto;">${data.content}</pre>
+                        </div>
+                    `;
+                    modal.show();
+                } else {
+                    showError(`Failed to load step content: ${data.message}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error loading step content:', error);
+                showError('Failed to load step content');
+            });
+    };
+
+    // Global function to show error details
+    window.showErrorDetails = function(errorMessage, stepName) {
+        const modal = new bootstrap.Modal(document.getElementById('stepDetailModal'));
+        const modalTitle = document.getElementById('stepDetailModalLabel');
+        const modalContent = document.getElementById('stepDetailContent');
+        
+        modalTitle.textContent = `Error in ${stepName}`;
+        modalContent.innerHTML = `
+            <div class="alert alert-danger">
+                <h6><i class="fas fa-exclamation-triangle me-2"></i>Research Error</h6>
+                <p class="mb-0">${errorMessage}</p>
+                
+                <hr>
+                <h6>Common Solutions:</h6>
+                <ul class="mb-0">
+                    <li><strong>Rate Limiting (429):</strong> Wait a few minutes and try again</li>
+                    <li><strong>Quota Exceeded:</strong> Check your API billing and plan limits</li>
+                    <li><strong>Authentication (401):</strong> Verify API keys in configuration</li>
+                    <li><strong>Network Issues:</strong> Check internet connection and try again</li>
+                </ul>
+                
+                <div class="mt-3">
+                    <button class="btn btn-warning btn-sm" onclick="retryFailedStep('${stepName}')">
+                        <i class="fas fa-redo me-1"></i>Retry Step
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        modal.show();
+    };
+    
+    // Global function to retry a failed step
+    window.retryFailedStep = function(stepName) {
+        // Close the error modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('stepDetailModal'));
+        if (modal) modal.hide();
+        
+        // Show retry confirmation
+        if (confirm(`Retry ${stepName}? This will restart the research step.`)) {
+            // Trigger research restart with force refresh
+            if (currentResearchCompanyId) {
+                console.log(`Retrying ${stepName} for company ${currentResearchCompanyId}`);
+                // You could implement a retry mechanism here
+                location.reload(); // Simple solution: reload the page
+            }
+        }
+    };
 
 
 

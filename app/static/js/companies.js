@@ -641,7 +641,7 @@ function displayCompanyDetails(company) {
         const viewReportBtn = document.getElementById('viewReportBtn');
         
         if (deepResearchBtn) {
-            deepResearchBtn.onclick = () => triggerDeepResearch(company.id, company.company_name);
+            deepResearchBtn.onclick = () => openDeepResearchModal(company.id, company.company_name);
         }
         
         if (triggerResearchBtn) {

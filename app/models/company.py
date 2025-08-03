@@ -30,6 +30,27 @@ class Company:
         self.research_completed_at = data.get('research_completed_at')
         self.research_error = data.get('research_error', '')
         
+        # LLM deep research fields
+        self.llm_research_prompt = data.get('llm_research_prompt', '')
+        self.llm_research_results = data.get('llm_research_results', '')
+        self.llm_research_status = data.get('llm_research_status', 'not_started')
+        self.llm_research_method = data.get('llm_research_method', '')
+        self.llm_research_word_count = data.get('llm_research_word_count', 0)
+        self.llm_research_character_count = data.get('llm_research_character_count', 0)
+        self.llm_research_quality_score = data.get('llm_research_quality_score', 0)
+        self.llm_research_updated_at = data.get('llm_research_updated_at')
+        
+        # LLM step-by-step research fields
+        self.llm_research_step_1_basic = data.get('llm_research_step_1_basic', '')
+        self.llm_research_step_2_strategic = data.get('llm_research_step_2_strategic', '')
+        self.llm_research_step_3_report = data.get('llm_research_step_3_report', '')
+        self.llm_markdown_report = data.get('llm_markdown_report', '')
+        self.llm_html_report = data.get('llm_html_report', '')
+        self.llm_research_step_status = data.get('llm_research_step_status', 'not_started')
+        self.llm_research_provider = data.get('llm_research_provider', '')
+        self.llm_research_started_at = data.get('llm_research_started_at')
+        self.llm_research_completed_at = data.get('llm_research_completed_at')
+        
         self.created_at = data.get('created_at')
         self.updated_at = data.get('updated_at')
 
@@ -126,7 +147,24 @@ class Company:
                            COALESCE(research_step_2_strategic, '') as research_step_2_strategic, 
                            COALESCE(research_step_3_report, '') as research_step_3_report, 
                            research_started_at, research_completed_at, 
-                           COALESCE(research_error, '') as research_error, 
+                           COALESCE(research_error, '') as research_error,
+                           COALESCE(llm_research_prompt, '') as llm_research_prompt,
+                           COALESCE(llm_research_results, '') as llm_research_results,
+                           COALESCE(llm_research_status, 'not_started') as llm_research_status,
+                           COALESCE(llm_research_method, '') as llm_research_method,
+                           COALESCE(llm_research_word_count, 0) as llm_research_word_count,
+                           COALESCE(llm_research_character_count, 0) as llm_research_character_count,
+                           COALESCE(llm_research_quality_score, 0) as llm_research_quality_score,
+                           llm_research_updated_at,
+                           COALESCE(llm_research_step_1_basic, '') as llm_research_step_1_basic,
+                           COALESCE(llm_research_step_2_strategic, '') as llm_research_step_2_strategic,
+                           COALESCE(llm_research_step_3_report, '') as llm_research_step_3_report,
+                           COALESCE(llm_markdown_report, '') as llm_markdown_report,
+                           COALESCE(llm_html_report, '') as llm_html_report,
+                           COALESCE(llm_research_step_status, 'not_started') as llm_research_step_status,
+                           COALESCE(llm_research_provider, '') as llm_research_provider,
+                           llm_research_started_at,
+                           llm_research_completed_at,
                            COALESCE(created_at, CURRENT_TIMESTAMP) as created_at, 
                            COALESCE(updated_at, CURRENT_TIMESTAMP) as updated_at
                     FROM companies 
@@ -201,7 +239,12 @@ class Company:
                            html_report, pdf_report_base64, strategic_imperatives, agent_recommendations,
                            ai_agent_recommendations, research_status, research_step_1_basic, research_step_2_strategic, 
                            research_step_3_report, research_started_at, research_completed_at, 
-                           research_error, created_at, updated_at
+                           research_error, llm_research_prompt, llm_research_results, llm_research_status,
+                           llm_research_method, llm_research_word_count, llm_research_character_count,
+                           llm_research_quality_score, llm_research_updated_at,
+                           llm_research_step_1_basic, llm_research_step_2_strategic, llm_research_step_3_report,
+                           llm_markdown_report, llm_html_report, llm_research_step_status, llm_research_provider,
+                           llm_research_started_at, llm_research_completed_at, created_at, updated_at
                     FROM companies 
                     WHERE id = :id
                 """), {"id": company_id})

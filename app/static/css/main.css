@@ -20,6 +20,51 @@ body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+/* Research Type Selection Styles */
+.research-type-card {
+    transition: all 0.2s ease-in-out;
+    border-width: 2px !important;
+}
+
+.research-type-card:hover {
+    box-shadow: var(--card-shadow-hover);
+    transform: translateY(-1px);
+}
+
+.research-type-card.border-primary {
+    background-color: rgba(37, 99, 235, 0.02);
+}
+
+.research-type-option input[type="radio"] {
+    transform: scale(1.2);
+}
+
+.llm-step-card {
+    transition: all 0.15s ease-in-out;
+}
+
+.llm-step-card:hover {
+    box-shadow: var(--card-shadow-hover);
+}
+
+.deep-research-steps .step-icon {
+    font-size: 1.1rem;
+}
+
+.research-type-selection .badge {
+    font-size: 0.7rem;
+}
+
+/* Advanced options accordion */
+.accordion-button:not(.collapsed) {
+    background-color: rgba(37, 99, 235, 0.1);
+    color: var(--primary-color);
+}
+
+.accordion-button:focus {
+    box-shadow: 0 0 0 0.25rem rgba(37, 99, 235, 0.25);
+}
+
 /* Navigation */
 .navbar {
     background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);

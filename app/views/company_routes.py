@@ -41,69 +41,6 @@ def extract_companies():
             'message': f'Company extraction failed: {str(e)}'
         }), 500
 
-@company_bp.route('/companies/research', methods=['POST'])
-def research_companies():
-    """Trigger company research for companies without research data."""
-    try:
-        data = request.get_json()
-        max_companies = data.get('max_companies', 10) if data else 10
-        force_refresh = data.get('force_refresh', False) if data else False
-        
-        # Import the new modular research system
-        from deepresearch.company_researcher import CompanyResearcher
-        
-        current_app.logger.info(f"Starting company research with max_companies={max_companies}, force_refresh={force_refresh}")
-        
-        # Get the current app instance to pass to the background thread
-        app_instance = current_app._get_current_object()
-        
-        def run_research():
-            # Set up Flask application context for background thread
-            with app_instance.app_context():
-                try:
-                    researcher = CompanyResearcher()
-                    
-                    if force_refresh:
-                        companies = researcher.database_service.get_all_companies()
-                        app_instance.logger.info(f"Force refresh mode: processing all {len(companies)} companies")
-                        companies_to_research = companies[:max_companies]
-                    else:
-                        companies_to_research = researcher.database_service.get_companies_without_research()
-                        app_instance.logger.info(f"Found {len(companies_to_research)} companies without research")
-                        companies_to_research = companies_to_research[:max_companies]
-                    
-                    app_instance.logger.info(f"Processing {len(companies_to_research)} companies")
-                    
-                    for company in companies_to_research:
-                        try:
-                            app_instance.logger.info(f"Researching company: {company.company_name}")
-                            researcher.research_company(company, force_refresh=force_refresh)
-                        except Exception as e:
-                            app_instance.logger.error(f"Error researching company {company.company_name}: {str(e)}")
-                    
-                    app_instance.logger.info("Company research completed successfully")
-                    
-                except Exception as e:
-                    app_instance.logger.error(f"Error in background research process: {str(e)}")
-        
-        # Start the research in a background thread
-        research_thread = threading.Thread(target=run_research)
-        research_thread.daemon = False  # Allow proper cleanup
-        research_thread.start()
-        
-        return jsonify({
-            'success': True,
-            'message': f'Company research started for up to {max_companies} companies. This process will run in the background.',
-            'status': 'started',
-            'force_refresh': force_refresh
-        })
-        
-    except Exception as e:
-        current_app.logger.error(f"Error starting company research: {str(e)}")
-        return jsonify({
-            'success': False,
-            'message': f'Failed to start company research: {str(e)}'
-        }), 500
 
 @company_bp.route('/companies', methods=['GET'])
 def get_companies():
@@ -198,250 +135,9 @@ def search_companies():
             'message': 'Failed to search companies'
         }), 500
 
-@company_bp.route('/companies/<int:company_id>/research', methods=['POST'])
-def research_single_company(company_id):
-    """Research a specific company by ID using step-by-step deep research."""
-    try:
-        data = request.get_json() or {}
-        force_refresh = data.get('force_refresh', False)
-        
-        # Get the company from database
-        company = Company.get_by_id(company_id)
-        if not company:
-            return jsonify({
-                'success': False,
-                'message': 'Company not found'
-            }), 404
-        
-        # Import the new step-by-step research system
-        from deepresearch.step_by_step_researcher import StepByStepResearcher
-        
-        current_app.logger.info(f"Starting step-by-step research for company ID {company_id}: {company.company_name}, force_refresh={force_refresh}")
-        
-        # Get the current app instance to pass to the background thread
-        app_instance = current_app._get_current_object()
-        
-        def run_step_by_step_research():
-            # Set up Flask application context for background thread
-            with app_instance.app_context():
-                try:
-                    researcher = StepByStepResearcher()
-                    result = researcher.start_deep_research(company_id, force_refresh=force_refresh)
-                    
-                    if result['success']:
-                        app_instance.logger.info(f"Step-by-step research completed successfully for {company.company_name}")
-                    else:
-                        app_instance.logger.error(f"Step-by-step research failed for {company.company_name}: {result.get('error', 'Unknown error')}")
-                    
-                except Exception as e:
-                    app_instance.logger.error(f"Error in step-by-step research for company {company_id}: {str(e)}")
-        
-        # Start the research in a background thread
-        research_thread = threading.Thread(target=run_step_by_step_research)
-        research_thread.daemon = False  # Allow proper cleanup
-        research_thread.start()
-        
-        return jsonify({
-            'success': True,
-            'message': f'Step-by-step deep research started for {company.company_name}. This process will run in the background.',
-            'company_name': company.company_name,
-            'status': 'started',
-            'force_refresh': force_refresh,
-            'research_type': 'step_by_step'
-        })
-        
-    except Exception as e:
-        current_app.logger.error(f"Error starting step-by-step research for company {company_id}: {str(e)}")
-        return jsonify({
-            'success': False,
-            'message': f'Failed to start research: {str(e)}'
-        }), 500
 
-@company_bp.route('/companies/<int:company_id>/research/progress', methods=['GET'])
-def get_research_progress(company_id):
-    """Get research progress for a specific company."""
-    try:
-        # Get progress directly from database without initializing services
-        company = Company.get_by_id(company_id)
-        if not company:
-            return jsonify({
-                'success': False,
-                'message': 'Company not found'
-            }), 404
-        
-        # Calculate progress based on completed research steps
-        steps_completed = 0
-        total_steps = 3
-        step_details = []
-        
-        # Step 1: Basic Research
-        step1_complete = hasattr(company, 'research_step_1_basic') and company.research_step_1_basic
-        if step1_complete:
-            steps_completed += 1
-        step_details.append({
-            'step': 1,
-            'name': 'Basic Company Research',
-            'status': 'completed' if step1_complete else ('in_progress' if steps_completed == 0 and hasattr(company, 'research_status') and company.research_status == 'in_progress' else 'pending'),
-            'description': 'Company analysis, pain points, and solution hooks'
-        })
-        
-        # Step 2: Strategic Analysis
-        step2_complete = hasattr(company, 'research_step_2_strategic') and company.research_step_2_strategic
-        if step2_complete:
-            steps_completed += 1
-        step_details.append({
-            'step': 2,
-            'name': 'Strategic Analysis',
-            'status': 'completed' if step2_complete else ('in_progress' if steps_completed == 1 and hasattr(company, 'research_status') and company.research_status == 'in_progress' else 'pending'),
-            'description': 'Strategic imperatives and AI agent recommendations'
-        })
-        
-        # Step 3: Report Generation
-        step3_complete = hasattr(company, 'research_step_3_report') and company.research_step_3_report
-        if step3_complete:
-            steps_completed += 1
-        step_details.append({
-            'step': 3,
-            'name': 'Report Generation',
-            'status': 'completed' if step3_complete else ('in_progress' if steps_completed == 2 and hasattr(company, 'research_status') and company.research_status == 'in_progress' else 'pending'),
-            'description': 'HTML/PDF report generation and publishing'
-        })
-        
-        progress_percentage = (steps_completed / total_steps) * 100
-        is_complete = steps_completed == total_steps
-        
-        # Determine current step
-        current_step = None
-        for step in step_details:
-            if step['status'] == 'in_progress':
-                current_step = step
-                break
-        if not current_step and not is_complete:
-            current_step = step_details[steps_completed]
-        
-        return jsonify({
-            'success': True,
-            'company_id': company_id,
-            'company_name': company.company_name,
-            'progress_percentage': progress_percentage,
-            'steps_completed': steps_completed,
-            'total_steps': total_steps,
-            'is_complete': is_complete,
-            'current_status': f"Step {steps_completed + 1}/3" if not is_complete else "Complete",
-            'current_step': current_step,
-            'step_details': step_details,
-            'research_status': getattr(company, 'research_status', 'unknown'),
-            'has_markdown_report': bool(hasattr(company, 'markdown_report') and company.markdown_report),
-            'has_html_report': bool(hasattr(company, 'html_report') and company.html_report)
-        })
-        
-    except Exception as e:
-        current_app.logger.error(f"Error getting research progress for company {company_id}: {str(e)}")
-        return jsonify({
-            'success': False,
-            'message': f'Failed to get research progress: {str(e)}'
-        }), 500
 
-@company_bp.route('/companies/<int:company_id>/research/resume', methods=['POST'])
-def resume_research(company_id):
-    """Resume incomplete research for a specific company."""
-    try:
-        from deepresearch.step_by_step_researcher import StepByStepResearcher
-        
-        # Get the company from database
-        company = Company.get_by_id(company_id)
-        if not company:
-            return jsonify({
-                'success': False,
-                'message': 'Company not found'
-            }), 404
-        
-        current_app.logger.info(f"Resuming research for company ID {company_id}: {company.company_name}")
-        
-        # Get the current app instance to pass to the background thread
-        app_instance = current_app._get_current_object()
-        
-        def run_resume_research():
-            # Set up Flask application context for background thread
-            with app_instance.app_context():
-                try:
-                    researcher = StepByStepResearcher()
-                    result = researcher.resume_research(company_id)
-                    
-                    if result['success']:
-                        app_instance.logger.info(f"Resume research completed for {company.company_name}")
-                    else:
-                        app_instance.logger.error(f"Resume research failed for {company.company_name}: {result.get('error', 'Unknown error')}")
-                    
-                except Exception as e:
-                    app_instance.logger.error(f"Error resuming research for company {company_id}: {str(e)}")
-        
-        # Start the resume in a background thread
-        resume_thread = threading.Thread(target=run_resume_research)
-        resume_thread.daemon = False  # Allow proper cleanup
-        resume_thread.start()
-        
-        return jsonify({
-            'success': True,
-            'message': f'Resume research started for {company.company_name}. This process will run in the background.',
-            'company_name': company.company_name,
-            'status': 'resuming'
-        })
-        
-    except Exception as e:
-        current_app.logger.error(f"Error resuming research for company {company_id}: {str(e)}")
-        return jsonify({
-            'success': False,
-            'message': f'Failed to resume research: {str(e)}'
-        }), 500
 
-@company_bp.route('/companies/<int:company_id>/research/step/<int:step>', methods=['GET'])
-def get_research_step(company_id, step):
-    """Get a specific research step content for a company."""
-    try:
-        company = Company.get_by_id(company_id)
-        if not company:
-            return jsonify({
-                'success': False,
-                'message': 'Company not found'
-            }), 404
-        
-        if step not in [1, 2, 3]:
-            return jsonify({
-                'success': False,
-                'message': 'Invalid step number. Must be 1, 2, or 3.'
-            }), 400
-        
-        step_titles = {
-            1: 'Basic Company Research',
-            2: 'Strategic Analysis',
-            3: 'Final Report'
-        }
-        
-        step_content = ''
-        if step == 1:
-            step_content = company.research_step_1_basic or ''
-        elif step == 2:
-            step_content = company.research_step_2_strategic or ''
-        elif step == 3:
-            step_content = company.research_step_3_report or ''
-        
-        return jsonify({
-            'success': True,
-            'company_name': company.company_name,
-            'step': step,
-            'step_title': step_titles[step],
-            'content': step_content,
-            'has_content': bool(step_content),
-            'content_length': len(step_content)
-        })
-        
-    except Exception as e:
-        current_app.logger.error(f"Error getting research step {step} for company {company_id}: {str(e)}")
-        return jsonify({
-            'success': False,
-            'message': f'Failed to get research step: {str(e)}'
-        }), 500
 
 @company_bp.route('/companies/clean-all-research', methods=['POST'])
 def clean_all_research():
@@ -495,6 +191,507 @@ def clean_all_research():
         return jsonify({
             'success': False,
             'message': f'Failed to clean research data: {str(e)}'
+        }), 500
+
+@company_bp.route('/companies/<int:company_id>/llm-deep-research', methods=['POST'])
+def llm_deep_research_company(company_id):
+    """Research a specific company using LLM deep research capabilities."""
+    try:
+        data = request.get_json() or {}
+        force_refresh = data.get('force_refresh', False)
+        provider = data.get('provider', 'claude')  # Default to Claude, but support others
+        
+        # Get the company from database
+        company = Company.get_by_id(company_id)
+        if not company:
+            return jsonify({
+                'success': False,
+                'message': 'Company not found'
+            }), 404
+        
+        # Import the LLM Deep Research service
+        from deepresearch.llm_deep_research_service import LLMDeepResearchService
+        
+        current_app.logger.info(f"Starting LLM deep research for company ID {company_id}: {company.company_name}, provider={provider}, force_refresh={force_refresh}")
+        
+        # Get the current app instance to pass to the background thread
+        app_instance = current_app._get_current_object()
+        
+        def run_llm_deep_research():
+            # Set up Flask application context for background thread
+            with app_instance.app_context():
+                try:
+                    llm_service = LLMDeepResearchService()
+                    
+                    # Generate the deep research prompt
+                    research_prompt = llm_service.research_company_deep(
+                        company.company_name, 
+                        company.company_website or ""
+                    )
+                    
+                    # Store the prompt and mark as ready for LLM processing
+                    from deepresearch.database_service import DatabaseService
+                    db_service = DatabaseService()
+                    
+                    # Update company with LLM research prompt and status
+                    db_service.update_company_llm_research(
+                        company_id,
+                        prompt=research_prompt,
+                        status='prompt_ready'
+                    )
+                    
+                    app_instance.logger.info(f"LLM deep research prompt ready for {company.company_name}")
+                    
+                except Exception as e:
+                    app_instance.logger.error(f"Error in LLM deep research for company {company_id}: {str(e)}")
+        
+        # Start the research preparation in a background thread
+        research_thread = threading.Thread(target=run_llm_deep_research)
+        research_thread.daemon = False
+        research_thread.start()
+        
+        return jsonify({
+            'success': True,
+            'message': f'LLM deep research initiated for {company.company_name}. The research prompt has been prepared and is ready for processing.',
+            'company_name': company.company_name,
+            'status': 'prompt_ready',
+            'force_refresh': force_refresh,
+            'research_type': 'llm_deep_research',
+            'provider': provider,
+            'next_step': 'The system is ready to receive the LLM\'s deep research analysis. You can now provide the research results.'
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error starting LLM deep research for company {company_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Failed to start LLM deep research: {str(e)}'
+        }), 500
+
+@company_bp.route('/companies/<int:company_id>/llm-research-results', methods=['POST'])
+def submit_llm_research_results(company_id):
+    """Submit LLM deep research results for processing and storage."""
+    try:
+        data = request.get_json()
+        if not data or 'research_results' not in data:
+            return jsonify({
+                'success': False,
+                'message': 'Research results are required'
+            }), 400
+        
+        research_results = data['research_results']
+        provider = data.get('provider', 'claude')
+        
+        # Get the company from database
+        company = Company.get_by_id(company_id)
+        if not company:
+            return jsonify({
+                'success': False,
+                'message': 'Company not found'
+            }), 404
+        
+        # Import required services
+        from deepresearch.llm_deep_research_service import LLMDeepResearchService
+        from deepresearch.database_service import DatabaseService
+        
+        current_app.logger.info(f"Processing LLM deep research results for company ID {company_id}: {company.company_name}, provider={provider}")
+        
+        # Process and validate the research results
+        llm_service = LLMDeepResearchService()
+        
+        # Validate the research quality
+        validation_results = llm_service.validate_research_quality(research_results)
+        
+        if not validation_results['is_valid']:
+            current_app.logger.warning(f"Research quality validation failed for {company.company_name}: {validation_results['issues']}")
+            return jsonify({
+                'success': False,
+                'message': 'Research quality validation failed',
+                'validation_issues': validation_results['issues'],
+                'quality_score': validation_results['quality_score']
+            }), 400
+        
+        # Format the research for storage
+        formatted_research = llm_service.format_research_for_system(research_results)
+        formatted_research['research_method'] = f'{provider}_deep_research'
+        
+        # Store the research results
+        db_service = DatabaseService()
+        success = db_service.store_llm_research_results(
+            company_id,
+            research_results,
+            formatted_research,
+            validation_results
+        )
+        
+        if success:
+            current_app.logger.info(f"Successfully stored LLM deep research results for {company.company_name}")
+            return jsonify({
+                'success': True,
+                'message': f'LLM deep research results stored successfully for {company.company_name}',
+                'company_name': company.company_name,
+                'research_method': formatted_research['research_method'],
+                'provider': provider,
+                'word_count': formatted_research['word_count'],
+                'character_count': formatted_research['character_count'],
+                'quality_score': validation_results['quality_score'],
+                'validation_status': 'passed'
+            })
+        else:
+            current_app.logger.error(f"Failed to store LLM research results for {company.company_name}")
+            return jsonify({
+                'success': False,
+                'message': 'Failed to store research results in database'
+            }), 500
+        
+    except Exception as e:
+        current_app.logger.error(f"Error processing LLM research results for company {company_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Failed to process research results: {str(e)}'
+        }), 500
+
+@company_bp.route('/companies/<int:company_id>/llm-research-status', methods=['GET'])
+def get_llm_research_status(company_id):
+    """Get the status of LLM deep research for a specific company."""
+    try:
+        # Get the company from database
+        company = Company.get_by_id(company_id)
+        if not company:
+            return jsonify({
+                'success': False,
+                'message': 'Company not found'
+            }), 404
+        
+        # Check for LLM research data
+        has_llm_prompt = hasattr(company, 'llm_research_prompt') and company.llm_research_prompt
+        has_llm_results = hasattr(company, 'llm_research_results') and company.llm_research_results
+        llm_status = getattr(company, 'llm_research_status', 'not_started')
+        research_method = getattr(company, 'llm_research_method', None)
+        
+        status_info = {
+            'company_id': company_id,
+            'company_name': company.company_name,
+            'llm_research_status': llm_status,
+            'has_prompt': has_llm_prompt,
+            'has_results': has_llm_results,
+            'is_ready_for_research': has_llm_prompt and not has_llm_results,
+            'is_complete': has_llm_results,
+            'research_method': research_method
+        }
+        
+        # Add metadata if available
+        if has_llm_results:
+            status_info['last_updated'] = getattr(company, 'llm_research_updated_at', None)
+            status_info['word_count'] = getattr(company, 'llm_research_word_count', 0)
+            status_info['character_count'] = getattr(company, 'llm_research_character_count', 0)
+            status_info['quality_score'] = getattr(company, 'llm_research_quality_score', 0)
+        
+        # Extract provider from research method if available
+        if research_method:
+            provider = research_method.replace('_deep_research', '') if '_deep_research' in research_method else research_method
+            status_info['provider'] = provider
+        
+        return jsonify({
+            'success': True,
+            **status_info
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting LLM research status for company {company_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Failed to get research status: {str(e)}'
+        }), 500
+
+@company_bp.route('/companies/<int:company_id>/llm-step-research', methods=['POST'])
+def llm_step_research_company(company_id):
+    """Start LLM step-by-step research for a specific company."""
+    try:
+        data = request.get_json() or {}
+        provider = data.get('provider', 'claude')
+        force_refresh = data.get('force_refresh', False)
+        
+        # Get the company from database
+        company = Company.get_by_id(company_id)
+        if not company:
+            return jsonify({
+                'success': False,
+                'message': 'Company not found'
+            }), 404
+        
+        # Import the LLM Step-by-Step Researcher
+        from deepresearch.llm_step_by_step_researcher import LLMStepByStepResearcher
+        
+        current_app.logger.info(f"Starting LLM step research for company ID {company_id}: {company.company_name}, provider={provider}")
+        
+        # Get the current app instance to pass to the background thread
+        app_instance = current_app._get_current_object()
+        
+        def run_llm_step_research():
+            # Set up Flask application context for background thread
+            with app_instance.app_context():
+                try:
+                    researcher = LLMStepByStepResearcher()
+                    result = researcher.start_llm_step_research(company_id, provider, force_refresh)
+                    
+                    if result['success']:
+                        app_instance.logger.info(f"LLM step research initiated for {company.company_name}: {result['current_step']}")
+                    else:
+                        app_instance.logger.error(f"LLM step research failed for {company.company_name}: {result.get('error', 'Unknown error')}")
+                    
+                except Exception as e:
+                    app_instance.logger.error(f"Error in LLM step research for company {company_id}: {str(e)}")
+        
+        # Start the research in a background thread
+        research_thread = threading.Thread(target=run_llm_step_research)
+        research_thread.daemon = False
+        research_thread.start()
+        
+        return jsonify({
+            'success': True,
+            'message': f'LLM step-by-step research initiated for {company.company_name}. The process will run in the background.',
+            'company_name': company.company_name,
+            'provider': provider,
+            'force_refresh': force_refresh,
+            'research_type': 'llm_step_by_step',
+            'status': 'started'
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error starting LLM step research for company {company_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Failed to start LLM step research: {str(e)}'
+        }), 500
+
+@company_bp.route('/companies/<int:company_id>/llm-step-results', methods=['POST'])
+def submit_llm_step_results(company_id):
+    """Submit results for a specific LLM research step."""
+    try:
+        data = request.get_json()
+        if not data or 'step' not in data or 'results' not in data:
+            return jsonify({
+                'success': False,
+                'message': 'Step and results are required'
+            }), 400
+        
+        step = data['step']
+        results = data['results']
+        provider = data.get('provider', 'claude')
+        
+        if step not in ['step_1', 'step_2', 'step_3']:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid step. Must be step_1, step_2, or step_3'
+            }), 400
+        
+        # Get the company from database
+        company = Company.get_by_id(company_id)
+        if not company:
+            return jsonify({
+                'success': False,
+                'message': 'Company not found'
+            }), 404
+        
+        # Import the LLM Step-by-Step Researcher
+        from deepresearch.llm_step_by_step_researcher import LLMStepByStepResearcher
+        
+        current_app.logger.info(f"Submitting LLM step {step} results for company ID {company_id}: {company.company_name}")
+        
+        researcher = LLMStepByStepResearcher()
+        result = researcher.submit_step_results(company_id, step, results, provider)
+        
+        if result['success']:
+            current_app.logger.info(f"Successfully submitted step {step} results for {company.company_name}")
+            return jsonify(result)
+        else:
+            current_app.logger.error(f"Failed to submit step {step} results for {company.company_name}: {result.get('error', 'Unknown error')}")
+            return jsonify(result), 400
+        
+    except Exception as e:
+        current_app.logger.error(f"Error submitting LLM step results for company {company_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Failed to submit step results: {str(e)}'
+        }), 500
+
+@company_bp.route('/companies/<int:company_id>/llm-step-progress', methods=['GET'])
+def get_llm_step_progress(company_id):
+    """Get progress for LLM step-by-step research."""
+    try:
+        # Get the company from database
+        company = Company.get_by_id(company_id)
+        if not company:
+            return jsonify({
+                'success': False,
+                'message': 'Company not found'
+            }), 404
+        
+        # Get progress directly without creating researcher instance for better performance
+        # Check step completion status
+        has_step_1 = hasattr(company, 'llm_research_step_1_basic') and company.llm_research_step_1_basic
+        has_step_2 = hasattr(company, 'llm_research_step_2_strategic') and company.llm_research_step_2_strategic
+        has_step_3 = hasattr(company, 'llm_research_step_3_report') and company.llm_research_step_3_report
+        
+        # Check for errors in steps
+        step_1_has_error = has_step_1 and company.llm_research_step_1_basic.startswith('ERROR:')
+        step_2_has_error = has_step_2 and company.llm_research_step_2_strategic.startswith('ERROR:')
+        step_3_has_error = has_step_3 and company.llm_research_step_3_report.startswith('ERROR:')
+        
+        # Determine overall status
+        current_status = getattr(company, 'llm_research_step_status', 'pending')
+        
+        if step_3_has_error or step_2_has_error or step_1_has_error:
+            status = 'error'
+        elif has_step_3 and not step_3_has_error:
+            status = 'completed'
+        elif current_status and ('executing' in current_status.lower() or 'progress' in current_status.lower()):
+            status = 'in_progress'
+        else:
+            status = 'pending'
+        
+        progress = {
+            'success': True,
+            'research_status': status,
+            'current_status': current_status,
+            'steps_completed': {
+                'step_1': has_step_1 and not step_1_has_error,
+                'step_2': has_step_2 and not step_2_has_error,
+                'step_3': has_step_3 and not step_3_has_error
+            },
+            'step_errors': {
+                'step_1': step_1_has_error,
+                'step_2': step_2_has_error,
+                'step_3': step_3_has_error
+            },
+            'has_html_report': bool(getattr(company, 'llm_html_report', None)),
+            'research_provider': getattr(company, 'llm_research_provider', None),
+            'company_name': company.company_name
+        }
+        
+        return jsonify(progress)
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting LLM step progress for company {company_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Failed to get step progress: {str(e)}'
+        }), 500
+
+@company_bp.route('/companies/<int:company_id>/llm-step/<step_name>', methods=['GET'])
+def get_llm_step_content(company_id, step_name):
+    """Get content for a specific LLM research step."""
+    try:
+        if step_name not in ['step_1', 'step_2', 'step_3']:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid step name. Must be step_1, step_2, or step_3'
+            }), 400
+        
+        company = Company.get_by_id(company_id)
+        if not company:
+            return jsonify({
+                'success': False,
+                'message': 'Company not found'
+            }), 404
+        
+        step_titles = {
+            'step_1': 'LLM Basic Research',
+            'step_2': 'LLM Strategic Analysis',
+            'step_3': 'LLM Report Generation'
+        }
+        
+        # Get step content
+        step_content = ''
+        if step_name == 'step_1':
+            step_content = getattr(company, 'llm_research_step_1_basic', '')
+        elif step_name == 'step_2':
+            step_content = getattr(company, 'llm_research_step_2_strategic', '')
+        elif step_name == 'step_3':
+            step_content = getattr(company, 'llm_research_step_3_report', '')
+        
+        # Determine if content is prompt or results
+        is_prompt = 'You are an expert B2B go-to-market strategist' in step_content
+        content_type = 'prompt' if is_prompt else 'results'
+        
+        return jsonify({
+            'success': True,
+            'company_name': company.company_name,
+            'step': step_name,
+            'step_title': step_titles[step_name],
+            'content': step_content,
+            'content_type': content_type,
+            'has_content': bool(step_content),
+            'content_length': len(step_content),
+            'word_count': len(step_content.split()) if step_content else 0
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting LLM step {step_name} content for company {company_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Failed to get step content: {str(e)}'
+        }), 500
+
+@company_bp.route('/companies/<int:company_id>/llm-report', methods=['GET'])
+def get_llm_report(company_id):
+    """Get LLM generated reports for a specific company."""
+    try:
+        report_type = request.args.get('type', 'html')  # html or markdown
+        
+        company = Company.get_by_id(company_id)
+        if not company:
+            return jsonify({
+                'success': False,
+                'message': 'Company not found'
+            }), 404
+        
+        if report_type == 'html':
+            report_content = getattr(company, 'llm_html_report', '')
+            content_type = 'text/html'
+        elif report_type == 'markdown':
+            report_content = getattr(company, 'llm_markdown_report', '')
+            content_type = 'text/markdown'
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid report type. Use "html" or "markdown"'
+            }), 400
+        
+        if not report_content:
+            return jsonify({
+                'success': False,
+                'message': f'No {report_type} report available for this company. Complete LLM step-by-step research first.'
+            }), 404
+        
+        # For API response, return JSON with report content
+        if request.headers.get('Accept') == 'application/json':
+            return jsonify({
+                'success': True,
+                'company_name': company.company_name,
+                'report_type': report_type,
+                'content': report_content,
+                'content_length': len(report_content),
+                'llm_research_provider': getattr(company, 'llm_research_provider', ''),
+                'llm_research_completed_at': getattr(company, 'llm_research_completed_at', None)
+            })
+        
+        # For direct browser access, return the content directly
+        from flask import Response
+        return Response(
+            report_content,
+            mimetype=content_type,
+            headers={
+                'Content-Disposition': f'inline; filename="{company.company_name}_llm_report.{report_type}"'
+            }
+        )
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting LLM report for company {company_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Failed to get report: {str(e)}'
         }), 500
 
 @company_bp.route('/companies/<int:company_id>/delete-reset', methods=['DELETE'])

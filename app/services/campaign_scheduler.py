@@ -883,6 +883,21 @@ def _is_business_hours(timezone_str: str, business_hours: Dict) -> bool:
         current_app.logger.error(f"Error checking business hours: {e}")
         return True  # Default to allowing emails
 
+def cleanup_old_logs_job():
+    """Daily log cleanup background job - module level function for serialization."""
+    from flask import current_app
+    from app import create_app
+    
+    app = create_app()
+    with app.app_context():
+        try:
+            from app.utils.log_manager import log_manager
+            current_app.logger.info("Running scheduled log cleanup")
+            removed_count = log_manager.cleanup_old_logs(keep_hours=48)
+            current_app.logger.info(f"Log cleanup completed: {removed_count} old files removed")
+        except Exception as e:
+            current_app.logger.error(f"Error in scheduled log cleanup: {e}")
+
 def _adjust_for_business_hours(scheduled_time: datetime, timezone_str: str, business_hours: Dict) -> datetime:
     """Adjust scheduled time to fall within business hours."""
     try:
@@ -1070,6 +1085,7 @@ class CampaignScheduler:
             
             # Remove existing job if it exists (belt and suspenders approach)
             self._safe_remove_job('process_pending_emails')
+            self._safe_remove_job('cleanup_old_logs')
             
             # Count pending emails in queue
             try:
@@ -1119,6 +1135,24 @@ class CampaignScheduler:
                 else:
                     current_app.logger.error(f"Failed to schedule background job: {job_error}")
                     # Don't raise - continue without background processing
+
+            # Add log cleanup job to run daily at 2 AM
+            try:
+                self.scheduler.add_job(
+                    func=cleanup_old_logs_job,
+                    trigger='cron',
+                    hour=2,  # Run at 2 AM
+                    minute=0,
+                    id='cleanup_old_logs',
+                    replace_existing=True,
+                    max_instances=1,
+                    coalesce=True
+                )
+                
+                current_app.logger.info("Log cleanup job scheduled (daily at 2 AM)")
+                
+            except Exception as cleanup_error:
+                current_app.logger.warning(f"Failed to schedule log cleanup job: {cleanup_error}")
             
         except Exception as e:
             current_app.logger.error(f"Failed to setup background jobs: {e}")

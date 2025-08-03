@@ -114,12 +114,13 @@ def get_company_report(company_id: int):
         if not company:
             abort(404, description="Company not found")
         
-        # Check if HTML report exists
-        if not company.html_report:
+        # Check if HTML report exists (traditional or LLM research)
+        html_report = getattr(company, 'html_report', '') or getattr(company, 'llm_html_report', '')
+        if not html_report:
             abort(404, description="Report not available for this company")
         
         # Return HTML report directly with proper content type
-        response = make_response(company.html_report)
+        response = make_response(html_report)
         response.headers['Content-Type'] = 'text/html; charset=utf-8'
         return response
         
@@ -136,13 +137,14 @@ def get_company_report_pdf(company_id: int):
         if not company:
             abort(404, description="Company not found")
         
-        # Check if PDF report exists
-        if not company.pdf_report_base64:
+        # Check if PDF report exists (traditional or LLM research)
+        pdf_data = getattr(company, 'pdf_report_base64', '') or getattr(company, 'llm_pdf_report_base64', '')
+        if not pdf_data:
             abort(404, description="PDF report not available for this company - PDF generation may be disabled due to missing system dependencies")
         
         # Decode base64 PDF data
         try:
-            pdf_bytes = base64.b64decode(company.pdf_report_base64)
+            pdf_bytes = base64.b64decode(pdf_data)
         except Exception as e:
             logger.error(f"Error decoding PDF for company {company_id}: {e}")
             abort(500, description="Error processing PDF report")
@@ -173,12 +175,12 @@ def get_company_report_embed(company_id: int):
         if not company:
             abort(404, description="Company not found")
         
-        # Check if HTML report exists
-        if not company.html_report:
+        # Check if HTML report exists (traditional or LLM research)
+        html_content = getattr(company, 'html_report', '') or getattr(company, 'llm_html_report', '')
+        if not html_content:
             abort(404, description="Report not available for this company")
         
         # Process HTML for embedding (remove HTML/head/body tags, keep content)
-        html_content = company.html_report
         
         # Extract content between body tags if they exist
         import re
@@ -282,8 +284,8 @@ def get_company_report_info(company_id: int):
             'company_id': company.id,
             'company_name': company.company_name,
             'website_url': company.website_url,
-            'has_html_report': bool(company.html_report),
-            'has_pdf_report': bool(company.pdf_report_base64),
+            'has_html_report': bool(getattr(company, 'html_report', '') or getattr(company, 'llm_html_report', '')),
+            'has_pdf_report': bool(getattr(company, 'pdf_report_base64', '') or getattr(company, 'llm_pdf_report_base64', '')),
             'research_status': company.research_status,
             'research_completed_at': company.research_completed_at.isoformat() if company.research_completed_at else None,
             'updated_at': company.updated_at.isoformat() if company.updated_at else None
@@ -336,6 +338,95 @@ def clean_database():
     except Exception as e:
         logger.error(f"Error cleaning database: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+# Log Management API Routes
+@api_bp.route('/logs/info', methods=['GET'])
+def get_log_info():
+    """Get information about application log files."""
+    try:
+        from app.utils.log_manager import log_manager
+        info = log_manager.get_log_info()
+        return jsonify({
+            'success': True,
+            'log_info': info
+        })
+    except Exception as e:
+        logger.error(f"Error getting log info: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error getting log info: {str(e)}'
+        }), 500
+
+@api_bp.route('/logs/tail', methods=['GET'])
+def get_log_tail():
+    """Get the last N lines from the current log file."""
+    try:
+        from app.utils.log_manager import log_manager
+        lines = request.args.get('lines', 100, type=int)
+        lines = min(lines, 1000)  # Limit to prevent huge responses
+        
+        log_lines = log_manager.read_log_tail(lines=lines)
+        return jsonify({
+            'success': True,
+            'lines': log_lines,
+            'count': len(log_lines)
+        })
+    except Exception as e:
+        logger.error(f"Error getting log tail: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error getting log tail: {str(e)}'
+        }), 500
+
+@api_bp.route('/logs/search', methods=['GET'])
+def search_logs():
+    """Search for specific terms in log files."""
+    try:
+        from app.utils.log_manager import log_manager
+        search_term = request.args.get('q', '').strip()
+        case_sensitive = request.args.get('case_sensitive', 'false').lower() == 'true'
+        
+        if not search_term:
+            return jsonify({
+                'success': False,
+                'message': 'Search term is required'
+            }), 400
+        
+        results = log_manager.search_logs(search_term, case_sensitive)
+        return jsonify({
+            'success': True,
+            'results': results,
+            'count': len(results),
+            'search_term': search_term
+        })
+    except Exception as e:
+        logger.error(f"Error searching logs: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error searching logs: {str(e)}'
+        }), 500
+
+@api_bp.route('/logs/errors', methods=['GET'])
+def get_recent_errors():
+    """Get recent error and warning log entries."""
+    try:
+        from app.utils.log_manager import log_manager
+        hours = request.args.get('hours', 24, type=int)
+        hours = min(hours, 168)  # Limit to 1 week max
+        
+        errors = log_manager.get_recent_errors(hours=hours)
+        return jsonify({
+            'success': True,
+            'errors': errors,
+            'count': len(errors),
+            'hours': hours
+        })
+    except Exception as e:
+        logger.error(f"Error getting recent errors: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error getting recent errors: {str(e)}'
+        }), 500
 
 @api_bp.errorhandler(500)
 def internal_error(error):
