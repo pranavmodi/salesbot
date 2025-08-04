@@ -18,6 +18,9 @@ logger = logging.getLogger(__name__)
 class LLMDeepResearchService:
     """Handles deep research using Claude's native deep research capabilities."""
     
+    # Class variable to track if startup recovery has been run
+    _startup_recovery_completed = False
+    
     def __init__(self):
         load_dotenv()
         self.anthropic_client = None
@@ -54,7 +57,7 @@ class LLMDeepResearchService:
         else:
             logger.warning("OPENAI_API_KEY not found - OpenAI research will not be available")
 
-    def research_company_deep(self, company_name: str, company_domain: str = "", provider: str = "claude", company_id: int = None) -> Optional[str]:
+    def research_company_deep(self, company_name: str, company_domain: str = "", provider: str = "claude", company_id: int = None, from_step_researcher: bool = False) -> Optional[str]:
         """
         Execute comprehensive company analysis using LLM deep research capabilities.
         
@@ -63,20 +66,56 @@ class LLMDeepResearchService:
             company_domain: Company domain/website
             provider: LLM provider to use ('claude' or 'openai')
             company_id: Company ID for safety tracking
+            from_step_researcher: True if called from step-by-step researcher (skips duplicate check)
             
         Returns:
             Comprehensive research analysis string or None if failed
         """
+        logger.critical(f"🚨 DEEP RESEARCH API CALL INITIATED: {company_name} using {provider} (company_id: {company_id})")
         logger.info(f"Starting LLM deep research for company: {company_name} using {provider}")
         
-        # BULLETPROOF SAFETY CHECKS
-        if company_id is not None:
+        # BULLETPROOF DATABASE CHECKS BEFORE API CALL (skip if called from step researcher)
+        if company_id is not None and not from_step_researcher:
             try:
-                self._check_request_limits(company_id)
-                self._register_request_start(company_id)
+                # 1. Check if research is already in progress or completed
+                research_status = self._check_database_research_status(company_id)
+                if research_status['already_triggered']:
+                    logger.error(f"🚨 BLOCKED: Research already triggered for company {company_id}. Status: {research_status['status']}, Started: {research_status['started_at']}")
+                    raise Exception(f"Research already triggered for company {company_id}. Current status: {research_status['status']}. Started at: {research_status['started_at']}")
             except Exception as safety_error:
-                logger.error(f"SAFETY CHECK FAILED: {safety_error}")
+                logger.error(f"🚨 SAFETY CHECK FAILED: {safety_error}")
                 raise safety_error
+        elif from_step_researcher:
+            logger.info(f"🚨 STEP RESEARCHER CALL: Skipping duplicate check for company {company_id} as this is called from step-by-step researcher")
+        
+        if company_id is not None and not from_step_researcher:
+            try:
+                # 2. Check concurrency and rate limits
+                self._check_request_limits(company_id)
+                
+                # 3. Mark as triggered in database BEFORE making API call
+                self._mark_research_triggered_in_db(company_id, provider)
+                
+                # 4. Register in memory tracking
+                self._register_request_start(company_id)
+                
+            except Exception as safety_error:
+                logger.error(f"🚨 SAFETY CHECK FAILED: {safety_error}")
+                raise safety_error
+        elif company_id is not None and from_step_researcher:
+            # For step researcher, only do memory tracking (database already updated by step researcher)
+            try:
+                # Check concurrency and rate limits only
+                self._check_request_limits(company_id)
+                
+                # Only register in memory tracking (skip database update)
+                self._register_request_start(company_id)
+                
+            except Exception as safety_error:
+                logger.error(f"🚨 STEP RESEARCHER SAFETY CHECK FAILED: {safety_error}")
+                raise safety_error
+        elif company_id is None:
+            logger.warning("No company_id provided - skipping all safety checks")
         
         # Construct website URL from domain
         website_url = ""
@@ -99,17 +138,27 @@ class LLMDeepResearchService:
                 logger.error(f"Provider {provider} not available or not configured")
                 result = None
             
-            # REGISTER COMPLETION
+            # REGISTER COMPLETION AND UPDATE DATABASE
             if company_id is not None:
                 estimated_cost = 0.5 if provider.lower() == "openai" else 0.1  # Higher estimate for OpenAI
                 self._register_request_end(company_id, estimated_cost)
+                
+                # Update database with completion status
+                if result:
+                    logger.critical(f"🚨 RESEARCH SUCCESS: {company_name} research completed successfully using {provider}")
+                    self._mark_research_completed_in_db(company_id, result, provider)
+                else:
+                    logger.critical(f"🚨 RESEARCH FAILED: {company_name} research failed - API returned no results using {provider}")
+                    self._mark_research_failed_in_db(company_id, f"{provider} API call returned no results (no fallback attempted)", provider)
             
             return result
                 
         except Exception as e:
-            # CLEANUP ON ERROR
+            # CLEANUP ON ERROR AND UPDATE DATABASE
             if company_id is not None:
                 self._register_request_end(company_id, 0.0)  # No cost if failed
+                # Mark as failed in database
+                self._mark_research_failed_in_db(company_id, str(e), provider)
             
             error_details = str(e)
             if "429" in error_details:
@@ -124,6 +173,7 @@ class LLMDeepResearchService:
 
     def _execute_claude_research(self, research_prompt: str, company_name: str) -> Optional[str]:
         """Execute research using Claude with web search capabilities."""
+        logger.critical(f"🚨 CLAUDE API DEEP RESEARCH CALL MADE: company={company_name}, model=claude-3-5-sonnet-20241022")
         logger.info(f"Executing Claude web search research for {company_name}")
         
         try:
@@ -164,36 +214,26 @@ Provide detailed citations and sources for all information found."""
             return research_results
             
         except Exception as e:
+            logger.critical(f"🚨 CLAUDE WEB SEARCH FAILED: {company_name} - {e}")
             logger.error(f"Claude web search API error for {company_name}: {e}")
-            logger.warning(f"Falling back to standard Claude API for {company_name}")
             
-            # Fallback to standard API if web search fails
-            try:
-                response = self.anthropic_client.messages.create(
-                    model="claude-3-5-sonnet-20241022",
-                    max_tokens=4000,
-                    temperature=0.3,
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": research_prompt
-                        }
-                    ]
-                )
-                
-                research_results = response.content[0].text
-                logger.info(f"Claude fallback research completed for {company_name}: {len(research_results)} characters")
-                return research_results
-                
-            except Exception as fallback_error:
-                logger.error(f"Claude fallback API error for {company_name}: {fallback_error}")
-                return None
+            # NO FALLBACK - Return None to indicate failure
+            logger.critical(f"🚨 NO FALLBACK: Claude research failed for {company_name}, no standard Claude API fallback will be attempted")
+            return None
 
     def _execute_openai_research(self, research_prompt: str, company_name: str, company_id: int = None) -> Optional[str]:
         """Execute research using OpenAI o4-mini Deep Research API in background mode."""
         logger.info(f"Starting OpenAI o4-mini deep research for {company_name} in background mode")
         
         try:
+            # Validate OpenAI client supports responses endpoint
+            if not hasattr(self.openai_client, 'responses'):
+                error_msg = "OpenAI client does not have 'responses' attribute. Deep Research API not available with current client version."
+                logger.error(error_msg)
+                if company_id:
+                    self._mark_research_failed_in_db(company_id, error_msg, "openai")
+                return None
+            
             # Check if we have an existing background job for this company
             existing_response_id = self._get_stored_response_id(company_id)
             if existing_response_id:
@@ -207,7 +247,8 @@ Provide detailed citations and sources for all information found."""
                 # Create webhook URL for our app
                 webhook_url = self._get_webhook_url()
                 
-                # Start background job (no streaming, returns immediately with response_id)
+                # OpenAI Deep Research API call with proper background mode (per official docs)
+                logger.info(f"Attempting OpenAI Deep Research API with background mode for {company_name}")
                 response = self.openai_client.responses.create(
                     model="o4-mini-deep-research-2025-06-26",
                     input=[
@@ -231,15 +272,16 @@ Please conduct thorough research across multiple reliable sources and provide a 
                     ],
                     reasoning={"summary": "auto"},  
                     tools=[{"type": "web_search_preview"}],
-                    background=True,  # CRITICAL: Run in background mode
-                    webhook=webhook_url if webhook_url else None  # Optional webhook
+                    background=True  # OFFICIAL: background=True is supported per OpenAI docs
                 )
                 
                 response_id = response.id
+                logger.critical(f"🚨 OPENAI API DEEP RESEARCH CALL MADE: response_id={response_id}, company={company_name}, model=o4-mini-deep-research-2025-06-26")
                 logger.info(f"OpenAI Deep Research background job started: {response_id} for {company_name}")
                 
-                # Store response_id in database for recovery after restarts
+                # Store response_id in database for recovery after restarts AND mark as background job running
                 self._store_response_id(company_id, response_id)
+                logger.critical(f"🚨 DB UPDATED: OpenAI background job marked in database for company {company_id}, response_id={response_id}")
                 
                 # Update status to show background job is running
                 self._update_research_status(company_name, f"Background research job started (ID: {response_id})", company_id)
@@ -249,39 +291,38 @@ Please conduct thorough research across multiple reliable sources and provide a 
                 
             except Exception as deep_error:
                 error_msg = str(deep_error)
-                if "503" in error_msg or "Service Unavailable" in error_msg:
-                    logger.error(f"OpenAI Deep Research API is currently unavailable (503 Service Unavailable) for {company_name}: {deep_error}")
-                    logger.info(f"Falling back to standard GPT-4 for {company_name}")
+                logger.critical(f"🚨 OPENAI DEEP RESEARCH FAILED: {company_name} - {deep_error}")
+                
+                # Detailed error diagnosis
+                if "unexpected keyword argument 'background'" in error_msg:
+                    logger.error(f"OpenAI client library does not support 'background' parameter. Client version may be outdated or feature not available for your API key: {deep_error}")
+                elif "404" in error_msg or "Not Found" in error_msg:
+                    logger.error(f"OpenAI Deep Research API endpoint not found. This feature may not be available for your API key or account: {deep_error}")
+                elif "400" in error_msg or "Bad Request" in error_msg:
+                    logger.error(f"OpenAI Deep Research API request malformed. Model or parameters may be incorrect: {deep_error}")
+                elif "401" in error_msg or "Unauthorized" in error_msg:
+                    logger.error(f"OpenAI API authentication failed or Deep Research not available for your account: {deep_error}")
+                elif "403" in error_msg or "Forbidden" in error_msg:
+                    logger.error(f"OpenAI Deep Research API access forbidden. This feature may require beta access or higher tier: {deep_error}")
+                elif "503" in error_msg or "Service Unavailable" in error_msg:
+                    logger.error(f"OpenAI Deep Research API is currently unavailable (503 Service Unavailable): {deep_error}")
                 elif "429" in error_msg or "rate_limit" in error_msg.lower():
-                    logger.error(f"Rate limit exceeded for OpenAI Deep Research API for {company_name}: {deep_error}")
-                    logger.info(f"Falling back to standard GPT-4 for {company_name}")
+                    logger.error(f"Rate limit exceeded for OpenAI Deep Research API: {deep_error}")
                 elif "insufficient_quota" in error_msg.lower():
-                    logger.error(f"API quota exceeded for OpenAI Deep Research API for {company_name}: {deep_error}")
-                    logger.info(f"Falling back to standard GPT-4 for {company_name}")
+                    logger.error(f"API quota exceeded for OpenAI Deep Research API: {deep_error}")
                 else:
-                    logger.warning(f"OpenAI o4-mini Deep Research API failed for {company_name}: {deep_error}")
-                    logger.info(f"Falling back to standard GPT-4 for {company_name}")
+                    logger.error(f"OpenAI Deep Research API failed with unknown error: {deep_error}")
                 
-                # Fallback to standard GPT-4 API
-                response = self.openai_client.chat.completions.create(
-                    model="gpt-4",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "You are an expert business research analyst with access to comprehensive company intelligence."
-                        },
-                        {
-                            "role": "user",
-                            "content": research_prompt
-                        }
-                    ],
-                    max_tokens=4000,
-                    temperature=0.3
-                )
+                # NO FALLBACK - Mark as failed and return None
+                logger.critical(f"🚨 NO FALLBACK: Research failed for {company_name}, no GPT-4 fallback will be attempted")
+                logger.info(f"DEBUGGING INFO: OpenAI client version in use, model attempted: o4-mini-deep-research-2025-06-26, background=True")
                 
-                research_results = response.choices[0].message.content
-                logger.info(f"OpenAI fallback research completed for {company_name}: {len(research_results)} characters")
-                return research_results
+                # Update database to mark as failed
+                if company_id:
+                    self._mark_research_failed_in_db(company_id, f"OpenAI Deep Research API failed: {error_msg}", "openai")
+                
+                # Return None to indicate failure
+                return None
             
         except Exception as e:
             logger.error(f"OpenAI API error for {company_name}: {e}")
@@ -641,6 +682,141 @@ Use your deep research capabilities to gather comprehensive, current information
         logger.critical("EMERGENCY STOP: Clearing all active requests")
         self._active_requests.clear()
     
+    def _check_database_research_status(self, company_id: int) -> Dict[str, Any]:
+        """Check database for existing research status to prevent duplicates."""
+        try:
+            from deepresearch.database_service import DatabaseService
+            from sqlalchemy import text
+            
+            db_service = DatabaseService()
+            with db_service.engine.connect() as conn:
+                result = conn.execute(text("""
+                    SELECT 
+                        llm_research_step_status,
+                        llm_research_started_at,
+                        llm_research_provider,
+                        openai_response_id,
+                        llm_research_step_1_basic,
+                        llm_research_completed_at
+                    FROM companies 
+                    WHERE id = :company_id
+                """), {'company_id': company_id})
+                
+                row = result.fetchone()
+                if not row:
+                    return {'already_triggered': False, 'status': 'not_found'}
+                
+                status, started_at, provider, response_id, step_1_data, completed_at = row
+                
+                # Check if research is already in progress or completed
+                if status in ['background_job_running', 'step_1', 'step_2', 'step_3', 'in_progress', 'completed']:
+                    # Allow if it's been more than 1 hour since started (might be stuck)
+                    import datetime
+                    if started_at:
+                        time_diff = datetime.datetime.now() - started_at
+                        if time_diff.total_seconds() > 3600:  # 1 hour timeout
+                            logger.warning(f"Research for company {company_id} appears stuck (started {time_diff} ago), allowing retry")
+                            return {'already_triggered': False, 'status': 'timeout_retry_allowed'}
+                    
+                    return {
+                        'already_triggered': True,
+                        'status': status,
+                        'started_at': started_at,
+                        'provider': provider,
+                        'response_id': response_id,
+                        'has_results': bool(step_1_data),
+                        'completed_at': completed_at
+                    }
+                
+                return {'already_triggered': False, 'status': status or 'pending'}
+                
+        except Exception as e:
+            logger.error(f"Error checking database research status for company {company_id}: {e}")
+            # On error, allow the request (fail open rather than fail closed)
+            return {'already_triggered': False, 'status': 'check_failed'}
+    
+    def _mark_research_triggered_in_db(self, company_id: int, provider: str):
+        """Mark research as triggered in database BEFORE making API call."""
+        try:
+            from deepresearch.database_service import DatabaseService
+            from sqlalchemy import text
+            
+            db_service = DatabaseService()
+            with db_service.engine.connect() as conn:
+                with conn.begin():
+                    conn.execute(text("""
+                        UPDATE companies 
+                        SET llm_research_step_status = 'api_call_initiated',
+                            llm_research_provider = :provider,
+                            llm_research_started_at = CURRENT_TIMESTAMP,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :company_id
+                    """), {
+                        'provider': provider,
+                        'company_id': company_id
+                    })
+            
+            logger.critical(f"🚨 DB MARKED: Research marked as triggered in database for company {company_id}, provider={provider}")
+            
+        except Exception as e:
+            logger.error(f"Failed to mark research as triggered in DB for company {company_id}: {e}")
+            # This is critical - if we can't mark it, we should fail the request
+            raise Exception(f"Failed to mark research as triggered in database: {e}")
+    
+    def _mark_research_completed_in_db(self, company_id: int, results: str, provider: str):
+        """Mark research as completed in database."""
+        try:
+            from deepresearch.database_service import DatabaseService
+            from sqlalchemy import text
+            
+            db_service = DatabaseService()
+            with db_service.engine.connect() as conn:
+                with conn.begin():
+                    conn.execute(text("""
+                        UPDATE companies 
+                        SET llm_research_step_status = 'step_1_completed',
+                            llm_research_step_1_basic = :results,
+                            llm_research_completed_at = CURRENT_TIMESTAMP,
+                            openai_response_id = NULL,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :company_id
+                    """), {
+                        'results': results,
+                        'company_id': company_id
+                    })
+            
+            logger.critical(f"🚨 DB COMPLETED: Research marked as completed in database for company {company_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to mark research as completed in DB for company {company_id}: {e}")
+    
+    def _mark_research_failed_in_db(self, company_id: int, error_message: str, provider: str):
+        """Mark research as failed in database."""
+        try:
+            from deepresearch.database_service import DatabaseService
+            from sqlalchemy import text
+            
+            db_service = DatabaseService()
+            with db_service.engine.connect() as conn:
+                with conn.begin():
+                    error_text = f"ERROR: {error_message}"
+                    conn.execute(text("""
+                        UPDATE companies 
+                        SET llm_research_step_status = 'failed',
+                            llm_research_step_1_basic = :error_text,
+                            openai_response_id = NULL,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :company_id
+                    """), {
+                        'error_text': error_text,
+                        'company_id': company_id
+                    })
+            
+            logger.critical(f"🚨 DB FAILED: Research marked as failed in database for company {company_id}: {error_message}")
+            
+        except Exception as e:
+            logger.error(f"Failed to mark research as failed in DB for company {company_id}: {e}")
+    
     def _get_webhook_url(self) -> str:
         """Get webhook URL for OpenAI callbacks. Returns None if not configured."""
         import os
@@ -793,6 +969,11 @@ Use your deep research capabilities to gather comprehensive, current information
     
     def check_and_recover_background_jobs(self):
         """Check for and recover any orphaned background jobs on startup."""
+        # Only run recovery once per application lifecycle
+        if LLMDeepResearchService._startup_recovery_completed:
+            logger.debug("Startup recovery already completed, skipping")
+            return
+            
         try:
             from deepresearch.database_service import DatabaseService
             from sqlalchemy import text
@@ -812,27 +993,32 @@ Use your deep research capabilities to gather comprehensive, current information
                 
                 if not orphaned_jobs:
                     logger.info("No orphaned background jobs found")
-                    return
-                
-                logger.info(f"Found {len(orphaned_jobs)} orphaned background jobs, attempting recovery...")
-                
-                for company_id, company_name, response_id, started_at in orphaned_jobs:
-                    logger.info(f"Recovering background job {response_id} for {company_name} (started: {started_at})")
+                else:
+                    logger.info(f"Found {len(orphaned_jobs)} orphaned background jobs, attempting recovery...")
                     
-                    # Check job status and handle accordingly
-                    result = self._check_background_job_status(response_id, company_name, company_id)
-                    
-                    if result == "__BACKGROUND_JOB_IN_PROGRESS__":
-                        logger.info(f"Background job {response_id} for {company_name} is still running, will continue polling")
-                    elif result:
-                        logger.info(f"Background job {response_id} for {company_name} completed during downtime, results recovered")
-                        # Process the results through the normal pipeline
-                        self._process_completed_background_job(company_id, result)
-                    else:
-                        logger.warning(f"Background job {response_id} for {company_name} failed or couldn't be recovered")
+                    for company_id, company_name, response_id, started_at in orphaned_jobs:
+                        logger.info(f"Recovering background job {response_id} for {company_name} (started: {started_at})")
+                        
+                        # Check job status and handle accordingly
+                        result = self._check_background_job_status(response_id, company_name, company_id)
+                        
+                        if result == "__BACKGROUND_JOB_IN_PROGRESS__":
+                            logger.info(f"Background job {response_id} for {company_name} is still running, will continue polling")
+                        elif result:
+                            logger.info(f"Background job {response_id} for {company_name} completed during downtime, results recovered")
+                            # Process the results through the normal pipeline
+                            self._process_completed_background_job(company_id, result)
+                        else:
+                            logger.warning(f"Background job {response_id} for {company_name} failed or couldn't be recovered")
+                
+                # Mark recovery as completed
+                LLMDeepResearchService._startup_recovery_completed = True
+                logger.info("Background job recovery check completed")
                         
         except Exception as e:
             logger.error(f"Error checking for orphaned background jobs: {e}")
+            # Still mark as completed to prevent repeated attempts
+            LLMDeepResearchService._startup_recovery_completed = True
     
     def _process_completed_background_job(self, company_id: int, results: str):
         """Process completed background job results through the normal research pipeline."""

@@ -38,7 +38,25 @@ class LLMStepByStepResearcher:
         Returns:
             Dictionary with success status and step information
         """
+        logger.critical(f"🚨 LLM STEP RESEARCH INITIATED: company_id={company_id}, provider={provider}, force_refresh={force_refresh}")
         logger.info(f"Starting LLM step research for company {company_id}, provider={provider}")
+        
+        # BULLETPROOF DATABASE CHECK BEFORE STARTING
+        if not force_refresh:
+            try:
+                research_status = self._check_step_research_status(company_id)
+                if research_status['already_in_progress']:
+                    logger.error(f"🚨 BLOCKED: Step research already in progress for company {company_id}. Status: {research_status['status']}, Started: {research_status['started_at']}")
+                    return {
+                        'success': False,
+                        'error': f"Research already in progress for company {company_id}. Current status: {research_status['status']}. Started at: {research_status['started_at']}",
+                        'current_status': research_status['status'],
+                        'started_at': research_status['started_at']
+                    }
+            except Exception as check_error:
+                logger.error(f"🚨 DATABASE CHECK FAILED: {check_error}")
+                # Continue with caution if database check fails
+                pass
         
         try:
             from app.models.company import Company
@@ -84,7 +102,13 @@ class LLMStepByStepResearcher:
             }
             
         except Exception as e:
-            logger.error(f"Error in LLM step research for company {company_id}: {e}")
+            logger.error(f"🚨 ERROR: LLM step research failed for company {company_id}: {e}")
+            # Mark as failed in database
+            try:
+                self._mark_step_research_failed(company_id, str(e))
+            except Exception as db_error:
+                logger.error(f"Failed to mark research as failed in DB: {db_error}")
+            
             return {
                 'success': False,
                 'error': str(e)
@@ -154,7 +178,8 @@ class LLMStepByStepResearcher:
                 company.company_name,
                 company.website_url or "",
                 provider=provider,
-                company_id=company.id  # CRITICAL: Pass company_id for safety tracking
+                company_id=company.id,  # CRITICAL: Pass company_id for safety tracking
+                from_step_researcher=True  # CRITICAL: Skip duplicate check since we're in step process
             )
             
             # Handle background job markers
@@ -870,3 +895,78 @@ Create the comprehensive markdown report now, ensuring it flows logically and pr
                 'success': False,
                 'error': str(e)
             }
+    
+    def _check_step_research_status(self, company_id: int) -> Dict[str, Any]:
+        """Check if step research is already in progress to prevent duplicates."""
+        try:
+            from deepresearch.database_service import DatabaseService
+            from sqlalchemy import text
+            
+            db_service = DatabaseService()
+            with db_service.engine.connect() as conn:
+                result = conn.execute(text("""
+                    SELECT 
+                        llm_research_step_status,
+                        llm_research_started_at,
+                        llm_research_provider,
+                        llm_research_completed_at
+                    FROM companies 
+                    WHERE id = :company_id
+                """), {'company_id': company_id})
+                
+                row = result.fetchone()
+                if not row:
+                    return {'already_in_progress': False, 'status': 'not_found'}
+                
+                status, started_at, provider, completed_at = row
+                
+                # Check if research is currently in progress
+                in_progress_statuses = [
+                    'api_call_initiated', 'background_job_running', 'step_1', 'step_2', 'step_3', 
+                    'in_progress', 'in_progress_step_1', 'in_progress_step_2', 'in_progress_step_3'
+                ]
+                
+                if status in in_progress_statuses:
+                    # Allow if it's been more than 30 minutes since started (might be stuck)
+                    import datetime
+                    if started_at:
+                        time_diff = datetime.datetime.now() - started_at
+                        if time_diff.total_seconds() > 1800:  # 30 minutes timeout for steps
+                            logger.warning(f"Step research for company {company_id} appears stuck (started {time_diff} ago), allowing retry")
+                            return {'already_in_progress': False, 'status': 'timeout_retry_allowed'}
+                    
+                    return {
+                        'already_in_progress': True,
+                        'status': status,
+                        'started_at': started_at,
+                        'provider': provider,
+                        'completed_at': completed_at
+                    }
+                
+                return {'already_in_progress': False, 'status': status or 'pending'}
+                
+        except Exception as e:
+            logger.error(f"Error checking step research status for company {company_id}: {e}")
+            # On error, allow the request (fail open)
+            return {'already_in_progress': False, 'status': 'check_failed'}
+    
+    def _mark_step_research_failed(self, company_id: int, error_message: str):
+        """Mark step research as failed in database."""
+        try:
+            from deepresearch.database_service import DatabaseService
+            from sqlalchemy import text
+            
+            db_service = DatabaseService()
+            with db_service.engine.connect() as conn:
+                with conn.begin():
+                    conn.execute(text("""
+                        UPDATE companies 
+                        SET llm_research_step_status = 'failed',
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :company_id
+                    """), {'company_id': company_id})
+            
+            logger.critical(f"🚨 DB STEP FAILED: Step research marked as failed in database for company {company_id}: {error_message}")
+            
+        except Exception as e:
+            logger.error(f"Failed to mark step research as failed in DB for company {company_id}: {e}")

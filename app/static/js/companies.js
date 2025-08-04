@@ -641,7 +641,10 @@ function displayCompanyDetails(company) {
         const viewReportBtn = document.getElementById('viewReportBtn');
         
         if (deepResearchBtn) {
-            deepResearchBtn.onclick = () => openDeepResearchModal(company.id, company.company_name);
+            deepResearchBtn.onclick = () => {
+                console.log(`🚨 DEEP RESEARCH BUTTON: Deep research button clicked from company details modal for ${company.company_name} (ID: ${company.id})`);
+                openDeepResearchModal(company.id, company.company_name);
+            };
         }
         
         if (triggerResearchBtn) {
@@ -929,8 +932,34 @@ function deleteAndResetCompany(companyId, companyName) {
         .then(data => {
             if (data.success) {
                 showToast('successToast', `Research data for "${companyName}" reset successfully!`);
+                
                 // Refresh the current page
                 changeCompaniesPage(getCurrentCompaniesPage());
+                
+                // If deep research modal is open for this company, refresh it
+                const deepResearchModal = document.getElementById('deepResearchModal');
+                if (deepResearchModal && deepResearchModal.classList.contains('show')) {
+                    // Check if the modal is for the same company
+                    const modalCompanyName = document.getElementById('deepResearchCompanyName');
+                    if (modalCompanyName && modalCompanyName.textContent === companyName) {
+                        console.log(`🚨 MODAL REFRESH: Refreshing deep research modal after reset for ${companyName}`);
+                        // Use the global refresh function
+                        if (typeof window.refreshDeepResearchModal === 'function') {
+                            window.refreshDeepResearchModal(companyId);
+                        } else {
+                            console.log(`🚨 FALLBACK: refreshDeepResearchModal not available, using fallback approach`);
+                            const modal = bootstrap.Modal.getInstance(deepResearchModal);
+                            if (modal) {
+                                modal.hide();
+                                setTimeout(() => {
+                                    if (typeof openDeepResearchModal === 'function') {
+                                        openDeepResearchModal(companyId, companyName);
+                                    }
+                                }, 500);
+                            }
+                        }
+                    }
+                }
             } else {
                 throw new Error(data.message || 'Failed to reset research');
             }

@@ -443,24 +443,58 @@ class Company:
                         return False
                     
                     company_name = company_row[0]
+                    current_app.logger.critical(f"🚨 RESET INITIATED: Resetting ALL research data (old + LLM fields) for company: {company_name} (ID: {company_id})")
                     current_app.logger.info(f"Resetting all research data for company: {company_name} (ID: {company_id})")
                     
-                    # Reset all research data fields to NULL and status to 'pending'
+                    # Reset ALL research data fields (old + new LLM fields) to NULL and status to 'pending'
                     reset_query = text("""
                         UPDATE companies 
-                        SET company_research = NULL,
+                        SET 
+                            -- Old research fields
+                            company_research = NULL,
                             research_step_1_basic = NULL,
                             research_step_2_strategic = NULL,
                             research_step_3_report = NULL,
                             html_report = NULL,
                             research_status = 'pending',
                             research_error = NULL,
+                            
+                            -- LLM research fields (from first migration)
+                            llm_research_prompt = NULL,
+                            llm_research_results = NULL,
+                            llm_research_status = NULL,
+                            llm_research_method = NULL,
+                            llm_research_word_count = NULL,
+                            llm_research_character_count = NULL,
+                            llm_research_quality_score = NULL,
+                            llm_research_updated_at = NULL,
+                            
+                            -- LLM step-by-step research fields (from second migration)
+                            llm_research_step_1_basic = NULL,
+                            llm_research_step_2_strategic = NULL,
+                            llm_research_step_3_report = NULL,
+                            llm_markdown_report = NULL,
+                            llm_html_report = NULL,
+                            llm_research_step_status = NULL,
+                            llm_research_provider = NULL,
+                            llm_research_started_at = NULL,
+                            llm_research_completed_at = NULL,
+                            
+                            -- OpenAI background job tracking (if exists)
+                            openai_response_id = NULL,
+                            
+                            -- Update timestamp
                             updated_at = CURRENT_TIMESTAMP
                         WHERE id = :id
                     """)
-                    conn.execute(reset_query, {"id": company_id})
+                    result = conn.execute(reset_query, {"id": company_id})
                     
+                    current_app.logger.critical(f"🚨 RESET COMPLETED: Successfully reset all research data for company: {company_name} (ID: {company_id}), rows affected: {result.rowcount}")
                     current_app.logger.info(f"Successfully reset all research data for company: {company_name} (ID: {company_id})")
+                    
+                    if result.rowcount == 0:
+                        current_app.logger.warning(f"No rows were updated during reset for company {company_id}. Company may not exist.")
+                        return False
                     
             return True
             

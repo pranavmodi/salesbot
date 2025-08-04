@@ -198,8 +198,17 @@ def llm_deep_research_company(company_id):
     """Research a specific company using LLM deep research capabilities."""
     try:
         data = request.get_json() or {}
-        force_refresh = data.get('force_refresh', False)
+        force_refresh_raw = data.get('force_refresh', False)
         provider = data.get('provider', 'claude')  # Default to Claude, but support others
+        
+        # Handle force_refresh parameter - convert to boolean if it's an object
+        if isinstance(force_refresh_raw, dict):
+            force_refresh = bool(force_refresh_raw.get('isTrusted', False))
+            current_app.logger.warning(f"Received JavaScript event object for force_refresh: {force_refresh_raw}, converted to: {force_refresh}")
+        else:
+            force_refresh = bool(force_refresh_raw)
+        
+        current_app.logger.info(f"Parameters: provider={provider}, force_refresh={force_refresh} (type: {type(force_refresh)})")
         
         # Get the company from database
         company = Company.get_by_id(company_id)
@@ -212,7 +221,27 @@ def llm_deep_research_company(company_id):
         # Import the LLM Deep Research service
         from deepresearch.llm_deep_research_service import LLMDeepResearchService
         
+        current_app.logger.critical(f"🚨 LLM DEEP RESEARCH API ENDPOINT CALLED: company_id={company_id}, company={company.company_name}, provider={provider}, force_refresh={force_refresh}, endpoint=/llm-deep-research")
         current_app.logger.info(f"Starting LLM deep research for company ID {company_id}: {company.company_name}, provider={provider}, force_refresh={force_refresh}")
+        
+        # BULLETPROOF: Check database status before allowing research  
+        from deepresearch.llm_deep_research_service import LLMDeepResearchService
+        temp_service = LLMDeepResearchService()
+        
+        if not force_refresh:
+            try:
+                status_check = temp_service._check_database_research_status(company_id)
+                if status_check['already_triggered']:
+                    current_app.logger.error(f"🚨 ENDPOINT BLOCKED: Deep research already triggered for company {company_id}, status: {status_check['status']}")
+                    return jsonify({
+                        'success': False,
+                        'message': f'Deep research already triggered for {company.company_name}',
+                        'current_status': status_check['status'],
+                        'started_at': str(status_check.get('started_at', '')),
+                        'error': 'Research already triggered. Please wait for completion or use force refresh.'
+                    }), 409  # Conflict status code
+            except Exception as check_error:
+                current_app.logger.warning(f"Database status check failed, proceeding with caution: {check_error}")
         
         # Get the current app instance to pass to the background thread
         app_instance = current_app._get_current_object()
@@ -410,7 +439,16 @@ def llm_step_research_company(company_id):
     try:
         data = request.get_json() or {}
         provider = data.get('provider', 'claude')
-        force_refresh = data.get('force_refresh', False)
+        force_refresh_raw = data.get('force_refresh', False)
+        
+        # Handle force_refresh parameter - convert to boolean if it's an object
+        if isinstance(force_refresh_raw, dict):
+            force_refresh = bool(force_refresh_raw.get('isTrusted', False))
+            current_app.logger.warning(f"Received JavaScript event object for force_refresh: {force_refresh_raw}, converted to: {force_refresh}")
+        else:
+            force_refresh = bool(force_refresh_raw)
+        
+        current_app.logger.info(f"Parameters: provider={provider}, force_refresh={force_refresh} (type: {type(force_refresh)})")
         
         # Get the company from database
         company = Company.get_by_id(company_id)
@@ -423,7 +461,27 @@ def llm_step_research_company(company_id):
         # Import the LLM Step-by-Step Researcher
         from deepresearch.llm_step_by_step_researcher import LLMStepByStepResearcher
         
+        current_app.logger.critical(f"🚨 LLM STEP RESEARCH API ENDPOINT CALLED: company_id={company_id}, company={company.company_name}, provider={provider}, endpoint=/llm-step-research")
         current_app.logger.info(f"Starting LLM step research for company ID {company_id}: {company.company_name}, provider={provider}")
+        
+        # BULLETPROOF: Check database status before allowing research
+        from deepresearch.llm_step_by_step_researcher import LLMStepByStepResearcher
+        temp_researcher = LLMStepByStepResearcher()
+        
+        if not force_refresh:
+            try:
+                status_check = temp_researcher._check_step_research_status(company_id)
+                if status_check['already_in_progress']:
+                    current_app.logger.error(f"🚨 ENDPOINT BLOCKED: Research already in progress for company {company_id}, status: {status_check['status']}")
+                    return jsonify({
+                        'success': False,
+                        'message': f'Research already in progress for {company.company_name}',
+                        'current_status': status_check['status'],
+                        'started_at': str(status_check.get('started_at', '')),
+                        'error': 'Research already triggered. Please wait for completion or use force refresh.'
+                    }), 409  # Conflict status code
+            except Exception as check_error:
+                current_app.logger.warning(f"Database status check failed, proceeding with caution: {check_error}")
         
         # Get the current app instance to pass to the background thread
         app_instance = current_app._get_current_object()

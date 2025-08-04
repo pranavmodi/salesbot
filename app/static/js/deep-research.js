@@ -20,7 +20,14 @@
                 const companyId = button.dataset.companyId;
                 const companyName = button.dataset.companyName;
 
-                console.log(`Deep Research button clicked for: ${companyName} (${companyId})`);
+                console.log(`🚨 BUTTON CLICK: Deep Research button clicked for: ${companyName} (${companyId})`);
+                
+                if (!companyId) {
+                    console.error('🚨 ERROR: No company ID found on deep research button');
+                    alert('Error: No company ID found. Please refresh the page and try again.');
+                    return;
+                }
+                
                 openDeepResearchModal(companyId, companyName);
             }
         });
@@ -56,24 +63,10 @@
         // Modal focus and accessibility management
         const modal = document.getElementById('deepResearchModal');
         if (modal) {
-            // Prevent modal from closing when research is in progress
+            // Allow modal to close even during research - background jobs continue running
             modal.addEventListener('hide.bs.modal', function(event) {
-                if (isResearchInProgress) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    
-                    // Maintain proper ARIA attributes for accessibility
-                    setTimeout(() => {
-                        modal.removeAttribute('aria-hidden');
-                        modal.setAttribute('aria-modal', 'true');
-                        if (modal.style.display === 'none') {
-                            modal.style.display = 'block';
-                        }
-                    }, 0);
-                    
-                    showError('Cannot close modal while research is in progress. Please stop the research first.');
-                    return false;
-                }
+                // No longer prevent closing - background jobs are safe to continue
+                // User can check progress by reopening the modal
             });
             
             // Cleanup when modal is actually closed
@@ -95,6 +88,7 @@
     }
 
     function openDeepResearchModal(companyId, companyName) {
+        console.log(`🚨 MODAL OPENED: Deep Research modal opened for company ${companyName} (ID: ${companyId})`);
         currentResearchCompanyId = companyId;
         
         // Update modal title
@@ -106,7 +100,8 @@
         // Reset modal state
         resetModalState();
 
-        // Load current research progress
+        // Load current research progress (this could potentially trigger research)
+        console.log(`🚨 LOADING PROGRESS: About to load research progress - this should NOT trigger new research`);
         loadResearchProgress(companyId);
 
         // Show modal
@@ -154,21 +149,26 @@
         const selectedResearchType = getSelectedResearchType();
         const progressUrl = getProgressUrl(selectedResearchType);
         
+        console.log(`🚨 PROGRESS CHECK: Loading progress from ${progressUrl} - this is READ-ONLY, should NOT trigger research`);
+        
         fetch(progressUrl)
             .then(response => response.json())
             .then(data => {
-                console.log('Research progress loaded:', data);
+                console.log(`🚨 PROGRESS LOADED: Research progress loaded for company ${companyId}:`, data);
                 displayResearchProgress(data);
             })
             .catch(error => {
-                console.error('Error loading research progress:', error);
+                console.error(`🚨 PROGRESS ERROR: Error loading research progress for company ${companyId}:`, error);
                 showError('Failed to load research progress');
             });
     }
 
     function displayResearchProgress(data) {
+        console.log(`🚨 PROGRESS DISPLAY: Displaying progress data for company ${currentResearchCompanyId}:`, data);
+        
         // Handle the actual response structure from the API
         if (!data.success) {
+            console.error(`🚨 PROGRESS ERROR: Failed to display progress for company ${currentResearchCompanyId}:`, data.error);
             showError(data.error || 'Failed to load research progress');
             return;
         }
@@ -179,14 +179,27 @@
         
         let status;
         if (isLLMResearch) {
-            // LLM research has different status structure
-            status = data.current_status || 'not_started';
-            if (data.current_step === 'completed') status = 'completed';
-            else if (data.current_status && data.current_status.includes('error')) status = 'failed';
-            else if (data.current_step && data.current_step.startsWith('step_')) status = 'in_progress';
+            // LLM research has different status structure - use research_status as primary
+            status = data.research_status || 'pending';
+            
+            // Override only for specific cases
+            if (data.current_step === 'completed' || data.is_complete) {
+                status = 'completed';
+            } else if (data.current_status && data.current_status.includes('error')) {
+                status = 'failed';
+            } else if (data.current_status && (
+                data.current_status.includes('background_job_running') || 
+                data.current_status.includes('Background research') ||
+                data.current_status.includes('Research session created') ||
+                data.research_status === 'in_progress'
+            )) {
+                status = 'in_progress';
+            }
         } else {
             status = data.research_status || 'pending';
         }
+        
+        console.log(`🚨 STATUS DETERMINED: Status for company ${currentResearchCompanyId} determined as: ${status}`);
         
         // Update company URL (we'll need to get it from the company details separately)
         const urlElement = document.getElementById('deepResearchCompanyUrl');
@@ -201,14 +214,27 @@
 
         // Start polling if research is in progress
         if (status === 'in_progress') {
+            console.log(`🚨 POLLING START: Starting progress polling for in-progress research on company ${currentResearchCompanyId}`);
             isResearchInProgress = true;
             startProgressPolling();
             showResearchLog();
+        } else {
+            console.log(`🚨 NO POLLING: Research not in progress for company ${currentResearchCompanyId}, status: ${status}`);
+            
+            // If status is pending but user might expect research to be running, show helpful message
+            if (status === 'pending' && data.current_status && data.current_status !== 'not_started') {
+                addLogMessage(`🚨 STATUS INFO: Research status is pending. Current status: ${data.current_status}. Click 'Start Deep Research' to begin.`);
+            }
+            
+            // Reset research in progress flag if not actually in progress
+            isResearchInProgress = false;
         }
     }
 
 
     function updateActionButtons(status, data = null) {
+        console.log(`🚨 BUTTON UPDATE: Updating action buttons for company ${currentResearchCompanyId} with status: ${status}`);
+        
         const startBtn = document.getElementById('startDeepResearchBtn');
         const forceBtn = document.getElementById('forceRefreshDeepBtn');
         const resumeBtn = document.getElementById('resumeDeepResearchBtn');
@@ -227,15 +253,19 @@
 
         switch (status) {
             case 'loading':
+                console.log(`🚨 BUTTON STATE: Loading state - no action buttons shown`);
                 // Show loading state
                 break;
             case 'pending':
+                console.log(`🚨 BUTTON STATE: Pending state - showing START button for company ${currentResearchCompanyId}`);
                 if (startBtn) startBtn.style.display = 'inline-block';
                 break;
             case 'in_progress':
+                console.log(`🚨 BUTTON STATE: In-progress state - showing STOP button for company ${currentResearchCompanyId}`);
                 if (stopBtn) stopBtn.style.display = 'inline-block';
                 break;
             case 'completed':
+                console.log(`🚨 BUTTON STATE: Completed state - showing FORCE REFRESH and REPORT buttons for company ${currentResearchCompanyId}`);
                 if (forceBtn) forceBtn.style.display = 'inline-block';
                 if (viewReportBtn) viewReportBtn.style.display = 'inline-block';
                 if (reportFormatButtons) reportFormatButtons.style.display = 'inline-block';
@@ -243,10 +273,12 @@
                 updateReportLinks();
                 break;
             case 'failed':
+                console.log(`🚨 BUTTON STATE: Failed state - showing RESUME and START buttons for company ${currentResearchCompanyId}`);
                 if (resumeBtn) resumeBtn.style.display = 'inline-block';
                 if (startBtn) startBtn.style.display = 'inline-block';
                 break;
             default:
+                console.log(`🚨 BUTTON STATE: Default state (${status}) - showing START button for company ${currentResearchCompanyId}`);
                 if (startBtn) startBtn.style.display = 'inline-block';
         }
     }
@@ -278,20 +310,29 @@
     }
 
     function startDeepResearch(forceRefresh = false) {
-        if (!currentResearchCompanyId) return;
-
-        // BULLETPROOF: Prevent multiple concurrent requests
-        if (isResearchInProgress) {
-            showError('Research already in progress. Please wait for completion.');
+        if (!currentResearchCompanyId) {
+            console.error('🚨 ERROR: No company ID selected for research');
+            showError('No company selected for research');
             return;
         }
 
+        // BULLETPROOF: Prevent multiple concurrent requests
+        if (isResearchInProgress) {
+            console.error('🚨 BLOCKED: Multiple research attempts prevented - research already in progress');
+            addLogMessage('🚨 BLOCKED: Research already in progress. Please wait for completion.');
+            showError('Research already in progress. Please wait for completion.');
+            return;
+        }
+        
         const selectedResearchType = getSelectedResearchType();
+        console.log(`🚨 DEEP RESEARCH TRIGGERED: Starting research for company ${currentResearchCompanyId}, type: ${selectedResearchType}`);
+        
         const researchConfig = getResearchConfig(selectedResearchType, forceRefresh);
         
         isResearchInProgress = true;
         showResearchLog();
-        addLogMessage('Starting AI Deep Research process...');
+        console.log(`🚨 DEEP RESEARCH API REQUEST: About to make API call to ${researchConfig.url}`);
+        addLogMessage(`🚨 DEEP RESEARCH INITIATED: Starting AI Deep Research process for company ${currentResearchCompanyId}...`);
         
         // DISABLE ALL RESEARCH BUTTONS TO PREVENT SPAM CLICKS
         const startBtn = document.getElementById('startDeepResearchBtn');
@@ -313,11 +354,13 @@
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                addLogMessage('Research started successfully');
+                console.log(`🚨 DEEP RESEARCH SUCCESS: API call succeeded for company ${currentResearchCompanyId}`);
+                addLogMessage(`🚨 RESEARCH STARTED: ${data.message || 'Research started successfully'}`);
                 updateActionButtons('in_progress');
                 startProgressPolling();
             } else {
-                addLogMessage(`Error: ${data.error}`);
+                console.error(`🚨 DEEP RESEARCH ERROR: API call failed for company ${currentResearchCompanyId}: ${data.error}`);
+                addLogMessage(`🚨 ERROR: ${data.error}`);
                 showError(data.error);
                 isResearchInProgress = false;
             }
@@ -732,7 +775,9 @@
     // Research Type Selection Functions
     function getSelectedResearchType() {
         // Always return LLM research since it's the only option
-        return 'llm_step_by_step';
+        const researchType = 'llm_step_by_step';
+        console.log(`🚨 RESEARCH TYPE: Selected research type: ${researchType}`);
+        return researchType;
     }
 
     function getResearchConfig(researchType, forceRefresh = false) {
@@ -1064,7 +1109,22 @@
             }
         }
     };
-
-
+    
+    // Global function to refresh modal (called after reset)
+    window.refreshDeepResearchModal = function(companyId) {
+        console.log(`🚨 REFRESH MODAL: Refreshing deep research modal for company ${companyId}`);
+        if (currentResearchCompanyId && currentResearchCompanyId.toString() === companyId.toString()) {
+            console.log(`🚨 MODAL RESET: Resetting modal state and reloading progress`);
+            // Reset modal state
+            resetModalState();
+            // Load fresh progress data
+            loadResearchProgress(companyId);
+        } else {
+            console.log(`🚨 MODAL SKIP: Modal not for this company (current: ${currentResearchCompanyId}, requested: ${companyId})`);
+        }
+    };
+    
+    // Make loadResearchProgress available globally for external refresh calls  
+    window.loadResearchProgress = loadResearchProgress;
 
 })(); 

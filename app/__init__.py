@@ -32,10 +32,13 @@ def create_app():
         campaign_scheduler.init_app(app)
         
         # Check for and recover orphaned background research jobs on startup
+        # Only run this once during startup, not on every service initialization
         try:
             from deepresearch.llm_deep_research_service import LLMDeepResearchService
-            llm_service = LLMDeepResearchService()
-            llm_service.check_and_recover_background_jobs()
+            # Create a temporary instance just for startup recovery
+            startup_service = LLMDeepResearchService()
+            startup_service.check_and_recover_background_jobs()
+            app.logger.info("Background job recovery check completed on startup")
         except Exception as e:
             app.logger.error(f"Failed to check for orphaned background jobs on startup: {e}")
     
