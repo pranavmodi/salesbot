@@ -5,9 +5,13 @@ let currentCompanyId = null;
 
 // Initialize company functionality
 function initializeCompanies() {
+    console.log('🚀 Initializing companies module...');
     setupCompanyEventListeners();
     setupCompanySearch();
     setupCompaniesPagination();
+    
+    // Load the first page of companies
+    loadCompaniesData(1, companiesPerPage);
 }
 
 // Company event listeners
@@ -203,15 +207,20 @@ function displayCompanySearchResults(companies, searchTerm) {
                 </td>
                 <td>
                     <div class="btn-group btn-group-sm" role="group">
-                        <button type="button" class="btn btn-outline-primary btn-sm" 
-                                onclick="loadCompanyDetails(${company.id})" 
+                        <button type="button" class="btn btn-outline-primary btn-sm company-view-btn" 
+                                data-bs-toggle="modal" data-bs-target="#companyDetailModal" data-company-id="${company.id}"
                                 title="View Details">
-                            <i class="fas fa-eye"></i>
+                            <i class="fas fa-eye"></i> View
                         </button>
-                        <button type="button" class="btn btn-outline-success btn-sm" 
-                                onclick="researchSingleCompany(${company.id}, '${company.company_name}', this)" 
-                                title="Research Company">
-                            <i class="fas fa-search"></i>
+                        <button type="button" class="btn btn-outline-info btn-sm deep-research-btn" 
+                                data-company-id="${company.id}" data-company-name="${company.company_name}"
+                                title="Deep Research">
+                            <i class="fas fa-microscope"></i> Deep Research
+                        </button>
+                        <button type="button" class="btn btn-warning btn-sm delete-reset-company-btn" 
+                                data-company-id="${company.id}" data-company-name="${company.company_name}"
+                                title="Reset all deep research data for this company (keeps company record)">
+                            <i class="fas fa-undo"></i> Reset Research
                         </button>
                     </div>
                 </td>
@@ -233,7 +242,8 @@ function clearCompanySearch() {
     if (companySearchInput) {
         companySearchInput.value = '';
     }
-    changeCompaniesPage(1);
+    currentCompaniesPage = 1;
+    loadCompaniesData(1, companiesPerPage);
 }
 
 // Company pagination
@@ -242,10 +252,23 @@ function setupCompaniesPagination() {
     console.log('Company pagination setup complete');
 }
 
+// Global pagination state
+let currentCompaniesPage = 1;
+let companiesPerPage = 20;
+
 function changeCompaniesPage(page) {
+    currentCompaniesPage = page;
+    loadCompaniesData(page, companiesPerPage);
+}
+
+function refreshCompaniesTable() {
+    console.log('🔄 Refreshing companies table at current page:', currentCompaniesPage);
+    loadCompaniesData(currentCompaniesPage, companiesPerPage);
+}
+
+function loadCompaniesData(page = 1, perPage = 20) {
     addPaginationLoadingState('companies-table-container');
     
-    const perPage = 20; // Fixed per page for companies
     const url = `/api/companies?page=${page}&per_page=${perPage}`;
     
     fetch(url)
@@ -256,7 +279,7 @@ function changeCompaniesPage(page) {
             }
             
             displayCompaniesTable(data.companies || [], data.pagination || {});
-            updateCompanyStats(data.total);
+            updateCompanyStats(data.pagination?.total_companies || 0);
             removePaginationLoadingState('companies-table-container');
         })
         .catch(error => {
@@ -328,15 +351,20 @@ function displayCompaniesTable(companies, pagination) {
                 </td>
                 <td>
                     <div class="btn-group btn-group-sm" role="group">
-                        <button type="button" class="btn btn-outline-primary btn-sm" 
-                                onclick="loadCompanyDetails(${company.id})" 
+                        <button type="button" class="btn btn-outline-primary btn-sm company-view-btn" 
+                                data-bs-toggle="modal" data-bs-target="#companyDetailModal" data-company-id="${company.id}"
                                 title="View Details">
-                            <i class="fas fa-eye"></i>
+                            <i class="fas fa-eye"></i> View
                         </button>
-                        <button type="button" class="btn btn-outline-success btn-sm" 
-                                onclick="researchSingleCompany(${company.id}, '${company.company_name}', this)" 
-                                title="Research Company">
-                            <i class="fas fa-search"></i>
+                        <button type="button" class="btn btn-outline-info btn-sm deep-research-btn" 
+                                data-company-id="${company.id}" data-company-name="${company.company_name}"
+                                title="Deep Research">
+                            <i class="fas fa-microscope"></i> Deep Research
+                        </button>
+                        <button type="button" class="btn btn-warning btn-sm delete-reset-company-btn" 
+                                data-company-id="${company.id}" data-company-name="${company.company_name}"
+                                title="Reset all deep research data for this company (keeps company record)">
+                            <i class="fas fa-undo"></i> Reset Research
                         </button>
                     </div>
                 </td>
@@ -359,38 +387,108 @@ function displayCompaniesTable(companies, pagination) {
 }
 
 function generateCompaniesPagination(currentPage, totalPages) {
+    if (totalPages <= 1) return '';
+    
     let paginationHTML = `
         <nav aria-label="Companies pagination" class="mt-4">
-            <ul class="pagination justify-content-center">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="pagination-info">
+                    <small class="text-muted">Page ${currentPage} of ${totalPages}</small>
+                </div>
+                <ul class="pagination pagination-sm mb-0">
     `;
+    
+    // First page button
+    if (currentPage > 1) {
+        paginationHTML += `
+            <li class="page-item">
+                <a class="page-link" href="#" onclick="changeCompaniesPage(1)" title="First page">
+                    <i class="fas fa-angle-double-left"></i>
+                </a>
+            </li>
+        `;
+    }
     
     // Previous button
     const prevDisabled = currentPage === 1 ? 'disabled' : '';
     paginationHTML += `
         <li class="page-item ${prevDisabled}">
             <a class="page-link" href="#" onclick="changeCompaniesPage(${currentPage - 1})" 
-               ${prevDisabled ? 'tabindex="-1" aria-disabled="true"' : ''}>
+               ${prevDisabled ? 'tabindex="-1" aria-disabled="true"' : ''} title="Previous page">
                 <i class="fas fa-chevron-left"></i>
             </a>
         </li>
     `;
     
+    // Calculate page range to show
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    // Adjust if we're near the end
+    if (endPage - startPage + 1 < maxVisiblePages) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+    
+    // Add ellipsis if needed (start)
+    if (startPage > 1) {
+        paginationHTML += `
+            <li class="page-item">
+                <a class="page-link" href="#" onclick="changeCompaniesPage(1)">1</a>
+            </li>
+        `;
+        if (startPage > 2) {
+            paginationHTML += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+    }
+    
     // Page numbers
-    paginationHTML += generatePageNumbers(currentPage, totalPages, 'companies-page', 'data-page');
+    for (let page = startPage; page <= endPage; page++) {
+        const isActive = page === currentPage;
+        paginationHTML += `
+            <li class="page-item ${isActive ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="changeCompaniesPage(${page})">${page}</a>
+            </li>
+        `;
+    }
+    
+    // Add ellipsis if needed (end)
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            paginationHTML += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+        paginationHTML += `
+            <li class="page-item">
+                <a class="page-link" href="#" onclick="changeCompaniesPage(${totalPages})">${totalPages}</a>
+            </li>
+        `;
+    }
     
     // Next button
     const nextDisabled = currentPage === totalPages ? 'disabled' : '';
     paginationHTML += `
         <li class="page-item ${nextDisabled}">
             <a class="page-link" href="#" onclick="changeCompaniesPage(${currentPage + 1})"
-               ${nextDisabled ? 'tabindex="-1" aria-disabled="true"' : ''}>
+               ${nextDisabled ? 'tabindex="-1" aria-disabled="true"' : ''} title="Next page">
                 <i class="fas fa-chevron-right"></i>
             </a>
         </li>
     `;
     
+    // Last page button
+    if (currentPage < totalPages) {
+        paginationHTML += `
+            <li class="page-item">
+                <a class="page-link" href="#" onclick="changeCompaniesPage(${totalPages})" title="Last page">
+                    <i class="fas fa-angle-double-right"></i>
+                </a>
+            </li>
+        `;
+    }
+    
     paginationHTML += `
-            </ul>
+                </ul>
+            </div>
         </nav>
     `;
     
@@ -419,7 +517,8 @@ function cleanAllResearch() {
             
             // Reload companies to show updated data
             setTimeout(() => {
-                changeCompaniesPage(1);
+                currentCompaniesPage = 1;
+                refreshCompaniesTable();
             }, 1000);
         } else {
             throw new Error(data.message || 'Failed to clean research data');
@@ -453,7 +552,7 @@ function researchCompanies() {
             
             // Optionally reload companies to show updated data
             setTimeout(() => {
-                changeCompaniesPage(1);
+                refreshCompaniesTable();
             }, 2000);
         } else {
             throw new Error(data.message || 'Failed to start company research');
@@ -737,7 +836,7 @@ function saveCompanyInModal() {
             loadCompanyDetails(currentCompanyId);
             
             // Reload companies table
-            changeCompaniesPage(1);
+            refreshCompaniesTable();
         } else {
             throw new Error(data.message || 'Failed to update company');
         }
@@ -878,7 +977,7 @@ function extractCompaniesFromContacts() {
     .then(data => {
         if (data.success) {
             showToast('successToast', `Extracted ${data.count || 0} companies from contacts!`);
-            changeCompaniesPage(1);
+            refreshCompaniesTable();
         } else {
             throw new Error(data.message || 'Failed to extract companies');
         }
@@ -933,8 +1032,8 @@ function deleteAndResetCompany(companyId, companyName) {
             if (data.success) {
                 showToast('successToast', `Research data for "${companyName}" reset successfully!`);
                 
-                // Refresh the current page
-                changeCompaniesPage(getCurrentCompaniesPage());
+                // Refresh the current page with lighter approach
+                refreshCompaniesTable();
                 
                 // If deep research modal is open for this company, refresh it
                 const deepResearchModal = document.getElementById('deepResearchModal');
@@ -1002,6 +1101,7 @@ if (typeof module !== 'undefined' && module.exports) {
 // Global function assignments for HTML onclick handlers
 window.clearCompanySearch = clearCompanySearch;
 window.changeCompaniesPage = changeCompaniesPage;
+window.refreshCompaniesTable = refreshCompaniesTable;
 window.loadCompanyDetails = loadCompanyDetails;
 window.researchCompanies = researchCompanies;
 window.researchSingleCompany = researchSingleCompany;

@@ -283,8 +283,8 @@ Please conduct thorough research across multiple reliable sources and provide a 
                 self._store_response_id(company_id, response_id)
                 logger.critical(f"🚨 DB UPDATED: OpenAI background job marked in database for company {company_id}, response_id={response_id}")
                 
-                # Update status to show background job is running
-                self._update_research_status(company_name, f"Background research job started (ID: {response_id})", company_id)
+                # Update status to show background job is running (keep under 50 chars)
+                self._update_research_status(company_name, "Executing step 1 with OpenAI deep research", company_id)
                 
                 # Start polling for status updates
                 return self._poll_background_job(response_id, company_name, company_id)
@@ -767,6 +767,12 @@ Use your deep research capabilities to gather comprehensive, current information
         """Mark research as completed in database."""
         try:
             from deepresearch.database_service import DatabaseService
+            # Validate results before saving - prevent marker leakage
+            if isinstance(results, str) and results.startswith('__') and results.endswith('__'):
+                logger.error(f"🚨 MARKER LEAK: Attempted to save marker '{results}' as research results for company {company_id}")
+                self._mark_research_failed_in_db(company_id, f"Internal marker {results} should not be saved as research results", "openai")
+                return
+            
             from sqlalchemy import text
             
             db_service = DatabaseService()
@@ -898,7 +904,7 @@ Use your deep research capabilities to gather comprehensive, current information
                 self._clear_response_id(company_id)
                 
                 # Update final status
-                self._update_research_status(company_name, "Background research completed successfully!", company_id)
+                self._update_research_status(company_name, "OpenAI research completed successfully", company_id)
                 
                 return results
             
@@ -909,8 +915,8 @@ Use your deep research capabilities to gather comprehensive, current information
                 # Clear the stored response ID
                 self._clear_response_id(company_id)
                 
-                # Update error status
-                self._update_research_status(company_name, f"Background job failed: {status_response.error or 'Unknown error'}", company_id)
+                # Update error status (keep under 50 chars)
+                self._update_research_status(company_name, "OpenAI research failed - see logs", company_id)
                 
                 return None
             
@@ -918,7 +924,8 @@ Use your deep research capabilities to gather comprehensive, current information
                 # Job still running - update status and return None to indicate not ready
                 logger.info(f"Background job {response_id} still {status} for {company_name}")
                 
-                status_msg = f"Background research {status}" + (f" (ID: {response_id})" if status == 'in_progress' else f" (ID: {response_id})")
+                # Keep status message under 50 chars
+                status_msg = f"OpenAI research {status}"
                 self._update_research_status(company_name, status_msg, company_id)
                 
                 # Return a special marker to indicate job is still running
@@ -933,18 +940,29 @@ Use your deep research capabilities to gather comprehensive, current information
             return None
     
     def _poll_background_job(self, response_id: str, company_name: str, company_id: int) -> Optional[str]:
-        """Poll background job status. Returns results if completed, None if still running, or triggers fallback."""
+        """Poll background job status. Returns results if completed, marker if still running."""
         try:
-            # For the initial call, just return a marker that the job is starting
-            # The frontend polling will handle checking for completion
-            logger.info(f"Background job {response_id} started for {company_name}, polling will be handled by frontend")
+            logger.info(f"Checking immediate status of background job {response_id} for {company_name}")
             
-            # Return special marker to indicate background job is running
-            return "__BACKGROUND_JOB_STARTED__"
+            # Check if the job completed immediately (some jobs finish very quickly)
+            result = self._check_background_job_status(response_id, company_name, company_id)
+            
+            if result == "__BACKGROUND_JOB_IN_PROGRESS__":
+                # Job is still running, frontend polling will handle it
+                logger.info(f"Background job {response_id} for {company_name} is in progress, frontend will continue polling")
+                return "__BACKGROUND_JOB_STARTED__"
+            elif result:
+                # Job completed immediately with results
+                logger.info(f"Background job {response_id} for {company_name} completed immediately")
+                return result
+            else:
+                # Job failed or couldn't be checked
+                logger.warning(f"Background job {response_id} for {company_name} failed or couldn't be checked")
+                return None
             
         except Exception as e:
-            logger.error(f"Error setting up background job polling for {response_id} ({company_name}): {e}")
-            return None
+            logger.error(f"Error checking background job status for {response_id} ({company_name}): {e}")
+            return "__BACKGROUND_JOB_STARTED__"  # Assume it's running, let frontend handle it
     
     def _clear_response_id(self, company_id: int):
         """Clear stored OpenAI response ID from database."""
@@ -1026,6 +1044,11 @@ Use your deep research capabilities to gather comprehensive, current information
             # This would integrate with the step-by-step researcher to continue the pipeline
             # For now, just store the results in step 1
             from deepresearch.database_service import DatabaseService
+            # Validate results before saving - prevent marker leakage
+            if isinstance(results, str) and results.startswith('__') and results.endswith('__'):
+                logger.error(f"🚨 MARKER LEAK: Attempted to save marker '{results}' as research results for company {company_id}")
+                return
+            
             from sqlalchemy import text
             
             db_service = DatabaseService()
@@ -1046,3 +1069,59 @@ Use your deep research capabilities to gather comprehensive, current information
             
         except Exception as e:
             logger.error(f"Error processing completed background job for company {company_id}: {e}")
+
+    def poll_and_process_background_jobs(self) -> int:
+        """Poll all active OpenAI background jobs and process completed ones. Returns count of processed jobs."""
+        try:
+            from deepresearch.database_service import DatabaseService
+            from sqlalchemy import text
+            
+            db_service = DatabaseService()
+            with db_service.engine.connect() as conn:
+                # Find companies with active background jobs
+                result = conn.execute(text("""
+                    SELECT id, company_name, openai_response_id 
+                    FROM companies 
+                    WHERE openai_response_id IS NOT NULL
+                    AND llm_research_step_status = 'background_job_running'
+                """))
+                
+                active_jobs = result.fetchall()
+                
+                if not active_jobs:
+                    return 0
+                
+                logger.debug(f"Found {len(active_jobs)} active background jobs to check")
+                completed_count = 0
+                
+                for job in active_jobs:
+                    company_id, company_name, response_id = job
+                    logger.debug(f"Checking background job {response_id} for {company_name}")
+                    
+                    try:
+                        # Check job status and process if completed
+                        result = self._check_background_job_status(response_id, company_name, company_id)
+                        
+                        if result == "__BACKGROUND_JOB_IN_PROGRESS__":
+                            logger.debug(f"Background job {response_id} for {company_name} still in progress")
+                            continue
+                        elif result:
+                            logger.info(f"✅ Background job {response_id} for {company_name} completed, processing results")
+                            # Process the results through the normal pipeline
+                            self._process_completed_background_job(company_id, result)
+                            completed_count += 1
+                        else:
+                            logger.warning(f"❌ Background job {response_id} for {company_name} failed")
+                            # Job failed - clean up and mark as failed
+                            self._clear_response_id(company_id)
+                            self._mark_research_failed_in_db(company_id, "OpenAI background job failed", "openai")
+                            
+                    except Exception as job_error:
+                        logger.error(f"Error processing background job {response_id} for {company_name}: {job_error}")
+                        continue
+                
+                return completed_count
+                
+        except Exception as e:
+            logger.error(f"Error polling OpenAI background jobs: {e}")
+            return 0

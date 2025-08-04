@@ -231,7 +231,14 @@ class LLMStepByStepResearcher:
                     'error': error_msg
                 }
             
-            # Store the research results
+            # Store the research results - ONLY if they are actual results, NOT markers
+            if isinstance(research_results, str) and research_results.startswith('__') and research_results.endswith('__'):
+                logger.error(f"🚨 MARKER LEAK: Attempted to save marker '{research_results}' as research results for {company.company_name}")
+                return {
+                    'success': False,
+                    'error': f'Internal marker {research_results} should not be saved as research results'
+                }
+            
             from deepresearch.database_service import DatabaseService
             db_service = DatabaseService()
             

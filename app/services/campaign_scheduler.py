@@ -898,6 +898,7 @@ def cleanup_old_logs_job():
         except Exception as e:
             current_app.logger.error(f"Error in scheduled log cleanup: {e}")
 
+
 def _adjust_for_business_hours(scheduled_time: datetime, timezone_str: str, business_hours: Dict) -> datetime:
     """Adjust scheduled time to fall within business hours."""
     try:
@@ -1153,6 +1154,7 @@ class CampaignScheduler:
                 
             except Exception as cleanup_error:
                 current_app.logger.warning(f"Failed to schedule log cleanup job: {cleanup_error}")
+
             
         except Exception as e:
             current_app.logger.error(f"Failed to setup background jobs: {e}")

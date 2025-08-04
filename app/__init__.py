@@ -31,6 +31,14 @@ def create_app():
         from app.services.campaign_scheduler import campaign_scheduler
         campaign_scheduler.init_app(app)
         
+        # Initialize and start deep research scheduler (independent)
+        try:
+            from deepresearch.background_scheduler import deep_research_scheduler
+            deep_research_scheduler.init_app(app)
+            app.logger.info("Deep research scheduler initialized successfully")
+        except Exception as e:
+            app.logger.error(f"Failed to initialize deep research scheduler: {e}")
+        
         # Check for and recover orphaned background research jobs on startup
         # Only run this once during startup, not on every service initialization
         try:

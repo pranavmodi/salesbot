@@ -61,6 +61,20 @@ class CompanyResearchCleaner:
                       OR markdown_report IS NOT NULL
                       OR strategic_imperatives IS NOT NULL  
                       OR agent_recommendations IS NOT NULL
+                      OR research_step_1_basic IS NOT NULL
+                      OR research_step_2_strategic IS NOT NULL
+                      OR research_step_3_report IS NOT NULL
+                      -- LLM research fields (from first migration)
+                      OR llm_research_prompt IS NOT NULL
+                      OR llm_research_results IS NOT NULL
+                      OR llm_research_status IS NOT NULL
+                      -- LLM step-by-step research fields (from second migration)
+                      OR llm_research_step_1_basic IS NOT NULL
+                      OR llm_research_step_2_strategic IS NOT NULL
+                      OR llm_research_step_3_report IS NOT NULL
+                      OR llm_markdown_report IS NOT NULL
+                      OR llm_html_report IS NOT NULL
+                      OR llm_research_step_status IS NOT NULL
                 """))
                 
                 count = result.fetchone().count
@@ -75,25 +89,55 @@ class CompanyResearchCleaner:
             return 0
 
     def clear_all_research(self) -> bool:
-        """Clear the company_research column for all companies."""
-        logger.info("Clearing all company research data...")
+        """Clear ALL company research data including LLM fields for all companies."""
+        logger.info("🚨 CLEARING ALL COMPANY RESEARCH DATA (including LLM fields)...")
+        logger.info("Fields to be cleared: old research, LLM research, step-by-step research, OpenAI tracking")
         
         try:
             with self.engine.connect() as conn:
                 with conn.begin():
                     result = conn.execute(text("""
                         UPDATE companies 
-                        SET company_research = NULL,
+                        SET 
+                            -- Old research fields
+                            company_research = NULL,
                             markdown_report = NULL,
                             strategic_imperatives = NULL,
                             agent_recommendations = NULL,
                             research_step_1_basic = NULL,
                             research_step_2_strategic = NULL,
                             research_step_3_report = NULL,
-                            research_status = NULL,
+                            html_report = NULL,
+                            research_status = 'pending',
                             research_started_at = NULL,
                             research_completed_at = NULL,
                             research_error = NULL,
+                            
+                            -- LLM research fields (from first migration)
+                            llm_research_prompt = NULL,
+                            llm_research_results = NULL,
+                            llm_research_status = NULL,
+                            llm_research_method = NULL,
+                            llm_research_word_count = NULL,
+                            llm_research_character_count = NULL,
+                            llm_research_quality_score = NULL,
+                            llm_research_updated_at = NULL,
+                            
+                            -- LLM step-by-step research fields (from second migration)
+                            llm_research_step_1_basic = NULL,
+                            llm_research_step_2_strategic = NULL,
+                            llm_research_step_3_report = NULL,
+                            llm_markdown_report = NULL,
+                            llm_html_report = NULL,
+                            llm_research_step_status = NULL,
+                            llm_research_provider = NULL,
+                            llm_research_started_at = NULL,
+                            llm_research_completed_at = NULL,
+                            
+                            -- OpenAI background job tracking (if exists)
+                            openai_response_id = NULL,
+                            
+                            -- Update timestamp
                             updated_at = CURRENT_TIMESTAMP
                         WHERE company_research IS NOT NULL 
                            OR company_research != ''
@@ -103,10 +147,20 @@ class CompanyResearchCleaner:
                            OR research_step_1_basic IS NOT NULL
                            OR research_step_2_strategic IS NOT NULL
                            OR research_step_3_report IS NOT NULL
+                           OR llm_research_prompt IS NOT NULL
+                           OR llm_research_results IS NOT NULL
+                           OR llm_research_status IS NOT NULL
+                           OR llm_research_step_1_basic IS NOT NULL
+                           OR llm_research_step_2_strategic IS NOT NULL
+                           OR llm_research_step_3_report IS NOT NULL
+                           OR llm_markdown_report IS NOT NULL
+                           OR llm_html_report IS NOT NULL
+                           OR llm_research_step_status IS NOT NULL
+                           OR openai_response_id IS NOT NULL
                     """))
                     
                     rows_affected = result.rowcount
-                    logger.info(f"Successfully cleared research data from {rows_affected} companies")
+                    logger.info(f"✅ Successfully cleared ALL research data (including LLM fields) from {rows_affected} companies")
                     return True
             
         except SQLAlchemyError as e:
@@ -133,20 +187,49 @@ class CompanyResearchCleaner:
                         logger.warning(f"No company found with ID: {company_id}")
                         return False
                     
-                    # Clear the research data
+                    # Clear the research data - ALL fields including LLM
                     result = conn.execute(text("""
                         UPDATE companies 
-                        SET company_research = NULL,
+                        SET 
+                            -- Old research fields
+                            company_research = NULL,
                             markdown_report = NULL,
                             strategic_imperatives = NULL,
                             agent_recommendations = NULL,
                             research_step_1_basic = NULL,
                             research_step_2_strategic = NULL,
                             research_step_3_report = NULL,
-                            research_status = NULL,
+                            html_report = NULL,
+                            research_status = 'pending',
                             research_started_at = NULL,
                             research_completed_at = NULL,
                             research_error = NULL,
+                            
+                            -- LLM research fields (from first migration)
+                            llm_research_prompt = NULL,
+                            llm_research_results = NULL,
+                            llm_research_status = NULL,
+                            llm_research_method = NULL,
+                            llm_research_word_count = NULL,
+                            llm_research_character_count = NULL,
+                            llm_research_quality_score = NULL,
+                            llm_research_updated_at = NULL,
+                            
+                            -- LLM step-by-step research fields (from second migration)
+                            llm_research_step_1_basic = NULL,
+                            llm_research_step_2_strategic = NULL,
+                            llm_research_step_3_report = NULL,
+                            llm_markdown_report = NULL,
+                            llm_html_report = NULL,
+                            llm_research_step_status = NULL,
+                            llm_research_provider = NULL,
+                            llm_research_started_at = NULL,
+                            llm_research_completed_at = NULL,
+                            
+                            -- OpenAI background job tracking (if exists)
+                            openai_response_id = NULL,
+                            
+                            -- Update timestamp
                             updated_at = CURRENT_TIMESTAMP
                         WHERE id = :company_id
                     """), {"company_id": company_id})
@@ -174,17 +257,46 @@ class CompanyResearchCleaner:
                 with conn.begin():
                     result = conn.execute(text("""
                         UPDATE companies 
-                        SET company_research = NULL,
+                        SET 
+                            -- Old research fields
+                            company_research = NULL,
                             markdown_report = NULL,
                             strategic_imperatives = NULL,
                             agent_recommendations = NULL,
                             research_step_1_basic = NULL,
                             research_step_2_strategic = NULL,
                             research_step_3_report = NULL,
-                            research_status = NULL,
+                            html_report = NULL,
+                            research_status = 'pending',
                             research_started_at = NULL,
                             research_completed_at = NULL,
                             research_error = NULL,
+                            
+                            -- LLM research fields (from first migration)
+                            llm_research_prompt = NULL,
+                            llm_research_results = NULL,
+                            llm_research_status = NULL,
+                            llm_research_method = NULL,
+                            llm_research_word_count = NULL,
+                            llm_research_character_count = NULL,
+                            llm_research_quality_score = NULL,
+                            llm_research_updated_at = NULL,
+                            
+                            -- LLM step-by-step research fields (from second migration)
+                            llm_research_step_1_basic = NULL,
+                            llm_research_step_2_strategic = NULL,
+                            llm_research_step_3_report = NULL,
+                            llm_markdown_report = NULL,
+                            llm_html_report = NULL,
+                            llm_research_step_status = NULL,
+                            llm_research_provider = NULL,
+                            llm_research_started_at = NULL,
+                            llm_research_completed_at = NULL,
+                            
+                            -- OpenAI background job tracking (if exists)
+                            openai_response_id = NULL,
+                            
+                            -- Update timestamp
                             updated_at = CURRENT_TIMESTAMP
                         WHERE LOWER(company_name) = LOWER(:company_name)
                     """), {"company_name": company_name})
