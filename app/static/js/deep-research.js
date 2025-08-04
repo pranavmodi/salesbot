@@ -658,19 +658,27 @@
     }
 
     function showResearchLog() {
+        console.log('🚨 SHOW LOG: showResearchLog() called');
         const logContainer = document.getElementById('deepResearchLog');
         if (logContainer) {
             logContainer.style.display = 'block';
+            console.log('🚨 LOG VISIBLE: Research log container is now visible');
+        } else {
+            console.error('🚨 LOG ERROR: deepResearchLog container not found!');
         }
     }
 
     function addLogMessage(message) {
+        console.log('🚨 ADD LOG: addLogMessage() called with:', message);
         const logContent = document.getElementById('logContent');
         if (logContent) {
             const timestamp = new Date().toLocaleTimeString();
             const logEntry = `<div class="log-entry">[${timestamp}] ${message}</div>`;
             logContent.innerHTML += logEntry;
             logContent.scrollTop = logContent.scrollHeight;
+            console.log('🚨 LOG ADDED: Message added to log container');
+        } else {
+            console.error('🚨 LOG ERROR: logContent container not found!');
         }
         
         // Also show in console for debugging
