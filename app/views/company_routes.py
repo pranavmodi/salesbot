@@ -551,23 +551,93 @@ def get_llm_step_progress(company_id):
         else:
             status = 'pending'
         
+        # Calculate numeric steps completed and progress percentage
+        step_completions = [
+            bool(has_step_1 and not step_1_has_error),
+            bool(has_step_2 and not step_2_has_error), 
+            bool(has_step_3 and not step_3_has_error)
+        ]
+        steps_completed_count = sum(step_completions)
+        total_steps = 3
+        progress_percentage = (steps_completed_count / total_steps) * 100
+        
+        # Create step details array for frontend
+        step_details = [
+            {
+                'step': 1,
+                'name': 'LLM Basic Research',
+                'description': 'Comprehensive company intelligence gathering using LLM deep research',
+                'status': 'error' if step_1_has_error else ('completed' if has_step_1 else 'pending'),
+                'has_prompt': has_step_1,
+                'has_results': has_step_1 and not step_1_has_error,
+                'has_error': step_1_has_error,
+                'error_message': company.llm_research_step_1_basic.replace('ERROR: ', '') if step_1_has_error else None
+            },
+            {
+                'step': 2,
+                'name': 'LLM Strategic Analysis',
+                'description': 'Strategic imperatives and AI agent recommendations',
+                'status': 'error' if step_2_has_error else ('completed' if has_step_2 else 'pending'),
+                'has_prompt': has_step_2,
+                'has_results': has_step_2 and not step_2_has_error,
+                'has_error': step_2_has_error,
+                'error_message': company.llm_research_step_2_strategic.replace('ERROR: ', '') if step_2_has_error else None
+            },
+            {
+                'step': 3,
+                'name': 'LLM Report Generation',
+                'description': 'Final comprehensive markdown and HTML reports',
+                'status': 'error' if step_3_has_error else ('completed' if has_step_3 else 'pending'),
+                'has_prompt': has_step_3,
+                'has_results': has_step_3 and not step_3_has_error,
+                'has_error': step_3_has_error,
+                'error_message': company.llm_research_step_3_report.replace('ERROR: ', '') if step_3_has_error else None
+            }
+        ]
+        
+        # Determine current step and completion status
+        if steps_completed_count == total_steps:
+            current_step = 'completed'
+            is_complete = True
+        elif step_1_has_error:
+            current_step = 'step_1'
+            is_complete = False
+        elif step_2_has_error:
+            current_step = 'step_2'
+            is_complete = False
+        elif step_3_has_error:
+            current_step = 'step_3'
+            is_complete = False
+        elif not has_step_1:
+            current_step = 'step_1'
+            is_complete = False
+        elif not has_step_2:
+            current_step = 'step_2'
+            is_complete = False
+        elif not has_step_3:
+            current_step = 'step_3'
+            is_complete = False
+        else:
+            current_step = 'completed'
+            is_complete = True
+
         progress = {
             'success': True,
-            'research_status': status,
+            'company_id': company_id,
+            'company_name': company.company_name,
+            'progress_percentage': progress_percentage,
+            'steps_completed': steps_completed_count,  # Now a number, not an object
+            'total_steps': total_steps,
+            'current_step': current_step,
             'current_status': current_status,
-            'steps_completed': {
-                'step_1': has_step_1 and not step_1_has_error,
-                'step_2': has_step_2 and not step_2_has_error,
-                'step_3': has_step_3 and not step_3_has_error
-            },
-            'step_errors': {
-                'step_1': step_1_has_error,
-                'step_2': step_2_has_error,
-                'step_3': step_3_has_error
-            },
-            'has_html_report': bool(getattr(company, 'llm_html_report', None)),
-            'research_provider': getattr(company, 'llm_research_provider', None),
-            'company_name': company.company_name
+            'is_complete': is_complete,
+            'step_details': step_details,
+            'research_status': status,
+            'llm_research_step_status': current_status,
+            'llm_research_provider': getattr(company, 'llm_research_provider', ''),
+            'llm_research_started_at': getattr(company, 'llm_research_started_at', None),
+            'llm_research_completed_at': getattr(company, 'llm_research_completed_at', None),
+            'has_html_report': bool(getattr(company, 'llm_html_report', None))
         }
         
         return jsonify(progress)

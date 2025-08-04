@@ -149,12 +149,35 @@ class LLMStepByStepResearcher:
             
             llm_service = LLMDeepResearchService()
             
-            # Execute automatic research using the specified provider
+            # Execute automatic research using the specified provider with safety tracking
             research_results = llm_service.research_company_deep(
                 company.company_name,
                 company.website_url or "",
-                provider=provider
+                provider=provider,
+                company_id=company.id  # CRITICAL: Pass company_id for safety tracking
             )
+            
+            # Handle background job markers
+            if research_results == "__BACKGROUND_JOB_STARTED__":
+                logger.info(f"Background job started for {company.company_name}, will be completed asynchronously")
+                return {
+                    'success': True,
+                    'message': f'Background research job started for {company.company_name} using {provider}. Job will complete asynchronously.',
+                    'step': 'step_1',
+                    'status': 'background_job_running',
+                    'provider': provider,
+                    'next_action': 'Background job is running. Status will update automatically when completed.'
+                }
+            elif research_results == "__BACKGROUND_JOB_IN_PROGRESS__":
+                logger.info(f"Background job still in progress for {company.company_name}")
+                return {
+                    'success': True,
+                    'message': f'Background research job for {company.company_name} is still in progress using {provider}.',
+                    'step': 'step_1',
+                    'status': 'background_job_running',
+                    'provider': provider,
+                    'next_action': 'Background job is running. Please wait for completion.'
+                }
             
             if not research_results:
                 # Store error status in database

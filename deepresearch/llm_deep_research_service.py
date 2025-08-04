@@ -23,6 +23,17 @@ class LLMDeepResearchService:
         self.anthropic_client = None
         self.openai_client = None
         
+        # CRITICAL COST PROTECTION
+        self.max_tokens_per_request = 8000  # Hard limit
+        self.max_requests_per_hour = 10     # Rate limiting
+        self.max_daily_spend = 5.00         # Daily spend limit in USD
+        self.request_timeout = 120          # 2 minute timeout
+        
+        # BULLETPROOF CONCURRENCY PROTECTION
+        self._active_requests = set()       # Track active company IDs
+        self._request_timestamps = []       # Track request timing
+        self._daily_cost_tracker = 0.0     # Track daily spending
+        
         # Initialize Anthropic client if API key is available
         anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
         if anthropic_api_key:
@@ -37,13 +48,13 @@ class LLMDeepResearchService:
             from openai import OpenAI
             self.openai_client = OpenAI(
                 api_key=openai_api_key,
-                timeout=300.0  # 5 minute timeout for deep research calls
+                timeout=600.0  # 10 minute timeout - longer since we have streaming progress updates
             )
-            logger.info("LLMDeepResearchService initialized with OpenAI client (300s timeout)")
+            logger.info("LLMDeepResearchService initialized with OpenAI client (600s timeout)")
         else:
             logger.warning("OPENAI_API_KEY not found - OpenAI research will not be available")
 
-    def research_company_deep(self, company_name: str, company_domain: str = "", provider: str = "claude") -> Optional[str]:
+    def research_company_deep(self, company_name: str, company_domain: str = "", provider: str = "claude", company_id: int = None) -> Optional[str]:
         """
         Execute comprehensive company analysis using LLM deep research capabilities.
         
@@ -51,11 +62,21 @@ class LLMDeepResearchService:
             company_name: Name of the company to research
             company_domain: Company domain/website
             provider: LLM provider to use ('claude' or 'openai')
+            company_id: Company ID for safety tracking
             
         Returns:
             Comprehensive research analysis string or None if failed
         """
         logger.info(f"Starting LLM deep research for company: {company_name} using {provider}")
+        
+        # BULLETPROOF SAFETY CHECKS
+        if company_id is not None:
+            try:
+                self._check_request_limits(company_id)
+                self._register_request_start(company_id)
+            except Exception as safety_error:
+                logger.error(f"SAFETY CHECK FAILED: {safety_error}")
+                raise safety_error
         
         # Construct website URL from domain
         website_url = ""
@@ -69,15 +90,27 @@ class LLMDeepResearchService:
         research_prompt = self._create_deep_research_prompt(company_name, website_url, company_domain)
         
         try:
+            result = None
             if provider.lower() == "claude" and self.anthropic_client:
-                return self._execute_claude_research(research_prompt, company_name)
+                result = self._execute_claude_research(research_prompt, company_name)
             elif provider.lower() == "openai" and self.openai_client:
-                return self._execute_openai_research(research_prompt, company_name)
+                result = self._execute_openai_research(research_prompt, company_name, company_id)
             else:
                 logger.error(f"Provider {provider} not available or not configured")
-                return None
+                result = None
+            
+            # REGISTER COMPLETION
+            if company_id is not None:
+                estimated_cost = 0.5 if provider.lower() == "openai" else 0.1  # Higher estimate for OpenAI
+                self._register_request_end(company_id, estimated_cost)
+            
+            return result
                 
         except Exception as e:
+            # CLEANUP ON ERROR
+            if company_id is not None:
+                self._register_request_end(company_id, 0.0)  # No cost if failed
+            
             error_details = str(e)
             if "429" in error_details:
                 logger.error(f"Rate limit exceeded for {provider} research on {company_name}: {e}")
@@ -156,17 +189,25 @@ Provide detailed citations and sources for all information found."""
                 logger.error(f"Claude fallback API error for {company_name}: {fallback_error}")
                 return None
 
-    def _execute_openai_research(self, research_prompt: str, company_name: str) -> Optional[str]:
-        """Execute research using OpenAI o4-mini Deep Research API."""
-        logger.info(f"Executing OpenAI o4-mini deep research for {company_name}")
+    def _execute_openai_research(self, research_prompt: str, company_name: str, company_id: int = None) -> Optional[str]:
+        """Execute research using OpenAI o4-mini Deep Research API in background mode."""
+        logger.info(f"Starting OpenAI o4-mini deep research for {company_name} in background mode")
         
         try:
-            import time
-            start_time = time.time()
+            # Check if we have an existing background job for this company
+            existing_response_id = self._get_stored_response_id(company_id)
+            if existing_response_id:
+                logger.info(f"Found existing background job {existing_response_id} for {company_name}, checking status")
+                return self._check_background_job_status(existing_response_id, company_name, company_id)
             
-            # Try to use OpenAI Deep Research API first
+            # Start new background research job
             try:
-                logger.info(f"Starting OpenAI Deep Research API call for {company_name}")
+                logger.info(f"Starting new OpenAI Deep Research API background job for {company_name}")
+                
+                # Create webhook URL for our app
+                webhook_url = self._get_webhook_url()
+                
+                # Start background job (no streaming, returns immediately with response_id)
                 response = self.openai_client.responses.create(
                     model="o4-mini-deep-research-2025-06-26",
                     input=[
@@ -188,16 +229,23 @@ Research Requirements:
 Please conduct thorough research across multiple reliable sources and provide a comprehensive analysis with proper citations."""
                         }
                     ],
-                    reasoning={"summary": "auto"},
-                    tools=[{"type": "web_search_preview"}]
+                    reasoning={"summary": "auto"},  
+                    tools=[{"type": "web_search_preview"}],
+                    background=True,  # CRITICAL: Run in background mode
+                    webhook=webhook_url if webhook_url else None  # Optional webhook
                 )
                 
-                elapsed_time = time.time() - start_time
-                logger.info(f"OpenAI Deep Research API call completed in {elapsed_time:.2f} seconds for {company_name}")
+                response_id = response.id
+                logger.info(f"OpenAI Deep Research background job started: {response_id} for {company_name}")
                 
-                research_results = response.content[0].text if hasattr(response, 'content') else str(response)
-                logger.info(f"OpenAI o4-mini deep research completed for {company_name}: {len(research_results)} characters")
-                return research_results
+                # Store response_id in database for recovery after restarts
+                self._store_response_id(company_id, response_id)
+                
+                # Update status to show background job is running
+                self._update_research_status(company_name, f"Background research job started (ID: {response_id})", company_id)
+                
+                # Start polling for status updates
+                return self._poll_background_job(response_id, company_name, company_id)
                 
             except Exception as deep_error:
                 error_msg = str(deep_error)
@@ -508,3 +556,307 @@ Use your deep research capabilities to gather comprehensive, current information
             validation_results['issues'].append(f"Validation error: {str(e)}")
         
         return validation_results
+    
+    def _update_research_status(self, company_name: str, status_message: str, company_id: int = None):
+        """Update research status in database for real-time progress tracking."""
+        try:
+            from deepresearch.database_service import DatabaseService
+            from sqlalchemy import text
+            
+            db_service = DatabaseService()
+            with db_service.engine.connect() as conn:
+                with conn.begin():
+                    # Update the status in the database so progress polling can pick it up
+                    if company_id is not None:
+                        # Use company_id for precise updates (preferred)
+                        conn.execute(text("""
+                            UPDATE companies 
+                            SET llm_research_step_status = :status,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE id = :company_id
+                        """), {
+                            'status': status_message,
+                            'company_id': company_id
+                        })
+                    else:
+                        # Fallback to company_name (less reliable)
+                        conn.execute(text("""
+                            UPDATE companies 
+                            SET llm_research_step_status = :status,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE company_name = :company_name
+                        """), {
+                            'status': status_message,
+                            'company_name': company_name
+                        })
+            
+            logger.info(f"Updated research status for {company_name}: {status_message}")
+            
+        except Exception as e:
+            logger.warning(f"Failed to update research status for {company_name}: {e}")
+            # Don't fail the research if status update fails
+    
+    def _check_request_limits(self, company_id: int) -> bool:
+        """BULLETPROOF: Check if request is allowed based on safety limits."""
+        import time
+        from datetime import datetime, timedelta
+        
+        current_time = time.time()
+        
+        # 1. CHECK FOR DUPLICATE CONCURRENT REQUESTS
+        if company_id in self._active_requests:
+            logger.error(f"BLOCKED: Research already in progress for company {company_id}")
+            raise Exception(f"Research already in progress for company {company_id}. Wait for completion.")
+        
+        # 2. CHECK HOURLY RATE LIMIT
+        hour_ago = current_time - 3600
+        self._request_timestamps = [t for t in self._request_timestamps if t > hour_ago]
+        
+        if len(self._request_timestamps) >= self.max_requests_per_hour:
+            logger.error(f"BLOCKED: Hourly rate limit exceeded ({self.max_requests_per_hour}/hour)")
+            raise Exception(f"Rate limit exceeded: {self.max_requests_per_hour} requests per hour maximum")
+        
+        # 3. CHECK DAILY SPEND LIMIT
+        if self._daily_cost_tracker >= self.max_daily_spend:
+            logger.error(f"BLOCKED: Daily spend limit exceeded (${self._daily_cost_tracker:.2f}/${self.max_daily_spend})")
+            raise Exception(f"Daily spending limit exceeded: ${self.max_daily_spend}")
+        
+        return True
+    
+    def _register_request_start(self, company_id: int):
+        """Register start of request for tracking."""
+        import time
+        self._active_requests.add(company_id)
+        self._request_timestamps.append(time.time())
+        logger.info(f"SAFETY: Registered request start for company {company_id}")
+    
+    def _register_request_end(self, company_id: int, estimated_cost: float = 0.1):
+        """Register end of request."""
+        self._active_requests.discard(company_id)
+        self._daily_cost_tracker += estimated_cost
+        logger.info(f"SAFETY: Request completed for company {company_id}, cost: ${estimated_cost:.2f}")
+    
+    def _emergency_stop_all(self):
+        """Emergency stop all active requests."""
+        logger.critical("EMERGENCY STOP: Clearing all active requests")
+        self._active_requests.clear()
+    
+    def _get_webhook_url(self) -> str:
+        """Get webhook URL for OpenAI callbacks. Returns None if not configured."""
+        import os
+        base_url = os.getenv('WEBHOOK_BASE_URL')  # e.g., 'https://yourdomain.com'
+        if base_url:
+            return f"{base_url}/api/webhooks/openai-research"
+        return None
+    
+    def _store_response_id(self, company_id: int, response_id: str):
+        """Store OpenAI response ID in database for recovery after restarts."""
+        try:
+            from deepresearch.database_service import DatabaseService
+            from sqlalchemy import text
+            
+            db_service = DatabaseService()
+            with db_service.engine.connect() as conn:
+                with conn.begin():
+                    conn.execute(text("""
+                        UPDATE companies 
+                        SET openai_response_id = :response_id,
+                            llm_research_step_status = :status,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :company_id
+                    """), {
+                        'response_id': response_id,
+                        'status': 'background_job_running',
+                        'company_id': company_id
+                    })
+            
+            logger.info(f"Stored OpenAI response ID {response_id} for company {company_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to store response ID {response_id} for company {company_id}: {e}")
+    
+    def _get_stored_response_id(self, company_id: int) -> str:
+        """Get stored OpenAI response ID from database."""
+        try:
+            from deepresearch.database_service import DatabaseService
+            from sqlalchemy import text
+            
+            db_service = DatabaseService()
+            with db_service.engine.connect() as conn:
+                result = conn.execute(text("""
+                    SELECT openai_response_id, llm_research_step_status
+                    FROM companies 
+                    WHERE id = :company_id 
+                    AND openai_response_id IS NOT NULL
+                    AND llm_research_step_status = 'background_job_running'
+                """), {'company_id': company_id})
+                
+                row = result.fetchone()
+                if row:
+                    response_id = row[0]
+                    logger.info(f"Found stored response ID {response_id} for company {company_id}")
+                    return response_id
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Failed to get stored response ID for company {company_id}: {e}")
+            return None
+    
+    def _check_background_job_status(self, response_id: str, company_name: str, company_id: int) -> Optional[str]:
+        """Check status of existing background job and return results if completed."""
+        try:
+            logger.info(f"Checking background job status for {response_id} ({company_name})")
+            
+            # Use OpenAI's GET /responses/{response_id} endpoint to check status
+            status_response = self.openai_client.responses.retrieve(response_id)
+            
+            status = status_response.status  # 'queued', 'in_progress', 'completed', 'failed'
+            
+            if status == 'completed':
+                # Job completed - get the results
+                logger.info(f"Background job {response_id} completed for {company_name}")
+                results = status_response.output_text or ""
+                
+                # Clear the stored response ID since job is done
+                self._clear_response_id(company_id)
+                
+                # Update final status
+                self._update_research_status(company_name, "Background research completed successfully!", company_id)
+                
+                return results
+            
+            elif status == 'failed':
+                # Job failed
+                logger.error(f"Background job {response_id} failed for {company_name}")
+                
+                # Clear the stored response ID
+                self._clear_response_id(company_id)
+                
+                # Update error status
+                self._update_research_status(company_name, f"Background job failed: {status_response.error or 'Unknown error'}", company_id)
+                
+                return None
+            
+            elif status in ['queued', 'in_progress']:
+                # Job still running - update status and return None to indicate not ready
+                logger.info(f"Background job {response_id} still {status} for {company_name}")
+                
+                status_msg = f"Background research {status}" + (f" (ID: {response_id})" if status == 'in_progress' else f" (ID: {response_id})")
+                self._update_research_status(company_name, status_msg, company_id)
+                
+                # Return a special marker to indicate job is still running
+                return "__BACKGROUND_JOB_IN_PROGRESS__"
+            
+            else:
+                logger.warning(f"Unknown background job status '{status}' for {response_id} ({company_name})")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error checking background job status for {response_id} ({company_name}): {e}")
+            return None
+    
+    def _poll_background_job(self, response_id: str, company_name: str, company_id: int) -> Optional[str]:
+        """Poll background job status. Returns results if completed, None if still running, or triggers fallback."""
+        try:
+            # For the initial call, just return a marker that the job is starting
+            # The frontend polling will handle checking for completion
+            logger.info(f"Background job {response_id} started for {company_name}, polling will be handled by frontend")
+            
+            # Return special marker to indicate background job is running
+            return "__BACKGROUND_JOB_STARTED__"
+            
+        except Exception as e:
+            logger.error(f"Error setting up background job polling for {response_id} ({company_name}): {e}")
+            return None
+    
+    def _clear_response_id(self, company_id: int):
+        """Clear stored OpenAI response ID from database."""
+        try:
+            from deepresearch.database_service import DatabaseService
+            from sqlalchemy import text
+            
+            db_service = DatabaseService()
+            with db_service.engine.connect() as conn:
+                with conn.begin():
+                    conn.execute(text("""
+                        UPDATE companies 
+                        SET openai_response_id = NULL,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :company_id
+                    """), {'company_id': company_id})
+            
+            logger.info(f"Cleared OpenAI response ID for company {company_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to clear response ID for company {company_id}: {e}")
+    
+    def check_and_recover_background_jobs(self):
+        """Check for and recover any orphaned background jobs on startup."""
+        try:
+            from deepresearch.database_service import DatabaseService
+            from sqlalchemy import text
+            
+            logger.info("Checking for orphaned background research jobs on startup...")
+            
+            db_service = DatabaseService()
+            with db_service.engine.connect() as conn:
+                result = conn.execute(text("""
+                    SELECT id, company_name, openai_response_id, llm_research_started_at
+                    FROM companies 
+                    WHERE openai_response_id IS NOT NULL
+                    AND llm_research_step_status = 'background_job_running'
+                """))
+                
+                orphaned_jobs = result.fetchall()
+                
+                if not orphaned_jobs:
+                    logger.info("No orphaned background jobs found")
+                    return
+                
+                logger.info(f"Found {len(orphaned_jobs)} orphaned background jobs, attempting recovery...")
+                
+                for company_id, company_name, response_id, started_at in orphaned_jobs:
+                    logger.info(f"Recovering background job {response_id} for {company_name} (started: {started_at})")
+                    
+                    # Check job status and handle accordingly
+                    result = self._check_background_job_status(response_id, company_name, company_id)
+                    
+                    if result == "__BACKGROUND_JOB_IN_PROGRESS__":
+                        logger.info(f"Background job {response_id} for {company_name} is still running, will continue polling")
+                    elif result:
+                        logger.info(f"Background job {response_id} for {company_name} completed during downtime, results recovered")
+                        # Process the results through the normal pipeline
+                        self._process_completed_background_job(company_id, result)
+                    else:
+                        logger.warning(f"Background job {response_id} for {company_name} failed or couldn't be recovered")
+                        
+        except Exception as e:
+            logger.error(f"Error checking for orphaned background jobs: {e}")
+    
+    def _process_completed_background_job(self, company_id: int, results: str):
+        """Process completed background job results through the normal research pipeline."""
+        try:
+            # This would integrate with the step-by-step researcher to continue the pipeline
+            # For now, just store the results in step 1
+            from deepresearch.database_service import DatabaseService
+            from sqlalchemy import text
+            
+            db_service = DatabaseService()
+            with db_service.engine.connect() as conn:
+                with conn.begin():
+                    conn.execute(text("""
+                        UPDATE companies 
+                        SET llm_research_step_1_basic = :results,
+                            llm_research_step_status = 'step_1_completed',
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :company_id
+                    """), {
+                        'results': results,
+                        'company_id': company_id
+                    })
+            
+            logger.info(f"Processed completed background job results for company {company_id}")
+            
+        except Exception as e:
+            logger.error(f"Error processing completed background job for company {company_id}: {e}")

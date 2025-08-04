@@ -30,5 +30,13 @@ def create_app():
     with app.app_context():
         from app.services.campaign_scheduler import campaign_scheduler
         campaign_scheduler.init_app(app)
+        
+        # Check for and recover orphaned background research jobs on startup
+        try:
+            from deepresearch.llm_deep_research_service import LLMDeepResearchService
+            llm_service = LLMDeepResearchService()
+            llm_service.check_and_recover_background_jobs()
+        except Exception as e:
+            app.logger.error(f"Failed to check for orphaned background jobs on startup: {e}")
     
     return app 

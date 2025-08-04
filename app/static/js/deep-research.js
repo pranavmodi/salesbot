@@ -280,12 +280,28 @@
     function startDeepResearch(forceRefresh = false) {
         if (!currentResearchCompanyId) return;
 
+        // BULLETPROOF: Prevent multiple concurrent requests
+        if (isResearchInProgress) {
+            showError('Research already in progress. Please wait for completion.');
+            return;
+        }
+
         const selectedResearchType = getSelectedResearchType();
         const researchConfig = getResearchConfig(selectedResearchType, forceRefresh);
         
         isResearchInProgress = true;
         showResearchLog();
         addLogMessage('Starting AI Deep Research process...');
+        
+        // DISABLE ALL RESEARCH BUTTONS TO PREVENT SPAM CLICKS
+        const startBtn = document.getElementById('startDeepResearchBtn');
+        const forceBtn = document.getElementById('forceRefreshDeepBtn');
+        [startBtn, forceBtn].forEach(btn => {
+            if (btn) {
+                btn.disabled = true;
+                btn.classList.add('disabled');
+            }
+        });
 
         fetch(researchConfig.url, {
             method: researchConfig.method,
@@ -348,7 +364,8 @@
                 return;
             }
 
-            fetch(`/api/companies/${currentResearchCompanyId}/research/progress`)
+            // CRITICAL FIX: Use only the correct LLM progress endpoint
+            fetch(`/api/companies/${currentResearchCompanyId}/llm-step-progress`)
                 .then(response => response.json())
                 .then(data => {
                     if (!data.success) {
