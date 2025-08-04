@@ -243,9 +243,13 @@
         const reportFormatButtons = document.getElementById('reportFormatButtons');
         const publishBtn = document.getElementById('publishReportBtn');
 
-        // Hide all buttons first
+        // Hide all buttons first and re-enable them (in case they were disabled)
         [startBtn, forceBtn, resumeBtn, stopBtn, viewReportBtn, publishBtn].forEach(btn => {
-            if (btn) btn.style.display = 'none';
+            if (btn) {
+                btn.style.display = 'none';
+                btn.disabled = false;
+                btn.classList.remove('disabled');
+            }
         });
 
         // Hide report format buttons
