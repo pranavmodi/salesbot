@@ -1097,36 +1097,47 @@ Use your deep research capabilities to gather comprehensive, current information
             LLMDeepResearchService._startup_recovery_completed = True
     
     def _process_completed_background_job(self, company_id: int, results: str):
-        """Process completed background job results through the normal research pipeline."""
+        """Process completed background job results using the refactored workflow orchestrator."""
         try:
-            # This would integrate with the step-by-step researcher to continue the pipeline
-            # For now, just store the results in step 1
-            from deepresearch.database_service import DatabaseService
             # Validate results before saving - prevent marker leakage
             if isinstance(results, str) and results.startswith('__') and results.endswith('__'):
                 logger.error(f"🚨 MARKER LEAK: Attempted to save marker '{results}' as research results for company {company_id}")
                 return
             
+            # Get company info
+            from deepresearch.database_service import DatabaseService
             from sqlalchemy import text
             
             db_service = DatabaseService()
             with db_service.engine.connect() as conn:
-                with conn.begin():
-                    conn.execute(text("""
-                        UPDATE companies 
-                        SET llm_research_step_1_basic = :results,
-                            llm_research_step_status = 'step_1_completed',
-                            updated_at = CURRENT_TIMESTAMP
-                        WHERE id = :company_id
-                    """), {
-                        'results': results,
-                        'company_id': company_id
-                    })
+                result = conn.execute(text("""
+                    SELECT company_name, website_url
+                    FROM companies WHERE id = :company_id
+                """), {'company_id': company_id})
+                
+                company_row = result.fetchone()
+                if not company_row:
+                    logger.error(f"Company {company_id} not found during background job processing")
+                    return
+                
+                company_name = company_row[0]
+                website_url = company_row[1] or ""
             
-            logger.info(f"Processed completed background job results for company {company_id}")
+            logger.info(f"Processing completed step 1 background job for {company_name} (ID: {company_id})")
+            
+            # Use the workflow orchestrator to handle step 1 completion and progression
+            from deepresearch.llm_workflow_orchestrator import LLMWorkflowOrchestrator
+            orchestrator = LLMWorkflowOrchestrator(self.openai_client)
+            orchestrator.process_step_1_completion_and_start_step_2(company_id, company_name, website_url, results)
             
         except Exception as e:
             logger.error(f"Error processing completed background job for company {company_id}: {e}")
+    
+    # Step 2 and 3 methods have been moved to dedicated handler classes:
+    # - llm_step_2_handler.py: Handles strategic analysis using original AI service
+    # - llm_step_3_handler.py: Handles report generation using original report generator
+    # - llm_workflow_orchestrator.py: Orchestrates the complete 3-step workflow
+    
 
     def poll_and_process_background_jobs(self) -> int:
         """Poll all active OpenAI background jobs and process completed ones. Returns count of processed jobs."""

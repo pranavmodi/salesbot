@@ -590,12 +590,12 @@ def get_llm_step_progress(company_id):
         # Check step completion status
         has_step_1 = hasattr(company, 'llm_research_step_1_basic') and company.llm_research_step_1_basic
         has_step_2 = hasattr(company, 'llm_research_step_2_strategic') and company.llm_research_step_2_strategic
-        has_step_3 = hasattr(company, 'llm_research_step_3_report') and company.llm_research_step_3_report
+        has_step_3 = hasattr(company, 'html_report') and company.html_report
         
         # Check for errors in steps
         step_1_has_error = has_step_1 and company.llm_research_step_1_basic.startswith('ERROR:')
         step_2_has_error = has_step_2 and company.llm_research_step_2_strategic.startswith('ERROR:')
-        step_3_has_error = has_step_3 and company.llm_research_step_3_report.startswith('ERROR:')
+        step_3_has_error = has_step_3 and company.html_report.startswith('ERROR:')
         
         # Determine overall status
         current_status = getattr(company, 'llm_research_step_status', 'pending')
@@ -695,7 +695,7 @@ def get_llm_step_progress(company_id):
             'llm_research_provider': getattr(company, 'llm_research_provider', ''),
             'llm_research_started_at': getattr(company, 'llm_research_started_at', None),
             'llm_research_completed_at': getattr(company, 'llm_research_completed_at', None),
-            'has_html_report': bool(getattr(company, 'llm_html_report', None))
+            'has_html_report': bool(getattr(company, 'html_report', None))
         }
         
         return jsonify(progress)
@@ -920,4 +920,86 @@ def get_llm_step_results(company_id, step_number):
         return jsonify({
             'success': False,
             'message': 'Internal server error'
+        }), 500
+
+@company_bp.route('/companies/<int:company_id>/manual-trigger-step-2', methods=['POST'])
+def manual_trigger_step_2(company_id):
+    """Manually trigger step 2 if step 1 is completed."""
+    try:
+        from deepresearch.llm_workflow_orchestrator import LLMWorkflowOrchestrator
+        from deepresearch.llm_deep_research_service import LLMDeepResearchService
+        
+        # Get OpenAI client from the service
+        llm_service = LLMDeepResearchService()
+        orchestrator = LLMWorkflowOrchestrator(llm_service.openai_client)
+        
+        # Trigger step 2
+        result = orchestrator.manual_trigger_step_2(company_id)
+        
+        if result['success']:
+            current_app.logger.info(f"Step 2 manually triggered for company {company_id}: {result['message']}")
+            return jsonify(result)
+        else:
+            current_app.logger.warning(f"Failed to trigger step 2 for company {company_id}: {result['error']}")
+            return jsonify(result), 400
+            
+    except Exception as e:
+        current_app.logger.error(f"Error manually triggering step 2 for company {company_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to trigger step 2: {str(e)}'
+        }), 500
+
+@company_bp.route('/companies/<int:company_id>/manual-trigger-step-3', methods=['POST'])
+def manual_trigger_step_3(company_id):
+    """Manually trigger step 3 if step 2 is completed."""
+    try:
+        from deepresearch.llm_workflow_orchestrator import LLMWorkflowOrchestrator
+        from deepresearch.llm_deep_research_service import LLMDeepResearchService
+        
+        # Get OpenAI client from the service
+        llm_service = LLMDeepResearchService()
+        orchestrator = LLMWorkflowOrchestrator(llm_service.openai_client)
+        
+        # Trigger step 3
+        result = orchestrator.manual_trigger_step_3(company_id)
+        
+        if result['success']:
+            current_app.logger.info(f"Step 3 manually triggered for company {company_id}: {result['message']}")
+            return jsonify(result)
+        else:
+            current_app.logger.warning(f"Failed to trigger step 3 for company {company_id}: {result['error']}")
+            return jsonify(result), 400
+            
+    except Exception as e:
+        current_app.logger.error(f"Error manually triggering step 3 for company {company_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to trigger step 3: {str(e)}'
+        }), 500
+
+@company_bp.route('/companies/<int:company_id>/step-status', methods=['GET'])
+def get_step_status(company_id):
+    """Get detailed status of all research steps for a company."""
+    try:
+        from deepresearch.llm_workflow_orchestrator import LLMWorkflowOrchestrator
+        from deepresearch.llm_deep_research_service import LLMDeepResearchService
+        
+        # Get OpenAI client from the service
+        llm_service = LLMDeepResearchService()
+        orchestrator = LLMWorkflowOrchestrator(llm_service.openai_client)
+        
+        # Get step status
+        result = orchestrator.get_step_status(company_id)
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 404
+            
+    except Exception as e:
+        current_app.logger.error(f"Error getting step status for company {company_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to get step status: {str(e)}'
         }), 500

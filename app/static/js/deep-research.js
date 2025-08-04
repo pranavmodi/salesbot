@@ -360,6 +360,22 @@
         `;
     }
 
+    function canTriggerStep(stepNumber, stepDetails) {
+        // Check if previous steps are completed
+        if (stepNumber === 2) {
+            // Step 2 can be triggered if step 1 is completed
+            const step1 = stepDetails.find(step => (step.step || stepDetails.indexOf(step) + 1) === 1);
+            return step1 && (step1.is_completed || step1.status === 'completed') && !step1.has_error && step1.status !== 'error';
+        } else if (stepNumber === 3) {
+            // Step 3 can be triggered if both step 1 and step 2 are completed
+            const step1 = stepDetails.find(step => (step.step || stepDetails.indexOf(step) + 1) === 1);
+            const step2 = stepDetails.find(step => (step.step || stepDetails.indexOf(step) + 1) === 2);
+            return step1 && (step1.is_completed || step1.status === 'completed') && !step1.has_error && step1.status !== 'error' &&
+                   step2 && (step2.is_completed || step2.status === 'completed') && !step2.has_error && step2.status !== 'error';
+        }
+        return false;
+    }
+
     function displayResearchSteps(data) {
         console.log('🚨 DISPLAY STEPS: displayResearchSteps called with data:', data);
         const stepsContainer = document.getElementById('deepResearchSteps');
@@ -381,6 +397,24 @@
             const isCompleted = step.status === 'completed';
             const hasError = step.status === 'error';
             const isPending = data.research_status === 'pending' || (!isCompleted && !hasError && !isActive);
+            
+            // For manual trigger: step should not be completed, not have error, not be active, but prerequisites should be met
+            const canShowManualTrigger = !isCompleted && !hasError && !isActive && stepNum > 1;
+            const canTrigger = canTriggerStep(stepNum, stepDetails);
+            
+            // Debug logging for manual triggers
+            if (stepNum > 1) {
+                console.log(`🔧 Manual Trigger Debug - Step ${stepNum}:`, {
+                    stepNum,
+                    isCompleted,
+                    hasError,
+                    isActive,
+                    canShowManualTrigger,
+                    canTrigger,
+                    stepStatus: step.status,
+                    overallStatus: data.research_status
+                });
+            }
             
             let statusIcon = 'fas fa-circle text-muted';
             let statusText = 'Pending';
@@ -421,6 +455,19 @@
                                 <button class="btn btn-sm btn-outline-primary mt-2" onclick="viewStepResults(${stepNum})">
                                     <i class="fas fa-eye me-1"></i>View Results
                                 </button>
+                            ` : ''}
+                            ${canShowManualTrigger && canTrigger ? `
+                                <div class="mt-2">
+                                    <button id="manualTriggerStep${stepNum}" 
+                                            class="btn btn-sm btn-success" 
+                                            onclick="manualTriggerStep(${stepNum})"
+                                            title="Previous step completed - click to start Step ${stepNum}">
+                                        <i class="fas fa-play me-1"></i>Start Step ${stepNum}
+                                    </button>
+                                    <div class="text-muted small mt-1">
+                                        <i class="fas fa-info-circle me-1"></i>Ready to start
+                                    </div>
+                                </div>
                             ` : ''}
                             ${hasError && step.error_message ? `
                                 <div class="alert alert-danger mt-2 mb-0 py-1">
@@ -534,6 +581,58 @@
 
     // Expose viewStepResults to global scope for onclick handlers
     window.viewStepResults = viewStepResults;
+    
+    function manualTriggerStep(stepNumber) {
+        if (!currentResearchCompanyId) return;
+        
+        const confirmMessage = `Are you sure you want to manually trigger Step ${stepNumber}?`;
+        if (!confirm(confirmMessage)) return;
+        
+        const endpoint = `/api/companies/${currentResearchCompanyId}/manual-trigger-step-${stepNumber}`;
+        
+        // Show loading state
+        const triggerBtn = document.getElementById(`manualTriggerStep${stepNumber}`);
+        if (triggerBtn) {
+            triggerBtn.disabled = true;
+            triggerBtn.innerHTML = `<i class="fas fa-spinner fa-spin me-1"></i>Triggering...`;
+        }
+        
+        fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                addLogMessage(`✅ ${data.message}`);
+                // Refresh research data to show updated status
+                setTimeout(() => {
+                    checkResearchProgress();
+                }, 1000);
+            } else {
+                addLogMessage(`❌ Failed to trigger Step ${stepNumber}: ${data.error}`);
+                showError(data.error);
+            }
+        })
+        .catch(error => {
+            addLogMessage(`❌ Error triggering Step ${stepNumber}: ${error.message}`);
+            showError(`Failed to trigger Step ${stepNumber}: ${error.message}`);
+        })
+        .finally(() => {
+            // Reset button state
+            if (triggerBtn) {
+                triggerBtn.disabled = false;
+                triggerBtn.innerHTML = `<i class="fas fa-play me-1"></i>Trigger Step ${stepNumber}`;
+            }
+        });
+    }
+    
+    // Manual trigger buttons are now integrated directly into the step display
+    
+    // Expose manual trigger functions to global scope
+    window.manualTriggerStep = manualTriggerStep;
 
     function viewStrategicReport() {
         if (!currentResearchCompanyId) return;
@@ -652,6 +751,8 @@
                     
                     displayProgressBar(data);
                     displayResearchSteps(data);
+                    
+                    // Manual trigger buttons are now shown directly in step cards
 
                     if (data.research_status === 'completed') {
                         addLogMessage('Research completed successfully!');

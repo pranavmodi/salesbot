@@ -276,7 +276,12 @@ class Company:
                            html_report, pdf_report_base64, strategic_imperatives, agent_recommendations,
                            ai_agent_recommendations, research_status, research_step_1_basic, research_step_2_strategic, 
                            research_step_3_report, research_started_at, research_completed_at, 
-                           research_error, created_at, updated_at
+                           research_error, llm_research_prompt, llm_research_results, llm_research_status,
+                           llm_research_method, llm_research_word_count, llm_research_character_count,
+                           llm_research_quality_score, llm_research_updated_at,
+                           llm_research_step_1_basic, llm_research_step_2_strategic, llm_research_step_3_report,
+                           llm_markdown_report, llm_html_report, llm_research_step_status, llm_research_provider,
+                           llm_research_started_at, llm_research_completed_at, created_at, updated_at
                     FROM companies 
                     WHERE LOWER(company_name) = LOWER(:company_name)
                     ORDER BY created_at DESC
