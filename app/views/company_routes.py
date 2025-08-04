@@ -864,3 +864,60 @@ def delete_and_reset_company(company_id):
             'success': False,
             'message': f'Failed to reset research data: {str(e)}'
         }), 500
+
+@company_bp.route('/companies/<int:company_id>/llm-step-results/<int:step_number>', methods=['GET'])
+def get_llm_step_results(company_id, step_number):
+    """Get results for a specific LLM research step."""
+    try:
+        company = Company.get_by_id(company_id)
+        if not company:
+            return jsonify({
+                'success': False,
+                'message': 'Company not found'
+            }), 404
+        
+        # Get the appropriate step content
+        step_content = None
+        step_name = None
+        
+        if step_number == 1:
+            step_content = getattr(company, 'llm_research_step_1_basic', None)
+            step_name = 'LLM Basic Research'
+        elif step_number == 2:
+            step_content = getattr(company, 'llm_research_step_2_strategic', None)
+            step_name = 'LLM Strategic Analysis'
+        elif step_number == 3:
+            step_content = getattr(company, 'llm_research_step_3_report', None)
+            step_name = 'LLM Report Generation'
+        else:
+            return jsonify({
+                'success': False,
+                'message': f'Invalid step number: {step_number}. Must be 1, 2, or 3.'
+            }), 400
+        
+        if not step_content:
+            return jsonify({
+                'success': False,
+                'message': f'Step {step_number} results not available for {company.company_name}'
+            }), 404
+        
+        # Check if it's an error message
+        is_error = step_content.startswith('ERROR:')
+        
+        return jsonify({
+            'success': True,
+            'step_number': step_number,
+            'step_name': step_name,
+            'company_name': company.company_name,
+            'content': step_content,
+            'is_error': is_error,
+            'character_count': len(step_content),
+            'word_count': len(step_content.split()) if step_content else 0
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Error getting step {step_number} results for company {company_id}: {e}")
+        return jsonify({
+            'success': False,
+            'message': 'Internal server error'
+        }), 500

@@ -45,7 +45,16 @@ def get_companies():
             companies_data.append({
                 'id': company.id,
                 'company_name': company.company_name,
-                'website_url': company.website_url
+                'website_url': company.website_url,
+                'created_at': company.created_at.isoformat() if company.created_at else None,
+                # Research status fields for smart status badges
+                'company_research': bool(getattr(company, 'company_research', None)),
+                'llm_research_step_status': getattr(company, 'llm_research_step_status', None),
+                'llm_research_provider': getattr(company, 'llm_research_provider', None),
+                'llm_research_started_at': getattr(company, 'llm_research_started_at', None),
+                'llm_research_step_1_basic': bool(getattr(company, 'llm_research_step_1_basic', None)),
+                'llm_research_step_2_strategic': bool(getattr(company, 'llm_research_step_2_strategic', None)),
+                'llm_research_step_3_report': bool(getattr(company, 'llm_research_step_3_report', None))
             })
         return jsonify({'success': True, 'companies': companies_data})
     except Exception as e:

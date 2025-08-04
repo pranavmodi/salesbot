@@ -707,7 +707,14 @@ class Company:
             'research_completed_at': self.research_completed_at.isoformat() if isinstance(self.research_completed_at, datetime) else str(self.research_completed_at) if self.research_completed_at else None,
             'research_error': self.research_error,
             'created_at': self.created_at.isoformat() if isinstance(self.created_at, datetime) else str(self.created_at) if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if isinstance(self.updated_at, datetime) else str(self.updated_at) if self.updated_at else None
+            'updated_at': self.updated_at.isoformat() if isinstance(self.updated_at, datetime) else str(self.updated_at) if self.updated_at else None,
+            # LLM research fields for smart status badges
+            'llm_research_step_status': getattr(self, 'llm_research_step_status', None),
+            'llm_research_provider': getattr(self, 'llm_research_provider', None),
+            'llm_research_started_at': getattr(self, 'llm_research_started_at', None),
+            'llm_research_step_1_basic': bool(getattr(self, 'llm_research_step_1_basic', None)),
+            'llm_research_step_2_strategic': bool(getattr(self, 'llm_research_step_2_strategic', None)), 
+            'llm_research_step_3_report': bool(getattr(self, 'llm_research_step_3_report', None))
         }
 
     @classmethod

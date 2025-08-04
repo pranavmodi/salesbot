@@ -911,6 +911,21 @@ Use your deep research capabilities to gather comprehensive, current information
             status_response = self.openai_client.responses.retrieve(response_id)
             
             status = status_response.status  # 'queued', 'in_progress', 'completed', 'failed'
+            
+            # Log the most relevant fields from OpenAI response
+            logger.info(f"🔍 OPENAI RAW RESPONSE for {response_id}:")
+            logger.info(f"  Status: {status}")
+            logger.info(f"  ID: {getattr(status_response, 'id', 'N/A')}")
+            logger.info(f"  Created: {getattr(status_response, 'created_at', 'N/A')}")
+            logger.info(f"  Model: {getattr(status_response, 'model', 'N/A')}")
+            if hasattr(status_response, 'output_text') and status_response.output_text:
+                logger.info(f"  Output Length: {len(status_response.output_text)} chars")
+                logger.info(f"  Output Preview: {status_response.output_text[:100]}...")
+            else:
+                logger.info(f"  Output: None")
+            if hasattr(status_response, 'usage'):
+                logger.info(f"  Usage: {status_response.usage}")
+            
             logger.info(f"POLLING STATUS: OpenAI job {response_id} for '{company_name}' has status: {status}")
             
             if status == 'completed':
@@ -1018,6 +1033,7 @@ Use your deep research capabilities to gather comprehensive, current information
             
             db_service = DatabaseService()
             with db_service.engine.connect() as conn:
+                # Original query for jobs in 'background_job_running' state
                 result = conn.execute(text("""
                     SELECT id, company_name, openai_response_id, llm_research_started_at
                     FROM companies 
@@ -1025,7 +1041,31 @@ Use your deep research capabilities to gather comprehensive, current information
                     AND llm_research_step_status = 'background_job_running'
                 """))
                 
-                orphaned_jobs = result.fetchall()
+                background_jobs = result.fetchall()
+                logger.info(f"Found {len(background_jobs)} jobs in 'background_job_running' state")
+                
+                # EXPANDED: Also check for jobs with OpenAI-specific statuses (queued, in_progress, etc.)
+                result2 = conn.execute(text("""
+                    SELECT id, company_name, openai_response_id, llm_research_started_at
+                    FROM companies 
+                    WHERE openai_response_id IS NOT NULL
+                    AND (llm_research_step_status LIKE '%OpenAI%' 
+                         OR llm_research_step_status IN ('background_job_running'))
+                """))
+                
+                all_openai_jobs = result2.fetchall()
+                logger.info(f"Found {len(all_openai_jobs)} total jobs with OpenAI response IDs")
+                
+                # Combine results (deduplicate by company_id)
+                seen_companies = set()
+                combined_jobs = []
+                
+                for job in background_jobs + all_openai_jobs:
+                    if job[0] not in seen_companies:
+                        combined_jobs.append(job)
+                        seen_companies.add(job[0])
+                
+                orphaned_jobs = combined_jobs
                 
                 if not orphaned_jobs:
                     logger.info("No orphaned background jobs found")
@@ -1096,12 +1136,13 @@ Use your deep research capabilities to gather comprehensive, current information
             
             db_service = DatabaseService()
             with db_service.engine.connect() as conn:
-                # Find companies with active background jobs
+                # Find companies with active background jobs (expanded to include all OpenAI statuses)
                 result = conn.execute(text("""
                     SELECT id, company_name, openai_response_id 
                     FROM companies 
                     WHERE openai_response_id IS NOT NULL
-                    AND llm_research_step_status = 'background_job_running'
+                    AND (llm_research_step_status LIKE '%OpenAI%' 
+                         OR llm_research_step_status = 'background_job_running')
                 """))
                 
                 active_jobs = result.fetchall()

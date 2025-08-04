@@ -320,8 +320,8 @@
         }
 
         const percentage = data.progress_percentage || 0;
-        const currentStatus = data.current_status || data.llm_research_step_status || 'Loading...';
-        const provider = data.llm_research_provider || 'AI';
+        const currentStatus = data.current_status || data.llm_research_step_status || (data.research_status === 'pending' ? 'Not Started' : 'Loading...');
+        const provider = data.llm_research_provider ? data.llm_research_provider.toUpperCase() : (data.research_status === 'pending' ? 'None' : 'AI');
         
         console.log(`🚨 PROGRESS DATA: ${percentage}% - Status: ${currentStatus} - Provider: ${provider}`);
         
@@ -377,9 +377,10 @@
         
         stepDetails.forEach((step, index) => {
             const stepNum = step.step || (index + 1);
-            const isActive = currentStep === `step_${stepNum}`;
+            const isActive = currentStep === `step_${stepNum}` && data.research_status !== 'pending';
             const isCompleted = step.status === 'completed';
             const hasError = step.status === 'error';
+            const isPending = data.research_status === 'pending' || (!isCompleted && !hasError && !isActive);
             
             let statusIcon = 'fas fa-circle text-muted';
             let statusText = 'Pending';
@@ -397,6 +398,10 @@
                 statusIcon = 'fas fa-spinner fa-spin text-primary';
                 statusText = 'In Progress';
                 cardClass = 'border-primary';
+            } else if (isPending) {
+                statusIcon = 'fas fa-circle text-muted';
+                statusText = 'Ready to Start';
+                cardClass = 'border-light';
             }
             
             stepsHtml += `
@@ -485,14 +490,25 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
+                    // Parse markdown content if marked library is available
+                    let contentHtml = data.content || 'No content available';
+                    if (typeof marked !== 'undefined' && data.content) {
+                        try {
+                            contentHtml = marked.parse(data.content);
+                        } catch (e) {
+                            console.warn('Failed to parse markdown, showing as plain text:', e);
+                            contentHtml = `<pre style="white-space: pre-wrap; line-height: 1.6;">${data.content}</pre>`;
+                        }
+                    }
+                    
                     content.innerHTML = `
                         <div class="card">
                             <div class="card-header">
                                 <h6 class="mb-0">${data.step_name || `Step ${stepNumber}`}</h6>
                             </div>
                             <div class="card-body">
-                                <div class="research-content" style="white-space: pre-wrap; line-height: 1.6;">
-                                    ${data.content || 'No content available'}
+                                <div class="research-content markdown-content" style="line-height: 1.6;">
+                                    ${contentHtml}
                                 </div>
                             </div>
                         </div>
@@ -515,6 +531,9 @@
                 `;
             });
     }
+
+    // Expose viewStepResults to global scope for onclick handlers
+    window.viewStepResults = viewStepResults;
 
     function viewStrategicReport() {
         if (!currentResearchCompanyId) return;

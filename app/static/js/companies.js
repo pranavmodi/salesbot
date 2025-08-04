@@ -197,7 +197,7 @@ function displayCompanySearchResults(companies, searchTerm) {
                     <span>${company.website_url ? `<a href="${company.website_url}" target="_blank">${company.website_url}</a>` : 'Not specified'}</span>
                 </td>
                 <td>
-                    <span class="badge ${company.company_research ? 'bg-success' : 'bg-warning'}">${company.company_research ? 'Researched' : 'Pending'}</span>
+                    ${getCompanyResearchStatusBadge(company)}
                 </td>
                 <td>
                     <span class="text-muted">${company.created_at ? new Date(company.created_at).toLocaleDateString() : 'Unknown'}</span>
@@ -341,7 +341,7 @@ function displayCompaniesTable(companies, pagination) {
                     <span>${company.website_url ? `<a href="${company.website_url}" target="_blank">${company.website_url}</a>` : 'Not specified'}</span>
                 </td>
                 <td>
-                    <span class="badge ${company.company_research ? 'bg-success' : 'bg-warning'}">${company.company_research ? 'Researched' : 'Pending'}</span>
+                    ${getCompanyResearchStatusBadge(company)}
                 </td>
                 <td>
                     <span class="text-muted">${company.created_at ? new Date(company.created_at).toLocaleDateString() : 'Unknown'}</span>
@@ -1100,6 +1100,54 @@ if (typeof module !== 'undefined' && module.exports) {
 
 // Global function assignments for HTML onclick handlers
 window.clearCompanySearch = clearCompanySearch;
+// Smart research status determination for companies list
+function getCompanyResearchStatusBadge(company) {
+    // Check LLM research status first (newer system)
+    if (company.llm_research_step_status) {
+        // FULL COMPLETION: All 3 steps done OR step_3_completed OR has final report
+        if (company.llm_research_step_status === 'step_3_completed' || 
+            company.llm_research_step_status === 'completed' ||
+            company.llm_research_step_3_report) {
+            return '<span class="badge bg-success">Completed</span>';
+        }
+        
+        // FAILURE: Any error or failed status
+        else if (company.llm_research_step_status.includes('failed') || 
+                 company.llm_research_step_status.includes('error')) {
+            return '<span class="badge bg-danger">Failed</span>';
+        }
+        
+        // IN PROGRESS: Currently running research
+        else if (company.llm_research_step_status.includes('OpenAI') || 
+                 company.llm_research_step_status.includes('executing') || 
+                 company.llm_research_step_status.includes('progress') ||
+                 company.llm_research_step_status.includes('queued')) {
+            return '<span class="badge bg-info">In Progress</span>';
+        }
+        
+        // PARTIAL: Individual steps completed but not all 3
+        else if (company.llm_research_step_status.includes('step_1_completed') ||
+                 company.llm_research_step_status.includes('step_2_completed') ||
+                 company.llm_research_step_1_basic || 
+                 company.llm_research_step_2_strategic) {
+            return '<span class="badge bg-primary">Partial</span>';
+        }
+    }
+    
+    // Check if LLM research was started (has provider or started_at)
+    if (company.llm_research_provider || company.llm_research_started_at) {
+        return '<span class="badge bg-secondary">Started</span>';
+    }
+    
+    // Fall back to legacy research system
+    if (company.company_research) {
+        return '<span class="badge bg-success">Legacy Research</span>';
+    }
+    
+    // Default: not started
+    return '<span class="badge bg-warning">Pending</span>';
+}
+
 window.changeCompaniesPage = changeCompaniesPage;
 window.refreshCompaniesTable = refreshCompaniesTable;
 window.loadCompanyDetails = loadCompanyDetails;
@@ -1110,3 +1158,4 @@ window.toggleCompanyEditMode = toggleCompanyEditMode;
 window.saveCompanyInModal = saveCompanyInModal;
 window.cancelCompanyEdit = cancelCompanyEdit;
 window.saveCompany = saveCompany;
+window.getCompanyResearchStatusBadge = getCompanyResearchStatusBadge;
