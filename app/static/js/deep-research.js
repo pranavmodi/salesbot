@@ -191,6 +191,11 @@
                 data.current_status.includes('background_job_running') || 
                 data.current_status.includes('Background research') ||
                 data.current_status.includes('Research session created') ||
+                data.current_status.includes('OpenAI research queued') ||
+                data.current_status.includes('OpenAI research in_progress') ||
+                data.current_status.includes('Executing step') ||
+                data.current_status.includes('research queued') ||
+                data.current_status.includes('research in_progress') ||
                 data.research_status === 'in_progress'
             )) {
                 status = 'in_progress';
@@ -207,8 +212,9 @@
             urlElement.textContent = ''; // We'll populate this from company details if needed
         }
 
-        // Always display LLM research progress
-        updateLLMResearchProgress(data);
+        // Always display LLM research progress using new dynamic functions
+        displayProgressBar(data);
+        displayResearchSteps(data);
         
         updateActionButtons(status, data);
 
@@ -303,6 +309,211 @@
         if (embedReportLink) {
             embedReportLink.href = `/api/public/reports/${currentResearchCompanyId}/embed`;
         }
+    }
+
+    function displayProgressBar(data) {
+        console.log('🚨 DISPLAY PROGRESS: displayProgressBar called with data:', data);
+        const progressContainer = document.getElementById('deepResearchProgress');
+        if (!progressContainer) {
+            console.error('🚨 ERROR: deepResearchProgress container not found!');
+            return;
+        }
+
+        const percentage = data.progress_percentage || 0;
+        const currentStatus = data.current_status || data.llm_research_step_status || 'Loading...';
+        const provider = data.llm_research_provider || 'AI';
+        
+        console.log(`🚨 PROGRESS DATA: ${percentage}% - Status: ${currentStatus} - Provider: ${provider}`);
+        
+        progressContainer.innerHTML = `
+            <div class="card border-info">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-chart-line me-2"></i>Research Progress: ${Math.round(percentage)}%
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="progress mb-3" style="height: 8px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" 
+                             role="progressbar" 
+                             style="width: ${percentage}%" 
+                             aria-valuenow="${percentage}" 
+                             aria-valuemin="0" 
+                             aria-valuemax="100">
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="status-info">
+                            <strong>Status:</strong> <span class="text-info">${currentStatus}</span>
+                        </div>
+                        <div class="provider-info">
+                            <small class="text-muted">Provider: ${provider.toUpperCase()}</small>
+                        </div>
+                    </div>
+                    ${data.llm_research_started_at ? `
+                        <div class="mt-2">
+                            <small class="text-muted">Started: ${new Date(data.llm_research_started_at).toLocaleString()}</small>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    function displayResearchSteps(data) {
+        console.log('🚨 DISPLAY STEPS: displayResearchSteps called with data:', data);
+        const stepsContainer = document.getElementById('deepResearchSteps');
+        if (!stepsContainer) {
+            console.error('🚨 ERROR: deepResearchSteps container not found!');
+            return;
+        }
+
+        const stepDetails = data.step_details || [];
+        const currentStep = data.current_step || 'step_1';
+        
+        console.log(`🚨 STEPS DATA: ${stepDetails.length} steps - Current: ${currentStep}`);
+        
+        let stepsHtml = '<div class="row g-3">';
+        
+        stepDetails.forEach((step, index) => {
+            const stepNum = step.step || (index + 1);
+            const isActive = currentStep === `step_${stepNum}`;
+            const isCompleted = step.status === 'completed';
+            const hasError = step.status === 'error';
+            
+            let statusIcon = 'fas fa-circle text-muted';
+            let statusText = 'Pending';
+            let cardClass = 'border-light';
+            
+            if (hasError) {
+                statusIcon = 'fas fa-exclamation-circle text-danger';
+                statusText = 'Error';
+                cardClass = 'border-danger';
+            } else if (isCompleted) {
+                statusIcon = 'fas fa-check-circle text-success';
+                statusText = 'Completed';
+                cardClass = 'border-success';
+            } else if (isActive) {
+                statusIcon = 'fas fa-spinner fa-spin text-primary';
+                statusText = 'In Progress';
+                cardClass = 'border-primary';
+            }
+            
+            stepsHtml += `
+                <div class="col-md-4">
+                    <div class="card ${cardClass} h-100">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="badge badge-step me-2">${stepNum}</span>
+                                <h6 class="mb-0">${step.name || `Step ${stepNum}`}</h6>
+                            </div>
+                            <p class="text-muted small mb-2">${step.description || 'Processing...'}</p>
+                            <div class="step-status">
+                                <i class="${statusIcon} me-1"></i>
+                                <small class="fw-bold">${statusText}</small>
+                            </div>
+                            ${step.has_results ? `
+                                <button class="btn btn-sm btn-outline-primary mt-2" onclick="viewStepResults(${stepNum})">
+                                    <i class="fas fa-eye me-1"></i>View Results
+                                </button>
+                            ` : ''}
+                            ${hasError && step.error_message ? `
+                                <div class="alert alert-danger mt-2 mb-0 py-1">
+                                    <small>${step.error_message}</small>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        stepsHtml += '</div>';
+        
+        // Add some custom CSS for step badges
+        const customStyles = `
+            <style>
+                .badge-step {
+                    background-color: #6c757d;
+                    color: white;
+                    width: 24px;
+                    height: 24px;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 0.75rem;
+                }
+                .border-primary .badge-step {
+                    background-color: #0d6efd;
+                }
+                .border-success .badge-step {
+                    background-color: #198754;
+                }
+                .border-danger .badge-step {
+                    background-color: #dc3545;
+                }
+            </style>
+        `;
+        
+        stepsContainer.innerHTML = customStyles + stepsHtml;
+    }
+
+    function viewStepResults(stepNumber) {
+        if (!currentResearchCompanyId) return;
+        
+        // Open the step detail modal
+        const modal = document.getElementById('stepDetailModal');
+        const modalLabel = document.getElementById('stepDetailModalLabel');
+        const content = document.getElementById('stepDetailContent');
+        
+        modalLabel.textContent = `Step ${stepNumber} Results`;
+        content.innerHTML = `
+            <div class="d-flex justify-content-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        `;
+        
+        // Show the modal
+        const stepModal = new bootstrap.Modal(modal);
+        stepModal.show();
+        
+        // Load the step content
+        fetch(`/api/companies/${currentResearchCompanyId}/llm-step-results/${stepNumber}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    content.innerHTML = `
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">${data.step_name || `Step ${stepNumber}`}</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="research-content" style="white-space: pre-wrap; line-height: 1.6;">
+                                    ${data.content || 'No content available'}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    content.innerHTML = `
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            ${data.message || 'Unable to load step results'}
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                content.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        Error loading step results: ${error.message}
+                    </div>
+                `;
+            });
     }
 
     function viewStrategicReport() {
@@ -891,8 +1102,9 @@
     }
 
     function updateResearchProgress(data, researchType) {
-        // Always use LLM research progress
-        updateLLMResearchProgress(data);
+        // Always use new dynamic LLM research progress functions
+        displayProgressBar(data);
+        displayResearchSteps(data);
     }
 
     function updateLLMResearchProgress(data) {

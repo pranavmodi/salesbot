@@ -20,8 +20,20 @@ class LLMDeepResearchService:
     
     # Class variable to track if startup recovery has been run
     _startup_recovery_completed = False
+    # Singleton instance to prevent repeated initialization
+    _instance = None
+    _initialized = False
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(LLMDeepResearchService, cls).__new__(cls)
+        return cls._instance
     
     def __init__(self):
+        # Prevent repeated initialization
+        if self._initialized:
+            return
+            
         load_dotenv()
         self.anthropic_client = None
         self.openai_client = None
@@ -56,6 +68,9 @@ class LLMDeepResearchService:
             logger.info("LLMDeepResearchService initialized with OpenAI client (600s timeout)")
         else:
             logger.warning("OPENAI_API_KEY not found - OpenAI research will not be available")
+        
+        # Mark as initialized to prevent repeated initialization
+        self._initialized = True
 
     def research_company_deep(self, company_name: str, company_domain: str = "", provider: str = "claude", company_id: int = None, from_step_researcher: bool = False) -> Optional[str]:
         """

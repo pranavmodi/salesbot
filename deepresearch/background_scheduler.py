@@ -13,9 +13,13 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR
+from deepresearch.llm_deep_research_service import LLMDeepResearchService
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+# Create a single, shared instance of the research service to avoid re-initialization
+llm_research_service = LLMDeepResearchService()
 
 class DeepResearchScheduler:
     """Independent scheduler for deep research background jobs."""
@@ -116,23 +120,25 @@ deep_research_scheduler = DeepResearchScheduler()
 
 def poll_openai_background_jobs():
     """Module-level function to poll OpenAI for research job completions."""
-    from flask import current_app
-    from app import create_app
-    
-    app = create_app()
-    with app.app_context():
-        try:
-            from deepresearch.llm_deep_research_service import LLMDeepResearchService
-            current_app.logger.debug("🔍 Deep Research: Polling OpenAI background jobs...")
+    try:
+        from app import create_app
+        
+        # Create a fresh app instance for background thread
+        app = create_app()
+        
+        with app.app_context():
+            app.logger.debug("🔍 Deep Research: Polling OpenAI background jobs...")
             
-            # Create service instance and check for active jobs
-            service = LLMDeepResearchService()
-            completed_jobs = service.poll_and_process_background_jobs()
+            # Use the shared, globally-defined service instance
+            completed_jobs = llm_research_service.poll_and_process_background_jobs()
             
             if completed_jobs > 0:
-                current_app.logger.info(f"✅ Deep Research: Processed {completed_jobs} completed OpenAI background jobs")
+                app.logger.info(f"✅ Deep Research: Processed {completed_jobs} completed OpenAI background jobs")
             else:
-                current_app.logger.debug("Deep Research: No completed OpenAI background jobs found")
+                app.logger.debug("Deep Research: No completed OpenAI background jobs found")
                 
-        except Exception as e:
-            current_app.logger.error(f"Deep Research: Error polling OpenAI background jobs: {e}")
+    except Exception as e:
+        # Use print for background thread errors since Flask logger might not be available
+        print(f"Deep Research: Error polling OpenAI background jobs: {e}")
+        import traceback
+        traceback.print_exc()
