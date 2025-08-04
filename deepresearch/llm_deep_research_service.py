@@ -144,9 +144,11 @@ class LLMDeepResearchService:
                 self._register_request_end(company_id, estimated_cost)
                 
                 # Update database with completion status
-                if result:
+                if result and result != "__BACKGROUND_JOB_STARTED__":
                     logger.critical(f"🚨 RESEARCH SUCCESS: {company_name} research completed successfully using {provider}")
                     self._mark_research_completed_in_db(company_id, result, provider)
+                elif result == "__BACKGROUND_JOB_STARTED__":
+                    logger.info(f"OpenAI background job started for {company_name}, no immediate result to save.")
                 else:
                     logger.critical(f"🚨 RESEARCH FAILED: {company_name} research failed - API returned no results using {provider}")
                     self._mark_research_failed_in_db(company_id, f"{provider} API call returned no results (no fallback attempted)", provider)
@@ -894,6 +896,7 @@ Use your deep research capabilities to gather comprehensive, current information
             status_response = self.openai_client.responses.retrieve(response_id)
             
             status = status_response.status  # 'queued', 'in_progress', 'completed', 'failed'
+            logger.info(f"POLLING STATUS: OpenAI job {response_id} for '{company_name}' has status: {status}")
             
             if status == 'completed':
                 # Job completed - get the results
