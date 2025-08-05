@@ -402,6 +402,10 @@
             const canShowManualTrigger = !isCompleted && !hasError && !isActive && stepNum > 1;
             const canTrigger = canTriggerStep(stepNum, stepDetails);
             
+            // For Step 1: Allow manual paste option and copy prompt option
+            const canShowPasteOption = stepNum === 1 && !isCompleted && !hasError && !isActive;
+            const canShowCopyPrompt = stepNum === 1;
+            
             // Debug logging for manual triggers
             if (stepNum > 1) {
                 console.log(`🔧 Manual Trigger Debug - Step ${stepNum}:`, {
@@ -467,6 +471,48 @@
                                     <div class="text-muted small mt-1">
                                         <i class="fas fa-info-circle me-1"></i>Ready to start
                                     </div>
+                                </div>
+                            ` : ''}
+                            ${canShowCopyPrompt || canShowPasteOption ? `
+                                <div class="mt-2">
+                                    ${canShowCopyPrompt ? `
+                                        <button class="btn btn-sm btn-outline-info me-1" 
+                                                onclick="copyResearchPrompt(${stepNum})"
+                                                title="Copy the research prompt to use in external deep research tools">
+                                            <i class="fas fa-copy me-1"></i>Copy Prompt
+                                        </button>
+                                    ` : ''}
+                                    ${canShowPasteOption ? `
+                                        <button class="btn btn-sm btn-outline-success" 
+                                                onclick="togglePasteOption(${stepNum})"
+                                                title="Paste your own research content instead of running AI research">
+                                            <i class="fas fa-paste me-1"></i>Paste Research
+                                        </button>
+                                    ` : ''}
+                                    ${canShowPasteOption ? `
+                                        <div id="pasteSection${stepNum}" class="mt-2" style="display: none;">
+                                        <label class="form-label small">Paste your research content:</label>
+                                        <textarea id="pasteContent${stepNum}" 
+                                                class="form-control" 
+                                                rows="6" 
+                                                placeholder="Paste comprehensive company research content here. This will be used as Step 1 Basic Research instead of running AI research."></textarea>
+                                        <div class="mt-2">
+                                            <button class="btn btn-sm btn-success" 
+                                                    onclick="submitPastedResearch(${stepNum})"
+                                                    title="Submit pasted content as Step 1 research">
+                                                <i class="fas fa-check me-1"></i>Submit Research
+                                            </button>
+                                            <button class="btn btn-sm btn-secondary ms-1" 
+                                                    onclick="togglePasteOption(${stepNum})"
+                                                    title="Cancel paste and close">
+                                                <i class="fas fa-times me-1"></i>Cancel
+                                            </button>
+                                        </div>
+                                        <div class="text-muted small mt-1">
+                                            <i class="fas fa-info-circle me-1"></i>This will skip AI research and use your content directly
+                                        </div>
+                                        </div>
+                                    ` : ''}
                                 </div>
                             ` : ''}
                             ${hasError && step.error_message ? `
@@ -1470,5 +1516,203 @@
     
     // Make loadResearchProgress available globally for external refresh calls  
     window.loadResearchProgress = loadResearchProgress;
+
+    // Manual paste functionality for Step 1
+    window.togglePasteOption = function(stepNum) {
+        const pasteSection = document.getElementById(`pasteSection${stepNum}`);
+        const pasteBtn = document.querySelector(`button[onclick="togglePasteOption(${stepNum})"]`);
+        
+        if (pasteSection) {
+            const isVisible = pasteSection.style.display !== 'none';
+            if (isVisible) {
+                pasteSection.style.display = 'none';
+                if (pasteBtn) {
+                    pasteBtn.innerHTML = '<i class="fas fa-paste me-1"></i>Paste Research';
+                    pasteBtn.classList.remove('btn-outline-secondary');
+                    pasteBtn.classList.add('btn-outline-success');
+                }
+            } else {
+                pasteSection.style.display = 'block';
+                if (pasteBtn) {
+                    pasteBtn.innerHTML = '<i class="fas fa-times me-1"></i>Cancel Paste';
+                    pasteBtn.classList.remove('btn-outline-success');
+                    pasteBtn.classList.add('btn-outline-secondary');
+                }
+                // Focus on textarea
+                const textarea = document.getElementById(`pasteContent${stepNum}`);
+                if (textarea) {
+                    setTimeout(() => textarea.focus(), 100);
+                }
+            }
+        }
+    };
+
+    window.submitPastedResearch = function(stepNum) {
+        const textarea = document.getElementById(`pasteContent${stepNum}`);
+        const content = textarea ? textarea.value.trim() : '';
+        
+        if (!content) {
+            showError('Please paste some research content before submitting.');
+            return;
+        }
+        
+        if (content.length < 100) {
+            if (!confirm('The pasted content seems quite short. Are you sure you want to proceed?')) {
+                return;
+            }
+        }
+        
+        // Show loading state
+        const submitBtn = document.querySelector(`button[onclick="submitPastedResearch(${stepNum})"]`);
+        const originalText = submitBtn ? submitBtn.innerHTML : '';
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Submitting...';
+        }
+        
+        // Submit pasted content to backend
+        const requestData = {
+            step: stepNum,
+            content: content,
+            manual_paste: true
+        };
+        
+        fetch(`/api/companies/${currentResearchCompanyId}/llm-step-manual-paste`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSuccess('Research content submitted successfully!');
+                addLogMessage(`Step ${stepNum} completed with manual paste content (${content.length} characters)`);
+                
+                // Hide paste section
+                togglePasteOption(stepNum);
+                
+                // Refresh the research progress to show updated state
+                loadResearchProgress(currentResearchCompanyId);
+                
+            } else {
+                throw new Error(data.error || 'Failed to submit pasted content');
+            }
+        })
+        .catch(error => {
+            console.error('Error submitting pasted research:', error);
+            showError(`Failed to submit research content: ${error.message}`);
+        })
+        .finally(() => {
+            // Restore button state
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }
+        });
+    };
+
+    // Copy research prompt functionality
+    window.copyResearchPrompt = function(stepNum) {
+        if (!currentResearchCompanyId) {
+            showError('No company selected');
+            return;
+        }
+        
+        // Show loading state
+        const copyBtn = document.querySelector(`button[onclick="copyResearchPrompt(${stepNum})"]`);
+        const originalText = copyBtn ? copyBtn.innerHTML : '';
+        if (copyBtn) {
+            copyBtn.disabled = true;
+            copyBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Generating...';
+        }
+        
+        // Fetch the research prompt
+        fetch(`/api/companies/${currentResearchCompanyId}/research-prompt`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Copy to clipboard
+                navigator.clipboard.writeText(data.research_prompt).then(() => {
+                    showSuccess(`Research prompt copied to clipboard! (${data.word_count} words)`);
+                    addLogMessage(`Research prompt copied for ${data.company_name} (${data.prompt_length} characters)`);
+                    
+                    // Show temporary success state
+                    if (copyBtn) {
+                        copyBtn.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+                        copyBtn.classList.remove('btn-outline-info');
+                        copyBtn.classList.add('btn-success');
+                        
+                        // Reset after 2 seconds
+                        setTimeout(() => {
+                            copyBtn.innerHTML = originalText;
+                            copyBtn.classList.remove('btn-success');
+                            copyBtn.classList.add('btn-outline-info');
+                        }, 2000);
+                    }
+                    
+                }).catch(err => {
+                    console.error('Failed to copy to clipboard:', err);
+                    // Fallback: show the prompt in a modal for manual copying
+                    showPromptModal(data.research_prompt, data.company_name);
+                });
+                
+            } else {
+                throw new Error(data.message || 'Failed to generate research prompt');
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching research prompt:', error);
+            showError(`Failed to generate research prompt: ${error.message}`);
+        })
+        .finally(() => {
+            // Restore button state
+            if (copyBtn) {
+                copyBtn.disabled = false;
+                if (copyBtn.innerHTML.includes('Generating')) {
+                    copyBtn.innerHTML = originalText;
+                }
+            }
+        });
+    };
+
+    // Show prompt in modal for manual copying (fallback)
+    function showPromptModal(prompt, companyName) {
+        const modal = new bootstrap.Modal(document.getElementById('stepDetailModal'));
+        const modalTitle = document.getElementById('stepDetailModalLabel');
+        const modalContent = document.getElementById('stepDetailContent');
+        
+        modalTitle.textContent = `Research Prompt for ${companyName}`;
+        modalContent.innerHTML = `
+            <div class="mb-3">
+                <label class="form-label">Copy this prompt to use in external deep research tools:</label>
+                <textarea class="form-control" rows="12" readonly id="promptTextarea">${prompt}</textarea>
+            </div>
+            <div class="d-flex justify-content-between">
+                <button class="btn btn-primary" onclick="document.getElementById('promptTextarea').select(); document.execCommand('copy'); showSuccess('Prompt copied to clipboard!');">
+                    <i class="fas fa-copy me-1"></i>Copy to Clipboard
+                </button>
+                <div class="text-muted small">
+                    ${prompt.length} characters • ${prompt.split(' ').length} words
+                </div>
+            </div>
+        `;
+        
+        modal.show();
+        
+        // Auto-select the text for easy copying
+        setTimeout(() => {
+            const textarea = document.getElementById('promptTextarea');
+            if (textarea) {
+                textarea.select();
+            }
+        }, 500);
+    }
 
 })(); 

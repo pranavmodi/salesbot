@@ -645,17 +645,21 @@ def get_llm_step_progress(company_id):
             current_step = 'completed'
             is_complete = True
         
+        # Check if step 1 was manually pasted
+        is_manual_paste = current_status == 'step_1_completed_manual'
+        
         # Create step details array for frontend
         step_details = [
             {
                 'step': 1,
-                'name': 'LLM Basic Research',
-                'description': 'Comprehensive company intelligence gathering using LLM deep research',
+                'name': 'LLM Basic Research' + (' (Manual Paste)' if is_manual_paste else ''),
+                'description': 'Comprehensive company intelligence gathering using LLM deep research' + (' - Content was manually pasted by user' if is_manual_paste else ''),
                 'status': 'in_progress' if (current_status and ('queued' in current_status.lower() or 'progress' in current_status.lower() or 'executing' in current_status.lower()) and current_step == 'step_1') else ('error' if step_1_has_error else ('completed' if has_step_1 else 'pending')),
                 'has_prompt': has_step_1,
                 'has_results': has_step_1 and not step_1_has_error,
                 'has_error': step_1_has_error and not (current_status and ('queued' in current_status.lower() or 'progress' in current_status.lower())),
-                'error_message': company.llm_research_step_1_basic.replace('ERROR: ', '') if step_1_has_error and not (current_status and ('queued' in current_status.lower() or 'progress' in current_status.lower())) else None
+                'error_message': company.llm_research_step_1_basic.replace('ERROR: ', '') if step_1_has_error and not (current_status and ('queued' in current_status.lower() or 'progress' in current_status.lower())) else None,
+                'manual_paste': is_manual_paste
             },
             {
                 'step': 2,
@@ -1002,4 +1006,146 @@ def get_step_status(company_id):
         return jsonify({
             'success': False,
             'error': f'Failed to get step status: {str(e)}'
+        }), 500
+
+@company_bp.route('/companies/<int:company_id>/llm-step-manual-paste', methods=['POST'])
+def submit_manual_paste_research(company_id):
+    """Submit manually pasted research content for a specific step."""
+    try:
+        data = request.get_json()
+        if not data or 'step' not in data or 'content' not in data:
+            return jsonify({
+                'success': False,
+                'message': 'Step and content are required'
+            }), 400
+        
+        step = data['step']
+        content = data['content'].strip()
+        manual_paste = data.get('manual_paste', True)
+        
+        if step != 1:
+            return jsonify({
+                'success': False,
+                'message': 'Manual paste is only supported for Step 1 Basic Research'
+            }), 400
+        
+        if not content:
+            return jsonify({
+                'success': False,
+                'message': 'Content cannot be empty'
+            }), 400
+        
+        if len(content) < 50:
+            return jsonify({
+                'success': False,
+                'message': 'Content is too short. Please provide comprehensive research content.'
+            }), 400
+        
+        # Get the company from database
+        company = Company.get_by_id(company_id)
+        if not company:
+            return jsonify({
+                'success': False,
+                'message': 'Company not found'
+            }), 404
+        
+        current_app.logger.info(f"Submitting manual paste research for company ID {company_id}: {company.company_name}, content length: {len(content)}")
+        
+        # Store the manual paste content as Step 1 Basic Research
+        from deepresearch.database_service import DatabaseService
+        from sqlalchemy import text
+        
+        db_service = DatabaseService()
+        
+        # Add a prefix to indicate this was manually pasted
+        formatted_content = f"[MANUAL PASTE - {len(content)} characters]\n\n{content}"
+        
+        with db_service.engine.connect() as conn:
+            with conn.begin():
+                conn.execute(text("""
+                    UPDATE companies 
+                    SET llm_research_step_1_basic = :content,
+                        llm_research_step_status = 'step_1_completed_manual',
+                        llm_research_provider = 'manual_paste',
+                        llm_research_started_at = CURRENT_TIMESTAMP,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = :company_id
+                """), {
+                    'content': formatted_content,
+                    'company_id': company_id
+                })
+        
+        current_app.logger.info(f"Successfully stored manual paste research for {company.company_name}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Manual research content stored successfully for {company.company_name}',
+            'company_name': company.company_name,
+            'step': step,
+            'content_length': len(content),
+            'character_count': len(content),
+            'word_count': len(content.split()),
+            'manual_paste': True,
+            'status': 'step_1_completed_manual'
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error submitting manual paste research for company {company_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Failed to submit manual research: {str(e)}'
+        }), 500
+
+@company_bp.route('/companies/<int:company_id>/research-prompt', methods=['GET'])
+def get_research_prompt(company_id):
+    """Get the basic research prompt for a company to copy for external use."""
+    try:
+        # Get the company from database
+        company = Company.get_by_id(company_id)
+        if not company:
+            return jsonify({
+                'success': False,
+                'message': 'Company not found'
+            }), 404
+        
+        # Generate the research prompt (prompt only, no execution)
+        from deepresearch.llm_deep_research_service import LLMDeepResearchService
+        
+        llm_service = LLMDeepResearchService()
+        research_prompt = llm_service.get_research_prompt_only(
+            company.company_name, 
+            company.website_url or ""
+        )
+        
+        # Validate the prompt
+        if not research_prompt or not isinstance(research_prompt, str):
+            return jsonify({
+                'success': False,
+                'message': 'Failed to generate research prompt - invalid prompt returned'
+            }), 500
+        
+        if len(research_prompt.strip()) < 100:
+            return jsonify({
+                'success': False,
+                'message': 'Generated research prompt is too short - please check company data'
+            }), 500
+        
+        current_app.logger.info(f"Generated research prompt for copying for company ID {company_id}: {company.company_name} ({len(research_prompt)} characters)")
+        
+        return jsonify({
+            'success': True,
+            'company_id': company_id,
+            'company_name': company.company_name,
+            'company_website': company.website_url or "",
+            'research_prompt': research_prompt,
+            'prompt_length': len(research_prompt),
+            'word_count': len(research_prompt.split()),
+            'generated_at': 'now'
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error generating research prompt for company {company_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Failed to generate research prompt: {str(e)}'
         }), 500

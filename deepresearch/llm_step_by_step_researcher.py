@@ -32,7 +32,7 @@ class LLMStepByStepResearcher:
         
         Args:
             company_id: Company ID to research
-            provider: LLM provider (claude, openai, etc.)
+            provider: LLM provider (claude, openai, perplexity, etc.)
             force_refresh: Whether to restart from step 1 even if data exists
             
         Returns:
@@ -75,6 +75,17 @@ class LLMStepByStepResearcher:
             # Determine starting step
             current_step = self._determine_current_step(company, force_refresh)
             
+            # Check if Step 1 already exists and log appropriately
+            has_step_1 = hasattr(company, 'llm_research_step_1_basic') and company.llm_research_step_1_basic
+            if has_step_1 and current_step != 'step_1':
+                step_1_source = "manual paste" if getattr(company, 'llm_research_provider', '') == 'manual_paste' else "previous research"
+                logger.info(f"🔄 SKIPPING STEP 1: Step 1 already exists from {step_1_source} for {company.company_name}, starting from {current_step}")
+            elif current_step == 'step_1':
+                if force_refresh:
+                    logger.info(f"🔄 FORCE REFRESH: Starting fresh Step 1 research for {company.company_name}")
+                else:
+                    logger.info(f"🚀 STARTING FRESH: No existing research found for {company.company_name}, starting from Step 1")
+            
             # Update research metadata
             self._update_research_metadata(db_service, company_id, provider, current_step)
             
@@ -90,6 +101,62 @@ class LLMStepByStepResearcher:
                     'success': False,
                     'error': f'Invalid step: {current_step}'
                 }
+            
+            # If step completed successfully, automatically continue to next step
+            # BUT: Don't auto-continue if it's a background job (OpenAI) that's still running
+            if (result['success'] and 
+                current_step != 'step_3' and 
+                result.get('status') != 'background_job_running'):
+                
+                logger.info(f"Step {current_step} completed successfully for {company.company_name}, continuing to next step...")
+                
+                # Refresh company data to get updated step results
+                company = Company.get_by_id(company_id)
+                next_step = self._determine_current_step(company, False)
+                
+                if next_step in ['step_2', 'step_3']:
+                    logger.info(f"Auto-executing {next_step} for {company.company_name}")
+                    
+                    # Execute next step
+                    if next_step == 'step_2':
+                        next_result = self._execute_step_2(company, provider)
+                    elif next_step == 'step_3':
+                        next_result = self._execute_step_3(company, provider)
+                    
+                    if next_result['success']:
+                        logger.info(f"Step {next_step} auto-execution completed for {company.company_name}")
+                        
+                        # If step 2 completed, also execute step 3
+                        if next_step == 'step_2':
+                            logger.info(f"Step 2 completed, auto-executing step 3 for {company.company_name}")
+                            company = Company.get_by_id(company_id)  # Refresh again
+                            final_step = self._determine_current_step(company, False)
+                            
+                            if final_step == 'step_3':
+                                final_result = self._execute_step_3(company, provider)
+                                if final_result['success']:
+                                    logger.info(f"All steps completed automatically for {company.company_name}")
+                                    return {
+                                        'success': True,
+                                        'company_id': company_id,
+                                        'company_name': company.company_name,
+                                        'current_step': 'step_3',
+                                        'provider': provider,
+                                        'message': 'All 3 research steps completed automatically',
+                                        'auto_progression': True
+                                    }
+                        
+                        return {
+                            'success': True,
+                            'company_id': company_id,
+                            'company_name': company.company_name,
+                            'current_step': next_step,
+                            'provider': provider,
+                            'message': f'Steps {current_step} and {next_step} completed automatically',
+                            'auto_progression': True
+                        }
+                    else:
+                        logger.error(f"Auto-execution of {next_step} failed for {company.company_name}: {next_result.get('error')}")
             
             return {
                 'success': result['success'],
@@ -119,16 +186,29 @@ class LLMStepByStepResearcher:
         if force_refresh:
             return 'step_1'
         
-        # Check what steps are completed
-        has_step_1 = hasattr(company, 'llm_research_step_1_basic') and company.llm_research_step_1_basic
-        has_step_2 = hasattr(company, 'llm_research_step_2_strategic') and company.llm_research_step_2_strategic
-        has_step_3 = hasattr(company, 'llm_research_step_3_report') and company.llm_research_step_3_report
+        # Check what steps are completed (excluding error results)
+        has_step_1 = (hasattr(company, 'llm_research_step_1_basic') and 
+                     company.llm_research_step_1_basic and 
+                     not company.llm_research_step_1_basic.startswith('ERROR:'))
+        
+        has_step_2 = (hasattr(company, 'llm_research_step_2_strategic') and 
+                     company.llm_research_step_2_strategic and 
+                     not company.llm_research_step_2_strategic.startswith('ERROR:'))
+        
+        has_step_3 = (hasattr(company, 'llm_research_step_3_report') and 
+                     company.llm_research_step_3_report and 
+                     not company.llm_research_step_3_report.startswith('ERROR:'))
+        
+        # Also check for HTML report as step 3 indicator
+        has_html_report = (hasattr(company, 'html_report') and 
+                          company.html_report and 
+                          not company.html_report.startswith('ERROR:'))
         
         if not has_step_1:
             return 'step_1'
         elif not has_step_2:
             return 'step_2'
-        elif not has_step_3:
+        elif not has_step_3 and not has_html_report:
             return 'step_3'
         else:
             return 'completed'
@@ -309,6 +389,8 @@ class LLMStepByStepResearcher:
                 strategic_results = llm_service._execute_claude_research(strategic_prompt, company.company_name)
             elif provider.lower() == "openai" and llm_service.openai_client:
                 strategic_results = llm_service._execute_openai_research(strategic_prompt, company.company_name)
+            elif provider.lower() == "perplexity" and llm_service.perplexity_api_key:
+                strategic_results = llm_service._execute_perplexity_research(strategic_prompt, company.company_name, company.id)
             else:
                 return {
                     'success': False,
@@ -398,6 +480,8 @@ class LLMStepByStepResearcher:
                 report_results = llm_service._execute_claude_research(report_prompt, company.company_name)
             elif provider.lower() == "openai" and llm_service.openai_client:
                 report_results = llm_service._execute_openai_research(report_prompt, company.company_name)
+            elif provider.lower() == "perplexity" and llm_service.perplexity_api_key:
+                report_results = llm_service._execute_perplexity_research(report_prompt, company.company_name, company.id)
             else:
                 return {
                     'success': False,

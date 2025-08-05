@@ -69,6 +69,15 @@ class LLMDeepResearchService:
         else:
             logger.warning("OPENAI_API_KEY not found - OpenAI research will not be available")
         
+        # Initialize Perplexity client if API key is available
+        self.perplexity_client = None
+        self.perplexity_api_key = os.getenv("PERPLEXITY_API_KEY")
+        if self.perplexity_api_key:
+            # Store API key for direct HTTP requests since OpenAI client doesn't support Perplexity-specific parameters
+            logger.info("LLMDeepResearchService initialized with Perplexity API key")
+        else:
+            logger.warning("PERPLEXITY_API_KEY not found - Perplexity Sonar research will not be available")
+        
         # Mark as initialized to prevent repeated initialization
         self._initialized = True
 
@@ -79,7 +88,7 @@ class LLMDeepResearchService:
         Args:
             company_name: Name of the company to research
             company_domain: Company domain/website
-            provider: LLM provider to use ('claude' or 'openai')
+            provider: LLM provider to use ('claude', 'openai', or 'perplexity')
             company_id: Company ID for safety tracking
             from_step_researcher: True if called from step-by-step researcher (skips duplicate check)
             
@@ -149,13 +158,21 @@ class LLMDeepResearchService:
                 result = self._execute_claude_research(research_prompt, company_name)
             elif provider.lower() == "openai" and self.openai_client:
                 result = self._execute_openai_research(research_prompt, company_name, company_id)
+            elif provider.lower() == "perplexity" and self.perplexity_api_key:
+                result = self._execute_perplexity_research(research_prompt, company_name, company_id)
             else:
                 logger.error(f"Provider {provider} not available or not configured")
                 result = None
             
             # REGISTER COMPLETION AND UPDATE DATABASE
             if company_id is not None:
-                estimated_cost = 0.5 if provider.lower() == "openai" else 0.1  # Higher estimate for OpenAI
+                # Estimate costs based on provider
+                if provider.lower() == "openai":
+                    estimated_cost = 0.5  # Higher estimate for OpenAI Deep Research
+                elif provider.lower() == "perplexity":
+                    estimated_cost = 0.2  # Moderate estimate for Perplexity Sonar
+                else:
+                    estimated_cost = 0.1  # Lower estimate for Claude
                 self._register_request_end(company_id, estimated_cost)
                 
                 # Update database with completion status
@@ -236,6 +253,169 @@ Provide detailed citations and sources for all information found."""
             
             # NO FALLBACK - Return None to indicate failure
             logger.critical(f"🚨 NO FALLBACK: Claude research failed for {company_name}, no standard Claude API fallback will be attempted")
+            return None
+
+    def _execute_perplexity_research(self, research_prompt: str, company_name: str, company_id: int = None) -> Optional[str]:
+        """Execute research using Perplexity Sonar Deep Research API."""
+        logger.critical(f"🚨 PERPLEXITY API DEEP RESEARCH CALL MADE: company={company_name}, model=sonar-deep-research")
+        logger.info(f"Executing Perplexity Sonar deep research for {company_name}")
+        
+        # Update status to show research is starting
+        if company_id:
+            self._update_research_status(company_name, "Preparing Perplexity deep research query", company_id)
+        
+        try:
+            import requests
+            import json
+            import threading
+            import time
+            
+            # Prepare the request payload
+            payload = {
+                "model": "sonar-deep-research",
+                "messages": [
+                    {
+                        "role": "user", 
+                        "content": f"""You are an expert B2B research analyst conducting comprehensive company research using Perplexity's deep search capabilities.
+
+{research_prompt}
+
+IMPORTANT: Use Perplexity's advanced web search to find:
+- Current company information from their website and recent sources
+- Latest news, press releases, and company announcements  
+- Financial data, funding rounds, and growth metrics
+- Technology stack and product information from multiple sources
+- Customer reviews, testimonials, and market analysis
+- Competitor analysis and industry trend data
+- Leadership team information and recent hiring patterns
+- Recent company developments and strategic initiatives
+
+Provide comprehensive analysis with detailed source citations and URLs for all information found. Focus on actionable business intelligence for B2B sales purposes.
+
+Company to research: {company_name}"""
+                    }
+                ],
+                "temperature": 0.3,
+                "max_tokens": 8000,
+                "search_mode": "web",  # Enable web search
+                "reasoning_effort": "high"  # Use maximum reasoning capability
+            }
+            
+            headers = {
+                "Authorization": f"Bearer {self.perplexity_api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            # Update status to show API call is being made
+            if company_id:
+                self._update_research_status(company_name, "Executing Perplexity Sonar deep research", company_id)
+            
+            # Start a progress indicator thread for long-running requests
+            progress_active = True
+            progress_messages = [
+                "Perplexity is searching the web for company data",
+                "Analyzing company information and market data", 
+                "Gathering business intelligence insights",
+                "Compiling comprehensive research report",
+                "Finalizing deep research analysis"
+            ]
+            
+            def update_progress():
+                if not company_id:
+                    return
+                
+                start_time = time.time()
+                message_index = 0
+                
+                while progress_active:
+                    elapsed = time.time() - start_time
+                    
+                    # Update progress message every 30 seconds
+                    if elapsed > 30 and message_index < len(progress_messages) - 1:
+                        message_index = min(int(elapsed // 30), len(progress_messages) - 1)
+                        self._update_research_status(company_name, progress_messages[message_index], company_id)
+                    
+                    time.sleep(5)  # Check every 5 seconds
+            
+            # Start progress thread if we have a company_id
+            progress_thread = None
+            if company_id:
+                progress_thread = threading.Thread(target=update_progress, daemon=True)
+                progress_thread.start()
+            
+            try:
+                # Make the API request
+                response = requests.post(
+                    "https://api.perplexity.ai/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=300  # 5 minute timeout
+                )
+            finally:
+                # Stop progress updates
+                progress_active = False
+                if progress_thread:
+                    progress_thread.join(timeout=1)
+            
+            # Check for HTTP errors
+            response.raise_for_status()
+            
+            # Update status to show response is being processed
+            if company_id:
+                self._update_research_status(company_name, "Processing Perplexity research results", company_id)
+            
+            # Parse the response
+            response_data = response.json()
+            
+            if 'choices' in response_data and len(response_data['choices']) > 0:
+                research_results = response_data['choices'][0]['message']['content']
+                
+                # Check if response includes search results
+                search_results_info = ""
+                if 'search_results' in response_data:
+                    search_count = len(response_data['search_results'])
+                    search_results_info = f" with {search_count} web sources"
+                    logger.info(f"Perplexity search used {search_count} web sources")
+                
+                # Update status to show completion
+                if company_id:
+                    self._update_research_status(company_name, "Perplexity research completed successfully", company_id)
+                
+                logger.info(f"Perplexity Sonar deep research completed for {company_name}: {len(research_results)} characters{search_results_info}")
+                return research_results
+            else:
+                logger.error(f"Perplexity API returned no choices for {company_name}")
+                return None
+            
+        except requests.exceptions.RequestException as e:
+            logger.critical(f"🚨 PERPLEXITY SONAR DEEP RESEARCH FAILED: {company_name} - {e}")
+            logger.error(f"Perplexity API request error for {company_name}: {e}")
+            
+            # Detailed error diagnosis for HTTP-specific issues
+            if hasattr(e, 'response') and e.response is not None:
+                status_code = e.response.status_code
+                if status_code == 401:
+                    logger.error(f"Perplexity API authentication failed (401). Check PERPLEXITY_API_KEY: {e}")
+                elif status_code == 403:
+                    logger.error(f"Perplexity API access forbidden (403). Check account permissions or billing: {e}")
+                elif status_code == 429:
+                    logger.error(f"Perplexity API rate limit exceeded (429): {e}")
+                elif status_code == 400:
+                    logger.error(f"Perplexity API bad request (400). Model or parameters may be incorrect: {e}")
+                elif status_code == 404:
+                    logger.error(f"Perplexity API endpoint not found (404). Check model name 'sonar-deep-research': {e}")
+                elif status_code >= 500:
+                    logger.error(f"Perplexity API server error ({status_code}). Service may be temporarily unavailable: {e}")
+                else:
+                    logger.error(f"Perplexity API HTTP error ({status_code}): {e}")
+            else:
+                logger.error(f"Perplexity API connection error: {e}")
+            
+            return None
+            
+        except Exception as e:
+            logger.critical(f"🚨 PERPLEXITY SONAR DEEP RESEARCH FAILED: {company_name} - {e}")
+            logger.error(f"Perplexity API unknown error for {company_name}: {e}")
             return None
 
     def _execute_openai_research(self, research_prompt: str, company_name: str, company_id: int = None) -> Optional[str]:

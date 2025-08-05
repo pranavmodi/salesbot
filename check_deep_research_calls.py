@@ -45,6 +45,7 @@ def analyze_deep_research_calls(log_file_path, time_periods):
         'research_execute': re.compile(r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*Starting LLM deep research for company: (.+?) using (\w+)'),
         'openai_api_call': re.compile(r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*Starting OpenAI Deep Research API call.*for (.+?)'),
         'claude_api_call': re.compile(r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*Executing Claude.*research for (.+?)'),
+        'perplexity_api_call': re.compile(r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*Executing Perplexity.*research for (.+?)'),
         'api_error': re.compile(r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*Error.*research.*for (.+?):(.+)'),
         'rate_limit': re.compile(r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*Rate limit.*research.*for (.+?)'),
         'safety_block': re.compile(r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*BLOCKED.*Research already in progress.*company (\d+)'),
@@ -62,6 +63,7 @@ def analyze_deep_research_calls(log_file_path, time_periods):
             'total_api_calls': 0,
             'openai_calls': 0,
             'claude_calls': 0,
+            'perplexity_calls': 0,
             'errors': 0,
             'rate_limits': 0,
             'safety_blocks': 0,
@@ -158,6 +160,20 @@ def analyze_deep_research_calls(log_file_path, time_periods):
                                         'line': line_num
                                     })
                                 
+                                elif pattern_name == 'perplexity_api_call':
+                                    company_name = match.group(2)
+                                    result['perplexity_calls'] += 1
+                                    result['estimated_cost'] += 0.20  # Estimated cost per Perplexity call
+                                    result['companies_affected'].add(company_name)
+                                    result['call_details'].append({
+                                        'timestamp': timestamp,
+                                        'type': 'perplexity_api',
+                                        'company': company_name,
+                                        'provider': 'perplexity',
+                                        'estimated_cost': 0.20,
+                                        'line': line_num
+                                    })
+                                
                                 elif pattern_name == 'api_error':
                                     company_name = match.group(2)
                                     error_msg = match.group(3)
@@ -236,6 +252,7 @@ def print_analysis_report(results, time_periods):
         print(f"   • Total API Calls Made: {result['total_api_calls']}")
         print(f"   • OpenAI API Calls: {result['openai_calls']}")
         print(f"   • Claude API Calls: {result['claude_calls']}")
+        print(f"   • Perplexity API Calls: {result['perplexity_calls']}")
         print(f"   • Companies Affected: {len(result['companies_affected'])}")
         print(f"   • Estimated Cost: ${result['estimated_cost']:.2f}")
         
