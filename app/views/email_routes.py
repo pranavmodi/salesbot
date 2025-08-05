@@ -10,6 +10,7 @@ from app.services.email_reader_service import email_reader, configure_email_read
 from app.utils.email_config import email_config, EmailAccount
 from email_composers.email_composer_alt_subject import AltSubjectEmailComposer
 from email_composers.email_composer_warm import WarmEmailComposer
+from email_composers.email_composer_deep_research import DeepResearchEmailComposer
 
 email_bp = Blueprint('email_api', __name__, url_prefix='/api')
 
@@ -45,6 +46,8 @@ def preview_email():
             # Import the composers directly
             if composer_type == "alt_subject":
                 composer = AltSubjectEmailComposer()
+            elif composer_type == "deep_research":
+                composer = DeepResearchEmailComposer()
             else:
                 composer = WarmEmailComposer()
             
@@ -736,4 +739,96 @@ def debug_email_configuration():
         return jsonify({
             'success': False,
             'message': f'Debug failed: {str(e)}'
+        }), 500
+
+@email_bp.route('/contacts-with-research-status', methods=['GET'])
+def get_contacts_with_research_status():
+    """Get all contacts with their company's deep research completion status."""
+    try:
+        from app.models.contact import Contact
+        from app.models.company import Company
+        
+        # Get contacts using pagination (get all by using a large per_page value)
+        paginated_result = Contact.get_paginated(page=1, per_page=1000)
+        contacts = paginated_result.get('contacts', [])  # These are already Contact objects
+        contacts_with_status = []
+        
+        for contact in contacts:
+            company_name = contact.company  # Use company property, not company_name
+            research_status = {
+                'has_completed_research': False,
+                'research_status': 'not_started',
+                'company_id': None
+            }
+            
+            if company_name:
+                # Find company by name
+                companies = Company.get_companies_by_name(company_name)
+                if companies:
+                    company = companies[0]
+                    research_status['company_id'] = company.id
+                    
+                    # Check if deep research is completed
+                    has_html_report = hasattr(company, 'html_report') and company.html_report
+                    current_status = getattr(company, 'llm_research_step_status', 'not_started')
+                    
+                    research_status['has_completed_research'] = has_html_report and current_status == 'step_3_completed'
+                    research_status['research_status'] = current_status
+            
+            contacts_with_status.append({
+                'id': contact.email,  # Use email as ID
+                'name': contact.display_name,  # Use display_name property
+                'email': contact.email,
+                'company_name': company_name,
+                'position': contact.job_title,  # Use job_title property
+                'research_status': research_status
+            })
+        
+        return jsonify({
+            'success': True,
+            'contacts': contacts_with_status
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting contacts with research status: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Failed to get contacts: {str(e)}'
+        }), 500
+
+@email_bp.route('/validate-deep-research/<company_name>', methods=['GET'])
+def validate_company_deep_research(company_name):
+    """Validate if a company has completed deep research."""
+    try:
+        from app.models.company import Company
+        
+        companies = Company.get_companies_by_name(company_name)
+        if not companies:
+            return jsonify({
+                'success': False,
+                'has_completed_research': False,
+                'message': f'Company "{company_name}" not found'
+            })
+        
+        company = companies[0]
+        
+        # Check if deep research is completed
+        has_html_report = hasattr(company, 'html_report') and company.html_report
+        current_status = getattr(company, 'llm_research_step_status', 'not_started')
+        has_completed_research = has_html_report and current_status == 'step_3_completed'
+        
+        return jsonify({
+            'success': True,
+            'has_completed_research': has_completed_research,
+            'research_status': current_status,
+            'company_id': company.id,
+            'company_name': company.company_name,
+            'html_report_length': len(company.html_report) if company.html_report else 0
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error validating deep research for {company_name}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Validation failed: {str(e)}'
         }), 500

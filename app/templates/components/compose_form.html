@@ -6,24 +6,44 @@
             </div>
             <div class="card-body">
                 <form id="composeForm">
+                    <!-- Contact Selection -->
+                    <div class="mb-3">
+                        <label for="contactSelect" class="form-label">
+                            <i class="fas fa-user-circle me-1"></i>Select Contact (Research Available)
+                        </label>
+                        <select class="form-select" id="contactSelect">
+                            <option value="">Loading contacts...</option>
+                        </select>
+                        <div id="selectedContactInfo" class="mt-2" style="display: none;">
+                            <div class="card bg-light">
+                                <div class="card-body py-2">
+                                    <small class="text-muted d-block">Selected Contact:</small>
+                                    <div id="contactDetails"></div>
+                                    <div id="researchStatus" class="mt-2"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Auto-populated Recipient Fields -->
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label for="recipientEmail" class="form-label">Recipient Email</label>
-                            <input type="email" class="form-control" id="recipientEmail" required>
+                            <input type="email" class="form-control" id="recipientEmail" readonly>
                         </div>
                         <div class="col-md-6">
                             <label for="recipientName" class="form-label">Recipient Name</label>
-                            <input type="text" class="form-control" id="recipientName" required>
+                            <input type="text" class="form-control" id="recipientName" readonly>
                         </div>
                     </div>
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label for="companyName" class="form-label">Company Name</label>
-                            <input type="text" class="form-control" id="companyName">
+                            <input type="text" class="form-control" id="companyName" readonly>
                         </div>
                         <div class="col-md-6">
                             <label for="position" class="form-label">Position</label>
-                            <input type="text" class="form-control" id="position">
+                            <input type="text" class="form-control" id="position" readonly>
                         </div>
                     </div>
                     <div class="mb-3">
@@ -35,6 +55,10 @@
                             <option value="alt_subject">📧 AI Pilled Subject Line</option>
                             <option value="warm">🤝 Warm & Personal</option>
                         </select>
+                        <div id="deepResearchInfo" class="alert alert-info mt-2" style="display: none;">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Deep Research Available:</strong> This contact's company has completed deep research. The email will include personalized insights and a link to the strategic analysis report.
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label for="emailSubject" class="form-label">Subject</label>

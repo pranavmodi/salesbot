@@ -78,6 +78,7 @@ function setupEventListeners() {
     // Compose form (for compose tab only)
     const generatePreviewBtn = document.getElementById('generatePreview');
     const composeForm = document.getElementById('composeForm');
+    const composeTab = document.getElementById('compose-tab');
     
     if (generatePreviewBtn) {
         generatePreviewBtn.addEventListener('click', generateEmailPreview);
@@ -85,6 +86,28 @@ function setupEventListeners() {
     if (composeForm) {
         composeForm.addEventListener('submit', sendComposedEmail);
     }
+    
+    // Initialize compose form when compose tab is clicked
+    if (composeTab) {
+        composeTab.addEventListener('shown.bs.tab', function() {
+            console.log('🎵 Compose tab shown, initializing form...');
+            setupComposeFormEnhancements();
+        });
+        
+        // Also try to initialize immediately if the form exists
+        if (composeForm) {
+            console.log('🎵 Compose form found on page load, initializing...');
+            setupComposeFormEnhancements();
+        }
+    }
+    
+    // Fallback: Try to initialize compose form after a short delay
+    setTimeout(() => {
+        if (!composeFormInitialized) {
+            console.log('⏰ Fallback: Attempting to initialize compose form after delay...');
+            setupComposeFormEnhancements();
+        }
+    }, 1000);
 
     // Export from modal button
     const exportFromModalBtn = document.getElementById('exportFromModal');
@@ -1593,13 +1616,35 @@ function testGlobalAccountConnection() {
 function generateEmailPreview() {
     const form = document.getElementById('composeForm');
     const composerType = document.getElementById('composerType').value || 'alt_subject';
+    const contactSelect = document.getElementById('contactSelect');
+    const contactId = contactSelect.value;
+    
+    if (!contactId) {
+        showToast('warningToast', 'Please select a contact from the dropdown');
+        return;
+    }
+    
+    // Find the selected contact from the loaded contacts
+    const allContacts = window.composeContacts || [];
+    const selectedContact = allContacts.find(c => c.id === contactId);
+    
+    if (!selectedContact) {
+        showToast('errorToast', 'Selected contact not found');
+        return;
+    }
     
     const leadInfo = {
-        name: form.recipientName.value,
-        email: form.recipientEmail.value,
-        company: form.companyName.value,
-        position: form.position.value
+        name: selectedContact.name,
+        email: selectedContact.email,
+        company: selectedContact.company_name,
+        position: selectedContact.position || ''
     };
+    
+    // Disable the generate button and show loading state
+    const generateBtn = document.getElementById('generatePreview');
+    const originalBtnText = generateBtn.innerHTML;
+    generateBtn.disabled = true;
+    generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Generating...';
     
     fetch('/api/email/preview_email', {
         method: 'POST',
@@ -1616,6 +1661,7 @@ function generateEmailPreview() {
         if (data.subject && data.body) {
             form.emailSubject.value = data.subject;
             form.emailBody.value = data.body;
+            showToast('successToast', 'Email preview generated successfully!');
         } else {
             showToast('errorToast', data.error || 'Failed to generate email preview');
         }
@@ -1623,6 +1669,11 @@ function generateEmailPreview() {
     .catch(error => {
         console.error('Error:', error);
         showToast('errorToast', 'Failed to generate email preview');
+    })
+    .finally(() => {
+        // Restore button state
+        generateBtn.disabled = false;
+        generateBtn.innerHTML = originalBtnText;
     });
 }
 
@@ -6000,5 +6051,181 @@ function viewCampaignAnalytics(campaignId, campaignName) {
     } else {
         console.error('Campaign analytics component not loaded');
         showToast('errorToast', 'Analytics component not available');
+    }
+}
+
+// Enhanced compose form functionality for contact selection and deep research validation
+let composeFormInitialized = false;
+
+function setupComposeFormEnhancements() {
+    if (composeFormInitialized) {
+        console.log('⏭️ Compose form already initialized, skipping...');
+        return;
+    }
+    
+    console.log('🚀 Setting up compose form enhancements...');
+    
+    const contactSelect = document.getElementById('contactSelect');
+    const composerType = document.getElementById('composerType');
+    
+    if (!contactSelect) {
+        console.error('❌ Contact select element not found!');
+        return;
+    }
+    
+    if (!composerType) {
+        console.error('❌ Composer type element not found!');
+        return;
+    }
+    
+    console.log('✅ Form elements found, initializing...');
+    composeFormInitialized = true;
+    
+    let allContacts = [];
+    let selectedContact = null;
+    
+    // Load contacts immediately when form is initialized
+    loadContactsForSelection();
+    
+    // Handle contact selection
+    contactSelect.addEventListener('change', function() {
+        const contactId = this.value;
+        selectedContact = allContacts.find(c => c.id === contactId);
+        
+        if (selectedContact) {
+            displaySelectedContactInfo(selectedContact);
+            populateContactFields(selectedContact);
+            updateDeepResearchValidation();
+        } else {
+            document.getElementById('selectedContactInfo').style.display = 'none';
+            clearContactFields();
+            updateDeepResearchValidation();
+        }
+    });
+    
+    // Handle composer type changes
+    composerType.addEventListener('change', function() {
+        updateDeepResearchValidation();
+    });
+    
+    function loadContactsForSelection() {
+        console.log('🔄 Loading contacts for selection...');
+        contactSelect.innerHTML = '<option value="">Loading contacts...</option>';
+        
+        fetch('/api/contacts-with-research-status')
+            .then(response => {
+                console.log('📡 Contact API response status:', response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log('📦 Contact API data:', data);
+                if (data.success) {
+                    allContacts = data.contacts;
+                    window.composeContacts = allContacts; // Store globally for generateEmailPreview
+                    console.log(`✅ Loaded ${allContacts.length} contacts total`);
+                    populateContactSelect(allContacts);
+                } else {
+                    console.error('❌ Failed to load contacts:', data.message);
+                    contactSelect.innerHTML = '<option value="">Failed to load contacts</option>';
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error loading contacts:', error);
+                contactSelect.innerHTML = '<option value="">Error loading contacts</option>';
+            });
+    }
+    
+    function populateContactSelect(contacts) {
+        console.log(`🔍 Filtering ${contacts.length} contacts for completed research...`);
+        
+        // Filter to only show contacts with completed research
+        const contactsWithResearch = contacts.filter(contact => 
+            contact.research_status.has_completed_research
+        );
+        
+        console.log(`📋 Found ${contactsWithResearch.length} contacts with completed research`);
+        
+        contactSelect.innerHTML = '<option value="">Select a contact...</option>';
+        
+        if (contactsWithResearch.length === 0) {
+            console.log('⚠️ No contacts with completed research found');
+            const noContactsOption = document.createElement('option');
+            noContactsOption.value = '';
+            noContactsOption.textContent = 'No contacts with completed research available';
+            noContactsOption.disabled = true;
+            contactSelect.appendChild(noContactsOption);
+            return;
+        }
+        
+        contactsWithResearch.forEach(contact => {
+            const option = document.createElement('option');
+            option.value = contact.id;
+            
+            // All contacts in this list have research, so always show the indicator
+            option.textContent = `🔬 ${contact.name} (${contact.company_name}) - ${contact.email}`;
+            option.setAttribute('data-has-research', 'true');
+            
+            console.log(`✅ Added contact: ${contact.name} (${contact.company_name})`);
+            contactSelect.appendChild(option);
+        });
+        
+        console.log('🎯 Contact dropdown populated successfully');
+    }
+    
+    function displaySelectedContactInfo(contact) {
+        const contactDetails = document.getElementById('contactDetails');
+        const researchStatus = document.getElementById('researchStatus');
+        
+        contactDetails.innerHTML = `
+            <strong>${contact.name}</strong><br>
+            <small class="text-muted">${contact.email}</small><br>
+            <small class="text-muted">${contact.company_name} ${contact.position ? '- ' + contact.position : ''}</small>
+        `;
+        
+        // Since we only show contacts with completed research, always show success status
+        const statusHtml = '<i class="fas fa-check-circle text-success me-1"></i>Deep research completed';
+        const statusClass = 'text-success';
+        
+        researchStatus.innerHTML = `<small class="${statusClass}">${statusHtml}</small>`;
+        document.getElementById('selectedContactInfo').style.display = 'block';
+    }
+    
+    function populateContactFields(contact) {
+        document.getElementById('recipientEmail').value = contact.email;
+        document.getElementById('recipientName').value = contact.name;
+        document.getElementById('companyName').value = contact.company_name;
+        document.getElementById('position').value = contact.position || '';
+    }
+    
+    function clearContactFields() {
+        document.getElementById('recipientEmail').value = '';
+        document.getElementById('recipientName').value = '';
+        document.getElementById('companyName').value = '';
+        document.getElementById('position').value = '';
+    }
+    
+    function updateDeepResearchValidation() {
+        const currentComposerType = composerType.value;
+        const deepResearchInfo = document.getElementById('deepResearchInfo');
+        const generateBtn = document.getElementById('generatePreview');
+        
+        // Hide alert initially
+        deepResearchInfo.style.display = 'none';
+        
+        if (currentComposerType === 'deep_research' && selectedContact) {
+            // All contacts in dropdown have completed research, so always show success
+            deepResearchInfo.style.display = 'block';
+        }
+        
+        // Enable/disable generate button based on contact selection
+        if (generateBtn) {
+            if (selectedContact) {
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = '<i class="fas fa-magic me-2"></i>Generate Preview';
+            } else {
+                generateBtn.disabled = true;
+                generateBtn.innerHTML = '<i class="fas fa-user me-2"></i>Select Contact First';
+            }
+        }
     }
 }

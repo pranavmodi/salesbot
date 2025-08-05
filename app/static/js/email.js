@@ -161,19 +161,25 @@ function testGlobalAccountConnection() {
 
 // Email composition and sending
 function generateEmailPreview() {
+    const contactSelect = document.getElementById('contactSelect');
+    const composerType = document.getElementById('composerType');
     const recipientEmail = document.getElementById('recipientEmail').value;
-    const emailTemplate = document.getElementById('emailTemplate').value;
-    const customPrompt = document.getElementById('customPrompt').value;
+    const recipientName = document.getElementById('recipientName').value;
+    const companyName = document.getElementById('companyName').value;
+    const position = document.getElementById('position').value;
+    
+    if (!contactSelect.value) {
+        showToast('warningToast', 'Please select a contact first');
+        return;
+    }
     
     if (!recipientEmail) {
-        showToast('warningToast', 'Please enter a recipient email address');
+        showToast('warningToast', 'Recipient email is missing');
         return;
     }
     
-    if (!currentGlobalAccount) {
-        showToast('warningToast', 'Please select a sender email account');
-        return;
-    }
+    // For the new compose form, we don't need currentGlobalAccount validation
+    // since this will be handled by the backend
     
     const generateBtn = document.getElementById('generatePreview');
     const originalText = generateBtn.innerHTML;
@@ -181,43 +187,122 @@ function generateEmailPreview() {
     generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Generating...';
     generateBtn.disabled = true;
     
-    fetch('/api/email/generate-preview', {
+    // Find selected contact from the global contacts array
+    let selectedContact = null;
+    if (window.composeContacts) {
+        selectedContact = window.composeContacts.find(c => c.id === contactSelect.value);
+    }
+    
+    // Prepare contact data for the API
+    const contactData = {
+        email: recipientEmail,
+        name: recipientName,
+        company: companyName,
+        position: position
+    };
+    
+    const requestData = {
+        contact_data: contactData,
+        composer_type: composerType.value || 'deep_research'
+    };
+    
+    console.log('🎯 Generating email preview with data:', requestData);
+    
+    fetch('/api/preview_email', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-            recipient_email: recipientEmail,
-            sender_email: currentGlobalAccount.email,
-            template: emailTemplate,
-            custom_prompt: customPrompt
-        })
+        body: JSON.stringify(requestData)
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
+        if (data.subject && data.body) {
             document.getElementById('emailSubject').value = data.subject || '';
-            document.getElementById('emailBody').value = data.body || '';
             
-            // Show the preview section
-            const previewSection = document.getElementById('emailPreviewSection');
-            if (previewSection) {
-                previewSection.style.display = 'block';
+            // Check if the body contains HTML and render it properly
+            const emailBodyElement = document.getElementById('emailBody');
+            if (data.body.includes('<html>') || data.body.includes('<body>')) {
+                // If it's HTML, create a preview iframe or render it as HTML
+                emailBodyElement.style.display = 'none';
+                
+                // Create or update HTML preview container
+                let htmlPreviewContainer = document.getElementById('htmlPreviewContainer');
+                if (!htmlPreviewContainer) {
+                    htmlPreviewContainer = document.createElement('div');
+                    htmlPreviewContainer.id = 'htmlPreviewContainer';
+                    htmlPreviewContainer.className = 'border rounded p-3 bg-light';
+                    htmlPreviewContainer.style.minHeight = '300px';
+                    emailBodyElement.parentNode.insertBefore(htmlPreviewContainer, emailBodyElement.nextSibling);
+                    
+                    // Add a label
+                    const label = document.createElement('label');
+                    label.className = 'form-label';
+                    label.textContent = 'Email Preview (Rendered)';
+                    htmlPreviewContainer.parentNode.insertBefore(label, htmlPreviewContainer);
+                }
+                
+                // Create iframe to render HTML safely
+                htmlPreviewContainer.innerHTML = `
+                    <iframe 
+                        srcdoc="${data.body.replace(/"/g, '&quot;')}" 
+                        style="width: 100%; height: 400px; border: 1px solid #ddd; border-radius: 4px;"
+                        frameborder="0">
+                    </iframe>
+                    <div class="mt-2">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            This is how the email will appear to recipients. 
+                            <button type="button" class="btn btn-outline-secondary btn-sm ms-2" onclick="toggleRawHtml()">
+                                <i class="fas fa-code me-1"></i>View Raw HTML
+                            </button>
+                        </small>
+                    </div>
+                `;
+                
+                // Store the raw HTML in the textarea for form submission
+                emailBodyElement.value = data.body;
+            } else {
+                // Plain text email
+                emailBodyElement.value = data.body;
+                emailBodyElement.style.display = 'block';
+                
+                // Remove HTML preview container if it exists
+                const htmlPreviewContainer = document.getElementById('htmlPreviewContainer');
+                if (htmlPreviewContainer) {
+                    htmlPreviewContainer.remove();
+                }
             }
             
             showToast('successToast', 'Email preview generated successfully!');
         } else {
-            showToast('errorToast', 'Failed to generate email: ' + data.message);
+            throw new Error(data.error || 'Failed to generate email preview');
         }
     })
     .catch(error => {
         console.error('Error generating email preview:', error);
-        showToast('errorToast', 'Failed to generate email preview');
+        showToast('errorToast', 'Failed to generate email preview: ' + error.message);
     })
     .finally(() => {
         generateBtn.innerHTML = originalText;
         generateBtn.disabled = false;
     });
+}
+
+// Toggle between HTML preview and raw HTML view
+function toggleRawHtml() {
+    const emailBodyElement = document.getElementById('emailBody');
+    const htmlPreviewContainer = document.getElementById('htmlPreviewContainer');
+    
+    if (emailBodyElement.style.display === 'none') {
+        // Show raw HTML
+        emailBodyElement.style.display = 'block';
+        htmlPreviewContainer.style.display = 'none';
+    } else {
+        // Show rendered preview
+        emailBodyElement.style.display = 'none';
+        htmlPreviewContainer.style.display = 'block';
+    }
 }
 
 function sendComposedEmail(e) {
@@ -650,3 +735,4 @@ window.applyEmailHistoryFilter = applyEmailHistoryFilter;
 window.viewEmailDetails = viewEmailDetails;
 window.showEmailDetails = showEmailDetails;
 window.testEmailConnection = testEmailConnection;
+window.toggleRawHtml = toggleRawHtml;

@@ -37,6 +37,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error("initializeCompanies function not found");
             }
             
+            // Initialize compose form functionality
+            if (typeof setupComposeFormEnhancements === 'function') {
+                setupComposeFormEnhancements();
+                console.log("Compose form enhancements initialized");
+            } else {
+                console.error("setupComposeFormEnhancements function not found");
+            }
+            
             // Setup additional dashboard-specific functionality
             setupMainEventListeners();
             setupInboxPagination();
@@ -638,6 +646,204 @@ function showActivityError(message) {
     }
 }
 
+// Enhanced compose form functionality for contact selection and deep research validation
+let composeFormInitialized = false;
+
+function setupComposeFormEnhancements() {
+    if (composeFormInitialized) {
+        console.log('⏭️ Compose form already initialized, skipping...');
+        return;
+    }
+    
+    console.log('🚀 Setting up compose form enhancements...');
+    
+    const contactSelect = document.getElementById('contactSelect');
+    const composerType = document.getElementById('composerType');
+    
+    if (!contactSelect) {
+        console.error('❌ Contact select element not found!');
+        return;
+    }
+    
+    if (!composerType) {
+        console.error('❌ Composer type element not found!');
+        return;
+    }
+    
+    console.log('✅ Form elements found, initializing...');
+    composeFormInitialized = true;
+    
+    let allContacts = [];
+    let selectedContact = null;
+    
+    // Load contacts immediately when form is initialized
+    loadContactsForSelection();
+    
+    // Handle contact selection
+    contactSelect.addEventListener('change', function() {
+        const contactId = this.value;
+        selectedContact = allContacts.find(c => c.id === contactId);
+        
+        if (selectedContact) {
+            displaySelectedContactInfo(selectedContact);
+            populateContactFields(selectedContact);
+            updateDeepResearchValidation();
+        } else {
+            document.getElementById('selectedContactInfo').style.display = 'none';
+            clearContactFields();
+            updateDeepResearchValidation();
+        }
+    });
+    
+    // Handle composer type changes
+    composerType.addEventListener('change', function() {
+        updateDeepResearchValidation();
+    });
+    
+    function loadContactsForSelection() {
+        console.log('🔄 Loading contacts for selection...');
+        contactSelect.innerHTML = '<option value="">Loading contacts...</option>';
+        
+        fetch('/api/contacts-with-research-status')
+            .then(response => {
+                console.log('📡 Contact API response status:', response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log('📦 Contact API data:', data);
+                if (data.success) {
+                    allContacts = data.contacts;
+                    window.composeContacts = allContacts; // Store globally for generateEmailPreview
+                    console.log(`✅ Loaded ${allContacts.length} contacts total`);
+                    populateContactSelect(allContacts);
+                } else {
+                    console.error('❌ Failed to load contacts:', data.message);
+                    contactSelect.innerHTML = '<option value="">Failed to load contacts</option>';
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error loading contacts:', error);
+                contactSelect.innerHTML = '<option value="">Error loading contacts</option>';
+            });
+    }
+    
+    function populateContactSelect(contacts) {
+        console.log(`🔍 Filtering ${contacts.length} contacts for completed research...`);
+        
+        // Filter to only show contacts with completed research
+        const contactsWithResearch = contacts.filter(contact => 
+            contact.research_status.has_completed_research
+        );
+        
+        console.log(`📋 Found ${contactsWithResearch.length} contacts with completed research`);
+        
+        contactSelect.innerHTML = '<option value="">Select a contact...</option>';
+        
+        if (contactsWithResearch.length === 0) {
+            console.log('⚠️ No contacts with completed research found');
+            const noContactsOption = document.createElement('option');
+            noContactsOption.value = '';
+            noContactsOption.textContent = 'No contacts with completed research available';
+            noContactsOption.disabled = true;
+            contactSelect.appendChild(noContactsOption);
+            return;
+        }
+        
+        contactsWithResearch.forEach(contact => {
+            const option = document.createElement('option');
+            option.value = contact.id;
+            
+            // All contacts in this list have research, so always show the indicator
+            option.textContent = `🔬 ${contact.name} (${contact.company_name}) - ${contact.email}`;
+            option.setAttribute('data-has-research', 'true');
+            
+            console.log(`✅ Added contact: ${contact.name} (${contact.company_name})`);
+            contactSelect.appendChild(option);
+        });
+        
+        console.log('🎯 Contact dropdown populated successfully');
+    }
+    
+    function displaySelectedContactInfo(contact) {
+        const contactDetails = document.getElementById('contactDetails');
+        const researchStatus = document.getElementById('researchStatus');
+        
+        if (contactDetails) {
+            contactDetails.innerHTML = `
+                <strong>${contact.name}</strong><br>
+                <small class="text-muted">${contact.email}</small><br>
+                <small class="text-muted">${contact.company_name} ${contact.position ? '- ' + contact.position : ''}</small>
+            `;
+        }
+        
+        if (researchStatus) {
+            // Since we only show contacts with completed research, always show success status
+            const statusHtml = '<i class="fas fa-check-circle text-success me-1"></i>Deep research completed';
+            const statusClass = 'text-success';
+            
+            researchStatus.innerHTML = `<small class="${statusClass}">${statusHtml}</small>`;
+        }
+        
+        const selectedContactInfo = document.getElementById('selectedContactInfo');
+        if (selectedContactInfo) {
+            selectedContactInfo.style.display = 'block';
+        }
+    }
+    
+    function populateContactFields(contact) {
+        const recipientEmail = document.getElementById('recipientEmail');
+        const recipientName = document.getElementById('recipientName');
+        const companyName = document.getElementById('companyName');
+        const position = document.getElementById('position');
+        
+        if (recipientEmail) recipientEmail.value = contact.email;
+        if (recipientName) recipientName.value = contact.name;
+        if (companyName) companyName.value = contact.company_name;
+        if (position) position.value = contact.position || '';
+    }
+    
+    function clearContactFields() {
+        const recipientEmail = document.getElementById('recipientEmail');
+        const recipientName = document.getElementById('recipientName');
+        const companyName = document.getElementById('companyName');
+        const position = document.getElementById('position');
+        
+        if (recipientEmail) recipientEmail.value = '';
+        if (recipientName) recipientName.value = '';
+        if (companyName) companyName.value = '';
+        if (position) position.value = '';
+    }
+    
+    function updateDeepResearchValidation() {
+        const currentComposerType = composerType.value;
+        const deepResearchInfo = document.getElementById('deepResearchInfo');
+        const generateBtn = document.getElementById('generatePreview');
+        
+        // Hide alert initially
+        if (deepResearchInfo) {
+            deepResearchInfo.style.display = 'none';
+        }
+        
+        if (currentComposerType === 'deep_research' && selectedContact) {
+            // All contacts in dropdown have completed research, so always show success
+            if (deepResearchInfo) {
+                deepResearchInfo.style.display = 'block';
+            }
+        }
+        
+        // Enable/disable generate button based on contact selection
+        if (generateBtn) {
+            if (selectedContact) {
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = '<i class="fas fa-magic me-2"></i>Generate Preview';
+            } else {
+                generateBtn.disabled = true;
+                generateBtn.innerHTML = '<i class="fas fa-user me-2"></i>Select Contact First';
+            }
+        }
+    }
+}
+
 // Global functions that may be called from HTML onclick handlers
 window.saveNewContact = saveNewContact;
 window.resetAddContactForm = resetAddContactForm;
@@ -648,3 +854,4 @@ window.changeInboxPage = changeInboxPage;
 window.loadEmailConversations = loadEmailConversations;
 window.loadDetailedConversations = loadDetailedConversations;
 window.loadCampaignActivity = loadCampaignActivity;
+window.setupComposeFormEnhancements = setupComposeFormEnhancements;
