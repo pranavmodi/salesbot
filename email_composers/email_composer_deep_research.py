@@ -62,9 +62,9 @@ class DeepResearchEmailComposer:
             5. Second paragraph (3-4 sentences): Create a smooth transition that bridges their challenges to AI solutions. Start with a connecting sentence like "These are exactly the types of scaling challenges where AI agents can make the biggest impact" or "This is precisely why companies at your stage are turning to AI agents." Then introduce yourself: "I'm Pranav, founder of Possible Minds, and we've helped similar companies solve these specific challenges through bespoke AI agent solutions."
             6. Add a blank line
             7. Third paragraph: Start with an intro sentence like "Here are a couple of AI agent ideas specifically for your organization, based on our research:" then add a blank line and include 2-4 bullet points using ONLY the benefits provided in the "AI Agent Benefits" section. If AI Agent Benefits are provided, use those exact benefits. If not provided, use general AI agent benefits relevant to their pain points. Use **bold** for key benefits.
-            8. Add a blank line, then include: "I put together a strategic analysis for [Company] that covers these opportunities in detail. You can review it here: [REPORT_LINK_PLACEHOLDER]"
+            8. Add a blank line, then include: "I've put together a detailed strategic analysis for [Company] that outlines these opportunities with specific implementation recommendations. Happy to share it if you're interested."
             9. Add a blank line
-            10. Fourth paragraph: Direct, specific call to action with calendar link as linked text. Use format like "Worth exploring? <a href="CALENDAR_URL">Let's schedule 15 minutes</a>" instead of showing the full URL.
+            10. Fourth paragraph: Friendly, low-pressure closing. Use format like "If you'd rather not hear from me, just let me know and I'll make sure you don't get any more emails from us."
             11. Add a blank line
             12. Sign-off on its own line (e.g., "Best," - DO NOT include name here, it will be added later)
 
@@ -75,8 +75,8 @@ class DeepResearchEmailComposer:
             - Subject MUST start with "Subject:" as the first line
             - Use specific, actionable language
             - Reference real business metrics when possible
-            - ALWAYS include the [REPORT_LINK_PLACEHOLDER] in the P.S. section exactly as shown
-            - The report link will showcase your deep understanding of their business
+            - Mention the strategic analysis you've prepared but don't include the link directly
+            - This creates a "value-first offer" that requires engagement to receive
 
             Here is context about the sender and their product:
             """ + SENDER_INFO)
@@ -106,7 +106,7 @@ class DeepResearchEmailComposer:
         print(f"✅ STEP 1 COMPLETED: Research available for {company_name} (length: {len(company_research)} chars)")
         # NOTE: company_research content is passed to OpenAI for email composition but not logged by our debug statements
         
-        # STEP 2: Publish report to possibleminds.in and generate tracking URL
+        # STEP 2: Publish report to possibleminds.in and generate tracking URL (saved for later use)
         print(f"🌐 STEP 2: Publishing report to possibleminds.in for company_id={company_id}")
         report_url = None
         if company_id:
@@ -151,9 +151,6 @@ class DeepResearchEmailComposer:
         === AI Agent Benefits (use ONLY these in benefits section) ===
         {ai_agent_benefits if ai_agent_benefits else "Use general AI agent benefits relevant to their industry"}
 
-        === Calendar URL ===
-        {calendar_url}
-
         {extra_context or ''}
         """
 
@@ -173,22 +170,17 @@ class DeepResearchEmailComposer:
 
         subject, body = self._parse(rsp.choices[0].message.content)
         
-        # STEP 3: Add report link to email and finalize for sending
-        print(f"📧 STEP 3: Adding report link to email template")
-        print(f"🔗 STEP 3 CHECK: report_url={'AVAILABLE' if report_url else 'MISSING'}, has_placeholder={'YES' if '[REPORT_LINK_PLACEHOLDER]' in body else 'NO'}")
+        # STEP 3: Report link logic (disabled for now - using value-first approach)
+        print(f"📧 STEP 3: Report link logic available but disabled - using value-first approach")
+        print(f"🔗 STEP 3 INFO: report_url={'AVAILABLE' if report_url else 'MISSING'} (not used in current email)")
         
-        if report_url and "[REPORT_LINK_PLACEHOLDER]" in body:
-            linked_text = f'<a href="{report_url}">strategic analysis report</a>'
-            body = body.replace("[REPORT_LINK_PLACEHOLDER]", linked_text)
-            print(f"✅ STEP 3 COMPLETED: Successfully added report link to email")
-            print(f"🔗 STEP 3 RESULT: Link text = 'strategic analysis report', URL = {report_url[:50]}...")
-        elif "[REPORT_LINK_PLACEHOLDER]" in body:
-            # If no report URL available, fall back to generic message
-            fallback_msg = "Happy to share how we helped Precise Imaging reduce appointment no-shows by 40% - similar healthcare operational challenges."
-            body = body.replace("I put together a strategic analysis for [Company] that covers these opportunities in detail. You can review it here: [REPORT_LINK_PLACEHOLDER]", fallback_msg)
-            print(f"❌ STEP 3 FALLBACK: No report URL available, used generic message")
-        else:
-            print(f"⚠️ STEP 3 WARNING: No placeholder found in email body - report link cannot be added")
+        # TODO: Re-enable this logic when switching back to direct report links
+        # if report_url and "[REPORT_LINK_PLACEHOLDER]" in body:
+        #     linked_text = f'<a href="{report_url}">strategic analysis report</a>'
+        #     body = body.replace("[REPORT_LINK_PLACEHOLDER]", linked_text)
+        #     print(f"✅ STEP 3 COMPLETED: Successfully added report link to email")
+        
+        print(f"✅ STEP 3 COMPLETED: Email finalized with value-first approach (report available upon request)")
         
         body = body.strip() # Ensure no trailing newlines before adding signature
         body += '\n' + self._signature()
@@ -199,14 +191,14 @@ class DeepResearchEmailComposer:
         final_result = {"subject": subject, "body": html_body}
         
         # FINAL VERIFICATION: Confirm all steps completed successfully
-        has_report_link = 'strategic analysis report' in html_body
+        has_report_mention = 'strategic analysis' in html_body.lower()
         print(f"🎯 FINAL CHECK: Email ready for sending")
-        print(f"📧 FINAL RESULT: Subject='{subject[:50]}...', Has_report_link={has_report_link}")
+        print(f"📧 FINAL RESULT: Subject='{subject[:50]}...', Has_report_mention={has_report_mention}")
         
-        if has_report_link:
-            print(f"✅ ALL STEPS COMPLETED: Email contains actual report link and is ready to send")
+        if has_report_mention:
+            print(f"✅ ALL STEPS COMPLETED: Email mentions strategic analysis (value-first offer) and is ready to send")
         else:
-            print(f"⚠️ INCOMPLETE: Email does not contain report link - may use fallback message")
+            print(f"⚠️ INCOMPLETE: Email does not mention strategic analysis - may not leverage research properly")
         
         return final_result
 
