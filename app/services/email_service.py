@@ -49,13 +49,14 @@ class EmailService:
             if account_name:
                 account = email_config.get_account_by_name(account_name)
                 if not account:
-                    current_app.logger.error(f"Account '{account_name}' not found")
-                    return False
+                    current_app.logger.warning(f"Account '{account_name}' not found, falling back to default account")
+                    account = email_config.get_default_account()
             else:
                 account = email_config.get_default_account()
-                if not account:
-                    current_app.logger.error("No default account available")
-                    return False
+
+            if not account:
+                current_app.logger.error("No default account available")
+                return False
 
             # Send using the specific account
             success = EmailService._send_with_account(account, recipient_email, subject, body)

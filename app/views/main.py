@@ -1,5 +1,8 @@
-from flask import Blueprint, render_template, request, current_app
+from flask import Blueprint, render_template, request, current_app, Response
 import os
+import json
+from datetime import datetime
+from sqlalchemy import text
 
 from app.models.contact import Contact
 from app.models.email_history import EmailHistory
@@ -114,5 +117,47 @@ def import_contacts():
 def config():
     """Email configuration page."""
     return render_template('config.html')
+
+@bp.route('/api/track/open/<tracking_id>.png')
+def track_email_open(tracking_id):
+    """Handle email open tracking pixel requests."""
+    try:
+        from app.database import get_shared_engine
+        
+        engine = get_shared_engine()
+        with engine.connect() as conn:
+            with conn.begin():
+                # Update the opened_at timestamp for this tracking ID
+                result = conn.execute(text("""
+                    UPDATE email_tracking 
+                    SET opened_at = CURRENT_TIMESTAMP 
+                    WHERE tracking_id = :tracking_id 
+                    AND opened_at IS NULL
+                    RETURNING company_id, recipient_email, campaign_id
+                """), {'tracking_id': tracking_id})
+                
+                row = result.fetchone()
+                if row:
+                    current_app.logger.info(f"📧 Email opened: tracking_id={tracking_id}, company_id={row[0]}, recipient={row[1]}, campaign_id={row[2]}")
+                else:
+                    current_app.logger.info(f"📧 Email open tracking: tracking_id={tracking_id} (already tracked or not found)")
+                
+    except Exception as e:
+        current_app.logger.error(f"Error tracking email open: {e}")
+        # Still return pixel even if tracking fails
+    
+    # Return a transparent 1x1 PNG pixel
+    # Base64 encoded transparent PNG pixel data
+    pixel_data = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+    
+    import base64
+    pixel_bytes = base64.b64decode(pixel_data)
+    
+    response = Response(pixel_bytes, mimetype='image/png')
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    
+    return response
 
  

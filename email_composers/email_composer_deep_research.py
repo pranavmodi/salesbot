@@ -81,7 +81,7 @@ class DeepResearchEmailComposer:
             Here is context about the sender and their product:
             """ + SENDER_INFO)
 
-    def compose_email(self, lead: Dict[str, str], calendar_url: str = DEFAULT_CALENDAR, extra_context: str | None = None, auto_research: bool = None, campaign_id: int = None) -> Dict[str, str] | None:
+    def compose_email(self, lead: Dict[str, str], calendar_url: str = DEFAULT_CALENDAR, extra_context: str | None = None, auto_research: bool = None, campaign_id: int = None, include_tracking: bool = True) -> Dict[str, str] | None:
 
         first_name = lead.get("name", "").split()[0] if lead.get("name") else "there"
         company_name = lead.get("company", "")
@@ -188,14 +188,17 @@ class DeepResearchEmailComposer:
         # Convert plain text formatting to HTML for proper email display
         html_body = self._convert_to_html(body)
         
-        # STEP 4: Add email open tracking pixel
-        print(f"🔍 STEP 4: Adding email open tracking pixel")
-        if company_id and lead.get("email"):
-            tracking_pixel = self._generate_tracking_pixel(company_id, lead.get("email"), campaign_id)
-            html_body = self._add_tracking_pixel_to_html(html_body, tracking_pixel)
-            print(f"✅ STEP 4 COMPLETED: Tracking pixel added to email")
+        # STEP 4: Add email open tracking pixel (optional)
+        if include_tracking:
+            print(f"🔍 STEP 4: Adding email open tracking pixel")
+            if company_id and lead.get("email"):
+                tracking_pixel = self._generate_tracking_pixel(company_id, lead.get("email"), campaign_id)
+                html_body = self._add_tracking_pixel_to_html(html_body, tracking_pixel)
+                print(f"✅ STEP 4 COMPLETED: Tracking pixel added to email")
+            else:
+                print(f"⚠️ STEP 4 SKIPPED: Missing company_id or recipient email for tracking")
         else:
-            print(f"⚠️ STEP 4 SKIPPED: Missing company_id or recipient email for tracking")
+            print(f"🚫 STEP 4 SKIPPED: Tracking disabled by user preference")
         
         final_result = {"subject": subject, "body": html_body}
         
@@ -237,7 +240,7 @@ class DeepResearchEmailComposer:
             
             if not has_html_report:
                 print(f"⚠️ DEBUG: Company {company_name} (ID: {company_id}) has no html_report")
-                print(f"📊 DEBUG: Available fields: company_research={bool(company.company_research)}, research_status={getattr(company, 'research_status', 'unknown')}")
+                print(f"📊 DEBUG: Available fields: company_research={bool(company.company_research)}, llm_research_step_status={getattr(company, 'llm_research_step_status', 'unknown')}")
                 return ""
             
             print(f"✅ DEBUG: Company {company_name} has html_report ({len(company.html_report)} chars), proceeding with publishing")
@@ -482,7 +485,7 @@ class DeepResearchEmailComposer:
             
             if companies:
                 for i, company in enumerate(companies):
-                    print(f"📋 DEBUG: Company {i+1}: ID={company.id}, Name='{company.company_name}', Status={getattr(company, 'research_status', 'unknown')}")
+                    print(f"📋 DEBUG: Company {i+1}: ID={company.id}, Name='{company.company_name}', Status={getattr(company, 'llm_research_step_status', 'unknown')}")
             
             # If company not found and auto-trigger enabled, create company and start research
             if not companies and auto_trigger:
@@ -493,11 +496,16 @@ class DeepResearchEmailComposer:
             
             company = companies[0]  # Take first match
             
-            # Check if we have an HTML report (full research completed)
-            if hasattr(company, 'html_report') and company.html_report:
-                print(f"✅ DEBUG: Company {company_name} has HTML report - ensuring it's published")
-                # We have the report, now ensure it gets published when email is composed
-                # Don't return yet - let the normal flow handle publishing in _get_or_publish_report_url
+            # Check if research is completed (check both status and HTML report fields)
+            research_status = getattr(company, 'llm_research_step_status', 'not_started')
+            has_html_report = (hasattr(company, 'html_report') and company.html_report) or (hasattr(company, 'llm_html_report') and company.llm_html_report)
+            
+            if research_status == 'step_3_completed' and has_html_report:
+                print(f"✅ DEBUG: Company {company_name} has completed research - ensuring it's published")
+                research_text = company.research_step_1_basic or company.company_research or "Research completed - see full report for details."
+                return research_text, company.id
+            elif research_status == 'step_3_completed':
+                print(f"⚠️ DEBUG: Company {company_name} shows completed status but missing HTML report - using basic research")
                 research_text = company.research_step_1_basic or company.company_research or "Research completed - see full report for details."
                 return research_text, company.id
             
@@ -607,7 +615,7 @@ class DeepResearchEmailComposer:
                     
                     company = Company.get_by_id(company_id)
                     if company:
-                        status = getattr(company, 'research_status', 'unknown')
+                        status = getattr(company, 'llm_research_step_status', 'unknown')
                         has_html_report = hasattr(company, 'html_report') and company.html_report
                         has_basic = hasattr(company, 'research_step_1_basic') and company.research_step_1_basic
                         
@@ -616,7 +624,7 @@ class DeepResearchEmailComposer:
                         print(f"⏳ DEBUG: Polling {elapsed_time}s/{max_wait_time}s - Status: {status}, Has HTML report: {html_report_len}, Has basic: {'YES' if has_basic else 'NO'}")
                         
                         # Only return when we have BOTH completed status AND html_report
-                        if status == 'completed' and has_html_report:
+                        if status == 'step_3_completed' and has_html_report:
                             print(f"✅ DEBUG: Research fully completed with HTML report after {elapsed_time}s")
                             research_text = company.research_step_1_basic or company.company_research or "Research completed - see full report for details."
                             return research_text, company_id
@@ -630,14 +638,14 @@ class DeepResearchEmailComposer:
                 print(f"⚠️ DEBUG: Research timeout after {max_wait_time}s - email composition should be delayed")
                 company = Company.get_by_id(company_id)
                 if company:
-                    status = getattr(company, 'research_status', 'unknown')
+                    status = getattr(company, 'llm_research_step_status', 'unknown')
                     has_html_report = hasattr(company, 'html_report') and company.html_report
                     # Safe length check for final status
                     html_report_len = len(company.html_report) if company.html_report else 0
                     print(f"⚠️ DEBUG: Final status check - Status: {status}, Has HTML report: {html_report_len}")
                     
                     # If research is completed, allow email sending even without HTML report
-                    if company.research_step_1_basic and not has_html_report and status != 'completed':
+                    if company.research_step_1_basic and not has_html_report and status != 'step_3_completed':
                         print(f"🚫 DEBUG: Research in progress but report not ready - preventing email composition")
                         return None, company_id  # Return None to signal "not ready"
                     elif company.research_step_1_basic:
@@ -780,6 +788,79 @@ class DeepResearchEmailComposer:
 </html>"""
         
         return html_email
+
+    def _generate_tracking_pixel(self, company_id: int, recipient_email: str, campaign_id: int = None) -> str:
+        """Generate a unique tracking pixel URL for email open tracking."""
+        import uuid
+        import time
+        
+        # Generate a unique tracking ID
+        tracking_id = str(uuid.uuid4())
+        timestamp = int(time.time())
+        
+        # Create tracking data
+        tracking_data = {
+            'company_id': company_id,
+            'recipient_email': recipient_email,
+            'campaign_id': campaign_id,
+            'tracking_id': tracking_id,
+            'timestamp': timestamp
+        }
+        
+        # Save tracking data to database for later lookup
+        self._save_tracking_data(tracking_id, tracking_data)
+        
+        # Generate tracking pixel URL
+        pixel_url = f"{BASE_URL}/api/track/open/{tracking_id}.png"
+        
+        print(f"📊 Generated tracking pixel: {pixel_url}")
+        return pixel_url
+
+    def _add_tracking_pixel_to_html(self, html_body: str, pixel_url: str) -> str:
+        """Add invisible 1x1 tracking pixel to HTML email body."""
+        # Add tracking pixel just before closing </body> tag
+        tracking_pixel_html = f'<img src="{pixel_url}" width="1" height="1" style="display:none;" alt="" />'
+        
+        if '</body>' in html_body:
+            html_body = html_body.replace('</body>', f'{tracking_pixel_html}</body>')
+        else:
+            # Fallback: append at the end
+            html_body += tracking_pixel_html
+            
+        return html_body
+
+    def _save_tracking_data(self, tracking_id: str, tracking_data: dict):
+        """Save tracking data to database."""
+        try:
+            from app.database import get_shared_engine
+            from sqlalchemy import text
+            
+            engine = get_shared_engine()
+            with engine.connect() as conn:
+                with conn.begin():
+                    # Insert tracking data
+                    conn.execute(text("""
+                        INSERT INTO email_tracking (
+                            tracking_id, company_id, recipient_email, campaign_id, 
+                            created_at, opened_at, tracking_data
+                        ) VALUES (
+                            :tracking_id, :company_id, :recipient_email, :campaign_id,
+                            CURRENT_TIMESTAMP, NULL, :tracking_data
+                        )
+                        ON CONFLICT (tracking_id) DO NOTHING
+                    """), {
+                        'tracking_id': tracking_id,
+                        'company_id': tracking_data['company_id'],
+                        'recipient_email': tracking_data['recipient_email'],
+                        'campaign_id': tracking_data['campaign_id'],
+                        'tracking_data': json.dumps(tracking_data)
+                    })
+                    
+            print(f"💾 Saved tracking data for ID: {tracking_id}")
+            
+        except Exception as e:
+            print(f"❌ Failed to save tracking data: {e}")
+            # Don't fail email sending if tracking fails
 
     @staticmethod
     def _signature() -> str:

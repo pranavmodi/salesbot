@@ -380,27 +380,17 @@ class LLMStepByStepResearcher:
             # Create strategic analysis prompt based on Step 1 results
             strategic_prompt = self._create_strategic_analysis_prompt(company.company_name, basic_research)
             
-            # Execute strategic analysis using the LLM provider
+            # Execute strategic analysis using regular completion (no web search needed)
             from deepresearch.llm_deep_research_service import LLMDeepResearchService
             llm_service = LLMDeepResearchService()
             
-            # Execute the strategic analysis
-            if provider.lower() == "claude" and llm_service.anthropic_client:
-                strategic_results = llm_service._execute_claude_research(strategic_prompt, company.company_name)
-            elif provider.lower() == "openai" and llm_service.openai_client:
-                strategic_results = llm_service._execute_openai_research(strategic_prompt, company.company_name)
-            elif provider.lower() == "perplexity" and llm_service.perplexity_api_key:
-                strategic_results = llm_service._execute_perplexity_research(strategic_prompt, company.company_name, company.id)
-            else:
-                return {
-                    'success': False,
-                    'error': f'Provider {provider} not available or not configured for strategic analysis.'
-                }
+            # Use regular completion for strategic analysis (no deep research needed)
+            strategic_results = llm_service.execute_regular_completion(strategic_prompt, company.company_name, provider)
             
             if not strategic_results:
                 return {
                     'success': False,
-                    'error': f'Failed to execute {provider} strategic analysis for {company.company_name}.'
+                    'error': f'Failed to execute {provider} strategic analysis for {company.company_name}. Provider may not be available or configured.'
                 }
             
             # Store strategic analysis results
@@ -471,27 +461,17 @@ class LLMStepByStepResearcher:
                 strategic_analysis
             )
             
-            # Execute report generation using the LLM provider
+            # Execute report generation using regular completion (no web search needed)
             from deepresearch.llm_deep_research_service import LLMDeepResearchService
             llm_service = LLMDeepResearchService()
             
-            # Execute the report generation
-            if provider.lower() == "claude" and llm_service.anthropic_client:
-                report_results = llm_service._execute_claude_research(report_prompt, company.company_name)
-            elif provider.lower() == "openai" and llm_service.openai_client:
-                report_results = llm_service._execute_openai_research(report_prompt, company.company_name)
-            elif provider.lower() == "perplexity" and llm_service.perplexity_api_key:
-                report_results = llm_service._execute_perplexity_research(report_prompt, company.company_name, company.id)
-            else:
-                return {
-                    'success': False,
-                    'error': f'Provider {provider} not available or not configured for report generation.'
-                }
+            # Use regular completion for report generation (no deep research needed)
+            report_results = llm_service.execute_regular_completion(report_prompt, company.company_name, provider)
             
             if not report_results:
                 return {
                     'success': False,
-                    'error': f'Failed to execute {provider} report generation for {company.company_name}.'
+                    'error': f'Failed to execute {provider} report generation for {company.company_name}. Provider may not be available or configured.'
                 }
             
             # Store report generation results

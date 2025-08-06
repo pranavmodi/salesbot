@@ -509,7 +509,7 @@
                                             </button>
                                         </div>
                                         <div class="text-muted small mt-1">
-                                            <i class="fas fa-info-circle me-1"></i>This will skip AI research and use your content directly
+                                            <i class="fas fa-info-circle me-1"></i>This will skip AI research and use your content directly. Steps 2 and 3 will be triggered automatically.
                                         </div>
                                         </div>
                                     ` : ''}
@@ -1175,7 +1175,7 @@
         };
 
         // Always use LLM deep research
-        const provider = document.getElementById('llmProviderSelect')?.value || 'claude';
+        const provider = document.getElementById('llmProviderSelect')?.value || 'perplexity';
         return {
             url: `/api/companies/${currentResearchCompanyId}/llm-step-research`,
             method: 'POST',
@@ -1570,11 +1570,21 @@
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Submitting...';
         }
         
+        // Get the selected provider from the modal
+        const providerElement = document.getElementById('llmProviderSelect');
+        console.log(`🔍 PROVIDER ELEMENT:`, providerElement);
+        console.log(`🔍 PROVIDER ELEMENT VALUE:`, providerElement?.value);
+        console.log(`🔍 PROVIDER OPTIONS:`, providerElement ? Array.from(providerElement.options).map(o => `${o.value} (selected: ${o.selected})`) : 'null');
+        
+        const selectedProvider = providerElement?.value || 'perplexity';
+        console.log(`🚀 MANUAL PASTE: Submitting with provider: ${selectedProvider}`);
+        
         // Submit pasted content to backend
         const requestData = {
             step: stepNum,
             content: content,
-            manual_paste: true
+            manual_paste: true,
+            provider: selectedProvider
         };
         
         fetch(`/api/companies/${currentResearchCompanyId}/llm-step-manual-paste`, {
@@ -1587,8 +1597,21 @@
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showSuccess('Research content submitted successfully!');
-                addLogMessage(`Step ${stepNum} completed with manual paste content (${content.length} characters)`);
+                const autoProgressionMsg = data.auto_progression === 'auto_progression_started' 
+                    ? ' Steps 2 and 3 have been automatically triggered.' 
+                    : (data.auto_progression === 'auto_progression_failed' || data.auto_progression === 'auto_progression_error' 
+                        ? ' Auto-progression of Steps 2 and 3 encountered an issue - please trigger manually if needed.' 
+                        : '');
+                        
+                showSuccess(`Research content submitted successfully!${autoProgressionMsg}`);
+                addLogMessage(`Step ${stepNum} completed with manual paste content (${content.length} characters)${autoProgressionMsg}`);
+                
+                // If auto-progression started, show polling message
+                if (data.auto_progression === 'auto_progression_started') {
+                    addLogMessage('🤖 AUTO-PROGRESSION: Steps 2 and 3 are now running automatically...');
+                    // Start progress polling to show the automatic progression
+                    startProgressPolling();
+                }
                 
                 // Hide paste section
                 togglePasteOption(stepNum);

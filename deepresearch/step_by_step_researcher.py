@@ -63,7 +63,7 @@ class StepByStepResearcher:
             return {
                 'success': True, 
                 'message': 'Research already completed',
-                'status': 'completed',
+                'status': 'step_3_completed',
                 'company_name': company.company_name
             }
         
@@ -146,7 +146,7 @@ class StepByStepResearcher:
             if success:
                 # Also update the step tracking and status
                 Company.update_research_step(company_id, 3, report_data['html_report'][:1000] + "...")  # Truncated for step tracking
-                Company.update_research_status(company_id, 'completed')
+                Company.update_research_status(company_id, 'step_3_completed')
                 logger.info(f"Step 3 completed for {company.company_name}")
             else:
                 Company.update_research_status(company_id, 'failed', 'Failed to save report data')
@@ -157,7 +157,7 @@ class StepByStepResearcher:
             return {
                 'success': True,
                 'message': f'Deep research completed successfully for {company.company_name}',
-                'status': 'completed',
+                'status': 'step_3_completed',
                 'company_name': company.company_name,
                 'steps_completed': 3
             }
@@ -334,7 +334,7 @@ class StepByStepResearcher:
             return {'success': False, 'error': 'Company not found'}
         
         if company.research_status == 'completed':
-            return {'success': True, 'message': 'Research already completed', 'status': 'completed'}
+            return {'success': True, 'message': 'Research already completed', 'status': 'step_3_completed'}
         
         try:
             # Determine which step to resume from
@@ -390,7 +390,7 @@ class StepByStepResearcher:
                     pdf_report_base64=report_data['pdf_report_base64'],
                     strategic_imperatives=report_data.get('strategic_imperatives', ''),
                     agent_recommendations=report_data.get('agent_recommendations', ''),
-                    status='completed'
+                    status='step_3_completed'
                 )
                 
                 return {
@@ -423,7 +423,7 @@ class StepByStepResearcher:
                     pdf_report_base64=report_data['pdf_report_base64'],
                     strategic_imperatives=report_data.get('strategic_imperatives', ''),
                     agent_recommendations=report_data.get('agent_recommendations', ''),
-                    status='completed'
+                    status='step_3_completed'
                 )
                 
                 return {
@@ -434,7 +434,7 @@ class StepByStepResearcher:
             
             else:
                 # All steps completed, just update status
-                Company.update_research_status(company_id, 'completed')
+                Company.update_research_status(company_id, 'step_3_completed')
                 return {
                     'success': True,
                     'message': f'Research was already complete for {company.company_name}',

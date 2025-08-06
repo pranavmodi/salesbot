@@ -41,21 +41,21 @@ function loadGlobalEmailAccounts() {
                 console.log('Loaded email accounts:', accounts);
                 
                 // Update global account selector if it exists
-                const globalAccountSelect = document.getElementById('globalAccountSelect');
-                if (globalAccountSelect && accounts.length > 0) {
-                    globalAccountSelect.innerHTML = '<option value="">Select Email Account</option>';
+                const globalAccountSelector = document.getElementById('globalAccountSelector');
+                if (globalAccountSelector && accounts.length > 0) {
+                    globalAccountSelector.innerHTML = '<option value="">Select Email Account</option>';
                     
                     accounts.forEach(account => {
                         const option = document.createElement('option');
                         option.value = account.email;
                         option.textContent = `${account.email} (${account.provider})`;
                         option.setAttribute('data-account', JSON.stringify(account));
-                        globalAccountSelect.appendChild(option);
+                        globalAccountSelector.appendChild(option);
                     });
                     
                     // Set the first account as default if none selected
                     if (!currentGlobalAccount && accounts.length > 0) {
-                        globalAccountSelect.value = accounts[0].email;
+                        globalAccountSelector.value = accounts[0].email;
                         currentGlobalAccount = accounts[0];
                         updateActiveAccountInfo(accounts[0]);
                     }
@@ -70,9 +70,9 @@ function loadGlobalEmailAccounts() {
 }
 
 function setupGlobalAccountSelector() {
-    const globalAccountSelect = document.getElementById('globalAccountSelect');
-    if (globalAccountSelect) {
-        globalAccountSelect.addEventListener('change', function() {
+    const globalAccountSelector = document.getElementById('globalAccountSelector');
+    if (globalAccountSelector) {
+        globalAccountSelector.addEventListener('change', function() {
             const selectedEmail = this.value;
             if (selectedEmail) {
                 const option = this.querySelector(`option[value="${selectedEmail}"]`);
@@ -189,11 +189,8 @@ function generateEmailPreview() {
     generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Generating...';
     generateBtn.disabled = true;
     
-    // Find selected contact from the global contacts array
-    let selectedContact = null;
-    if (window.composeContacts) {
-        selectedContact = window.composeContacts.find(c => c.id === contactSelect.value);
-    }
+    // Use the currently selected contact that was parsed from JSON
+    let selectedContact = currentSelectedContact;
     
     // Prepare contact data for the API
     const contactData = {
@@ -203,9 +200,14 @@ function generateEmailPreview() {
         position: position
     };
     
+    // Get tracking preference
+    const enableTracking = document.getElementById('enableTracking');
+    const includeTracking = enableTracking ? enableTracking.checked : true; // Default to true if element not found
+    
     const requestData = {
         contact_data: contactData,
-        composer_type: composerType.value || 'deep_research'
+        composer_type: composerType.value || 'deep_research',
+        include_tracking: includeTracking
     };
     
     console.log('🎯 Generating email preview with data:', requestData);
@@ -330,7 +332,11 @@ function sendComposedEmail(e) {
     sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Sending...';
     sendBtn.disabled = true;
     
-    fetch('/api/email/send', {
+    // Get tracking preference for sending
+    const enableTracking = document.getElementById('enableTracking');
+    const includeTracking = enableTracking ? enableTracking.checked : true;
+    
+    fetch('/api/send_email', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -339,7 +345,8 @@ function sendComposedEmail(e) {
             recipient_email: recipientEmail,
             sender_email: currentGlobalAccount.email,
             subject: subject,
-            body: body
+            body: body,
+            include_tracking: includeTracking
         })
     })
     .then(response => response.json())
@@ -785,6 +792,7 @@ function setupCampaignValidation() {
                 } catch (e) {
                     console.error('Error parsing contact data:', e);
                     currentSelectedContact = null;
+                    validateCampaignSelection();
                 }
             } else {
                 currentSelectedContact = null;

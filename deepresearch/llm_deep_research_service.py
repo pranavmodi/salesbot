@@ -1375,3 +1375,149 @@ Use your deep research capabilities to gather comprehensive, current information
         except Exception as e:
             logger.error(f"Error polling OpenAI background jobs: {e}")
             return 0
+    
+    # Regular completion methods for Steps 2 and 3 (no deep research/web search)
+    def execute_regular_completion(self, prompt: str, company_name: str, provider: str) -> Optional[str]:
+        """
+        Execute regular chat completion (not deep research) for Steps 2 and 3.
+        
+        Automatically selects appropriate endpoints and models per provider:
+        - OpenAI: Uses OPENAI_MODEL env var (o3, gpt-4, etc.) with regular chat completions
+        - Claude: Uses claude-3-5-sonnet-20241022 with regular messages API  
+        - Perplexity: Uses r1-1776 offline chat model (no web search)
+        """
+        logger.info(f"Starting regular {provider} completion for {company_name}")
+        
+        try:
+            if provider.lower() == "claude" and self.anthropic_client:
+                return self._execute_claude_completion(prompt, company_name)
+            elif provider.lower() == "openai" and self.openai_client:
+                return self._execute_openai_completion(prompt, company_name)
+            elif provider.lower() == "perplexity" and self.perplexity_api_key:
+                return self._execute_perplexity_completion(prompt, company_name)
+            else:
+                logger.error(f"Provider {provider} not available or not configured for regular completion")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error executing {provider} regular completion for {company_name}: {e}")
+            return None
+    
+    def _execute_claude_completion(self, prompt: str, company_name: str) -> Optional[str]:
+        """Execute regular Claude completion without web search."""
+        logger.info(f"Starting Claude regular completion for {company_name}")
+        
+        try:
+            response = self.anthropic_client.messages.create(
+                model="claude-3-5-sonnet-20241022",
+                max_tokens=4000,
+                temperature=0.1,
+                messages=[{
+                    "role": "user",
+                    "content": prompt
+                }]
+            )
+            
+            result = response.content[0].text
+            logger.info(f"Claude regular completion completed for {company_name}: {len(result)} characters")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Claude regular completion error for {company_name}: {e}")
+            return None
+    
+    def _execute_openai_completion(self, prompt: str, company_name: str) -> Optional[str]:
+        """Execute regular OpenAI completion without deep research."""
+        logger.info(f"Starting OpenAI regular completion for {company_name}")
+        
+        try:
+            # Use the configured model from environment variable
+            import os
+            model = os.getenv("OPENAI_MODEL", "o3")
+            
+            # Build parameters based on model capabilities
+            completion_params = {
+                "model": model,
+                "messages": [{
+                    "role": "user",
+                    "content": prompt
+                }]
+            }
+            
+            # Configure parameters based on model type
+            if model.startswith("o3") or model.startswith("o1"):
+                # o3/o1 models have restrictions - only default temperature (1) and max_completion_tokens
+                completion_params["max_completion_tokens"] = 4000
+                # Note: temperature defaults to 1 and cannot be changed for o3/o1 models
+            else:
+                # Legacy models support custom temperature and max_tokens
+                completion_params["temperature"] = 0.1
+                completion_params["max_tokens"] = 4000
+            
+            response = self.openai_client.chat.completions.create(**completion_params)
+            
+            result = response.choices[0].message.content
+            logger.info(f"OpenAI regular completion completed for {company_name} using {model}: {len(result)} characters")
+            return result
+            
+        except Exception as e:
+            logger.error(f"OpenAI regular completion error for {company_name}: {e}")
+            return None
+    
+    def _execute_perplexity_completion(self, prompt: str, company_name: str) -> Optional[str]:
+        """Execute regular Perplexity completion without web search."""
+        logger.info(f"Starting Perplexity regular completion for {company_name}")
+        
+        try:
+            import requests
+            
+            # Use regular Perplexity chat model (try r1-1776 which is described as offline chat model)
+            payload = {
+                "model": "r1-1776",  # Offline chat model, no web search capabilities
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                "temperature": 0.1,
+                "max_tokens": 4000
+                # Note: Removed search_mode and reasoning_effort for regular completion
+            }
+            
+            headers = {
+                "Authorization": f"Bearer {self.perplexity_api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            response = requests.post(
+                "https://api.perplexity.ai/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=120
+            )
+            
+            response.raise_for_status()
+            response_data = response.json()
+            
+            if 'choices' in response_data and len(response_data['choices']) > 0:
+                result = response_data['choices'][0]['message']['content']
+                logger.info(f"Perplexity regular completion completed for {company_name}: {len(result)} characters")
+                return result
+            else:
+                logger.error(f"Perplexity regular completion returned no choices for {company_name}")
+                return None
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Perplexity regular completion HTTP error for {company_name}: {e}")
+            # Log the response content if available for debugging
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    error_content = e.response.text
+                    logger.error(f"Perplexity API error response: {error_content}")
+                except:
+                    logger.error(f"Could not read Perplexity API error response")
+            return None
+        except Exception as e:
+            logger.error(f"Perplexity regular completion error for {company_name}: {e}")
+            return None

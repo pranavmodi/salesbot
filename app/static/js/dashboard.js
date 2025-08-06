@@ -681,8 +681,20 @@ function setupComposeFormEnhancements() {
     
     // Handle contact selection
     contactSelect.addEventListener('change', function() {
-        const contactId = this.value;
-        selectedContact = allContacts.find(c => c.id === contactId);
+        const selectedValue = this.value;
+        selectedContact = null; // Reset previous selection
+
+        if (selectedValue) {
+            try {
+                // The value is a JSON string, so we need to parse it
+                const contactData = JSON.parse(selectedValue);
+                // Find the full contact object from the loaded list
+                selectedContact = allContacts.find(c => c.id === contactData.id);
+            } catch (e) {
+                console.error('Error parsing selected contact data:', e);
+                selectedContact = null;
+            }
+        }
         
         if (selectedContact) {
             displaySelectedContactInfo(selectedContact);
@@ -751,7 +763,7 @@ function setupComposeFormEnhancements() {
         
         contactsWithResearch.forEach(contact => {
             const option = document.createElement('option');
-            option.value = contact.id;
+            option.value = JSON.stringify(contact);
             
             // All contacts in this list have research, so always show the indicator
             option.textContent = `🔬 ${contact.name} (${contact.company_name}) - ${contact.email}`;

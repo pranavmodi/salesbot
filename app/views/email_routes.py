@@ -62,7 +62,18 @@ def preview_email():
             }
             
             calendar_url = data.get('calendar_url') or os.getenv("CALENDAR_URL", "https://calendly.com/pranav-modi/15-minute-meeting")
-            email_content = composer.compose_email(lead=lead_data, calendar_url=calendar_url, extra_context=data.get('extra_context'))
+            
+            # For deep research composer, pass tracking preference
+            if composer_type == "deep_research":
+                include_tracking = data.get('include_tracking', True)  # Default to True
+                email_content = composer.compose_email(
+                    lead=lead_data, 
+                    calendar_url=calendar_url, 
+                    extra_context=data.get('extra_context'),
+                    include_tracking=include_tracking
+                )
+            else:
+                email_content = composer.compose_email(lead=lead_data, calendar_url=calendar_url, extra_context=data.get('extra_context'))
             
             if email_content and 'subject' in email_content and 'body' in email_content:
                 return jsonify({
@@ -82,17 +93,36 @@ def preview_email():
 def send_email():
     """Send an email to a specific recipient."""
     try:
-        recipient_email = request.form.get('recipient_email')
-        recipient_name = request.form.get('recipient_name')
-        subject = request.form.get('preview_subject')
-        body = request.form.get('preview_body')
-        account_name = request.form.get('account_name')  # Optional account selection
+        # Handle both JSON and form data
+        if request.is_json:
+            data = request.get_json()
+            recipient_email = data.get('recipient_email')
+            recipient_name = data.get('recipient_name', '')
+            subject = data.get('subject')
+            body = data.get('body')
+            account_name = data.get('sender_email')  # Use sender_email as account_name
+            include_tracking = data.get('include_tracking', True)
+        else:
+            recipient_email = request.form.get('recipient_email')
+            recipient_name = request.form.get('recipient_name', '')
+            subject = request.form.get('preview_subject')
+            body = request.form.get('preview_body')
+            account_name = request.form.get('account_name')
+            include_tracking = request.form.get('include_tracking', 'true').lower() == 'true'
         
-        if not all([recipient_email, recipient_name, subject, body]):
+        if not all([recipient_email, subject, body]):
             return jsonify({
                 'success': False,
                 'message': 'Missing required email information'
             }), 400
+        
+        # If tracking is disabled, remove any existing tracking pixels from body
+        if not include_tracking and 'track/open/' in body:
+            import re
+            body = re.sub(r'<img[^>]*track/open/[^>]*>', '', body)
+            current_app.logger.info(f"📧 Tracking pixel removed from email to {recipient_email}")
+        else:
+            current_app.logger.info(f"📧 Sending email to {recipient_email} with tracking={'enabled' if include_tracking else 'disabled'}")
         
         # Use the new multi-account send method
         success = EmailService.send_email_with_account(
@@ -769,20 +799,22 @@ def get_contacts_with_research_status():
                     research_status['company_id'] = company.id
                     
                     # Check if deep research is completed
-                    has_html_report = hasattr(company, 'html_report') and company.html_report
+                    has_html_report = (hasattr(company, 'html_report') and company.html_report) or (hasattr(company, 'llm_html_report') and company.llm_html_report)
                     current_status = getattr(company, 'llm_research_step_status', 'not_started')
                     
                     research_status['has_completed_research'] = has_html_report and current_status == 'step_3_completed'
                     research_status['research_status'] = current_status
             
-            contacts_with_status.append({
-                'id': contact.email,  # Use email as ID
-                'name': contact.display_name,  # Use display_name property
-                'email': contact.email,
-                'company_name': company_name,
-                'position': contact.job_title,  # Use job_title property
-                'research_status': research_status
-            })
+            # Only include contacts with completed research
+            if research_status['has_completed_research']:
+                contacts_with_status.append({
+                    'id': contact.email,  # Use email as ID
+                    'name': contact.display_name,  # Use display_name property
+                    'email': contact.email,
+                    'company_name': company_name,
+                    'position': contact.job_title,  # Use job_title property
+                    'research_status': research_status
+                })
         
         return jsonify({
             'success': True,
@@ -813,7 +845,7 @@ def validate_company_deep_research(company_name):
         company = companies[0]
         
         # Check if deep research is completed
-        has_html_report = hasattr(company, 'html_report') and company.html_report
+        has_html_report = (hasattr(company, 'html_report') and company.html_report) or (hasattr(company, 'llm_html_report') and company.llm_html_report)
         current_status = getattr(company, 'llm_research_step_status', 'not_started')
         has_completed_research = has_html_report and current_status == 'step_3_completed'
         

@@ -590,12 +590,12 @@ def get_llm_step_progress(company_id):
         # Check step completion status
         has_step_1 = hasattr(company, 'llm_research_step_1_basic') and company.llm_research_step_1_basic
         has_step_2 = hasattr(company, 'llm_research_step_2_strategic') and company.llm_research_step_2_strategic
-        has_step_3 = hasattr(company, 'html_report') and company.html_report
+        has_step_3 = (hasattr(company, 'llm_html_report') and company.llm_html_report) or (hasattr(company, 'html_report') and company.html_report)
         
         # Check for errors in steps
         step_1_has_error = has_step_1 and company.llm_research_step_1_basic.startswith('ERROR:')
         step_2_has_error = has_step_2 and company.llm_research_step_2_strategic.startswith('ERROR:')
-        step_3_has_error = has_step_3 and company.html_report.startswith('ERROR:')
+        step_3_has_error = has_step_3 and ((hasattr(company, 'llm_html_report') and company.llm_html_report and company.llm_html_report.startswith('ERROR:')) or (hasattr(company, 'html_report') and company.html_report and company.html_report.startswith('ERROR:')))
         
         # Determine overall status
         current_status = getattr(company, 'llm_research_step_status', 'pending')
@@ -699,7 +699,7 @@ def get_llm_step_progress(company_id):
             'llm_research_provider': getattr(company, 'llm_research_provider', ''),
             'llm_research_started_at': getattr(company, 'llm_research_started_at', None),
             'llm_research_completed_at': getattr(company, 'llm_research_completed_at', None),
-            'has_html_report': bool(getattr(company, 'html_report', None))
+            'has_html_report': bool(getattr(company, 'llm_html_report', None)) or bool(getattr(company, 'html_report', None))
         }
         
         return jsonify(progress)
@@ -1022,6 +1022,7 @@ def submit_manual_paste_research(company_id):
         step = data['step']
         content = data['content'].strip()
         manual_paste = data.get('manual_paste', True)
+        selected_provider = data.get('provider', 'perplexity')  # Default to perplexity if not specified
         
         if step != 1:
             return jsonify({
@@ -1049,7 +1050,8 @@ def submit_manual_paste_research(company_id):
                 'message': 'Company not found'
             }), 404
         
-        current_app.logger.info(f"Submitting manual paste research for company ID {company_id}: {company.company_name}, content length: {len(content)}")
+        current_app.logger.info(f"Manual paste received - Company: {company.company_name}, Provider from request: {selected_provider}, Content length: {len(content)}")
+        current_app.logger.info(f"Full request data keys: {list(data.keys()) if data else 'No data'}")
         
         # Store the manual paste content as Step 1 Basic Research
         from deepresearch.database_service import DatabaseService
@@ -1077,16 +1079,44 @@ def submit_manual_paste_research(company_id):
         
         current_app.logger.info(f"Successfully stored manual paste research for {company.company_name}")
         
+        # Automatically trigger Step 2 and Step 3 after manual paste
+        current_app.logger.info(f"Auto-triggering Step 2 and Step 3 for {company.company_name} after manual paste")
+        
+        try:
+            from deepresearch.llm_step_by_step_researcher import LLMStepByStepResearcher
+            
+            # Initialize the step researcher
+            step_researcher = LLMStepByStepResearcher()
+            
+            # Trigger Step 2 (will automatically continue to Step 3) using selected provider
+            auto_result = step_researcher.start_llm_step_research(
+                company_id=company_id,
+                provider=selected_provider,  # Use the provider selected in the modal
+                force_refresh=False  # Don't overwrite the manual paste
+            )
+            
+            if auto_result.get('success'):
+                current_app.logger.info(f"✅ Auto-progression initiated successfully for {company.company_name}: {auto_result.get('message', '')}")
+                auto_status = 'auto_progression_started'
+            else:
+                current_app.logger.warning(f"⚠️ Auto-progression failed for {company.company_name}: {auto_result.get('error', '')}")
+                auto_status = 'auto_progression_failed'
+                
+        except Exception as e:
+            current_app.logger.error(f"❌ Error during auto-progression for {company.company_name}: {str(e)}")
+            auto_status = 'auto_progression_error'
+        
         return jsonify({
             'success': True,
-            'message': f'Manual research content stored successfully for {company.company_name}',
+            'message': f'Manual research content stored successfully for {company.company_name}. Steps 2 and 3 have been automatically triggered.',
             'company_name': company.company_name,
             'step': step,
             'content_length': len(content),
             'character_count': len(content),
             'word_count': len(content.split()),
             'manual_paste': True,
-            'status': 'step_1_completed_manual'
+            'status': 'step_1_completed_manual',
+            'auto_progression': auto_status
         })
         
     except Exception as e:
