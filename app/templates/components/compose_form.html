@@ -46,6 +46,27 @@
                             <input type="text" class="form-control" id="position" readonly>
                         </div>
                     </div>
+
+                    <!-- GTM Campaign Selection -->
+                    <div class="mb-3">
+                        <label for="gtmCampaignSelect" class="form-label">
+                            <i class="fas fa-bullhorn me-1"></i>GTM Campaign (Optional)
+                        </label>
+                        <select class="form-select" id="gtmCampaignSelect">
+                            <option value="">Select GTM Campaign (or send without campaign)</option>
+                        </select>
+                        <div id="campaignStatusInfo" class="mt-2" style="display: none;">
+                            <div class="alert alert-warning" id="campaignWarning" style="display: none;">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <span id="campaignWarningText"></span>
+                            </div>
+                            <div class="alert alert-success" id="campaignSuccess" style="display: none;">
+                                <i class="fas fa-check-circle me-2"></i>
+                                <span id="campaignSuccessText"></span>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="mb-3">
                         <label for="composerType" class="form-label">
                             <i class="fas fa-palette me-1"></i>Email Style
@@ -72,9 +93,15 @@
                         <button type="button" class="btn btn-outline-primary" id="generatePreview">
                             <i class="fas fa-magic me-2"></i>Generate Preview
                         </button>
-                        <button type="submit" class="btn btn-primary" id="sendComposedEmail">
+                        <button type="submit" class="btn btn-primary" id="sendComposedEmail" disabled>
                             <i class="fas fa-paper-plane me-2"></i>Send Email
                         </button>
+                    </div>
+                    <div id="sendButtonStatus" class="mt-2">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            <span id="sendButtonStatusText">Select a contact to enable sending</span>
+                        </small>
                     </div>
                 </form>
             </div>

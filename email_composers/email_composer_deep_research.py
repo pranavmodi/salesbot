@@ -188,6 +188,15 @@ class DeepResearchEmailComposer:
         # Convert plain text formatting to HTML for proper email display
         html_body = self._convert_to_html(body)
         
+        # STEP 4: Add email open tracking pixel
+        print(f"🔍 STEP 4: Adding email open tracking pixel")
+        if company_id and lead.get("email"):
+            tracking_pixel = self._generate_tracking_pixel(company_id, lead.get("email"), campaign_id)
+            html_body = self._add_tracking_pixel_to_html(html_body, tracking_pixel)
+            print(f"✅ STEP 4 COMPLETED: Tracking pixel added to email")
+        else:
+            print(f"⚠️ STEP 4 SKIPPED: Missing company_id or recipient email for tracking")
+        
         final_result = {"subject": subject, "body": html_body}
         
         # FINAL VERIFICATION: Confirm all steps completed successfully

@@ -310,7 +310,67 @@
                             <h4 class="step-title">
                                 <i class="fas fa-envelope text-primary me-2"></i>Email Configuration
                             </h4>
-                            <p class="text-muted">Configure your email template and sending preferences</p>
+                            <p class="text-muted">Configure your email template and execution preferences</p>
+                        </div>
+
+                        <!-- Execution Mode Selection -->
+                        <div class="card border-primary mb-4">
+                            <div class="card-header bg-primary text-white">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-rocket me-2"></i>Campaign Execution Mode
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-12">
+                                        <div class="btn-group w-100 mb-3" role="group" aria-label="Execution mode">
+                                            <input type="radio" class="btn-check" name="executionMode" id="scheduledMode" value="scheduled" checked>
+                                            <label class="btn btn-outline-primary" for="scheduledMode">
+                                                <div class="text-center">
+                                                    <i class="fas fa-calendar-alt fa-2x d-block mb-2"></i>
+                                                    <strong>Scheduled Execution</strong>
+                                                    <br><small>Automated sending with timing controls</small>
+                                                </div>
+                                            </label>
+                                            
+                                            <input type="radio" class="btn-check" name="executionMode" id="manualMode" value="manual">
+                                            <label class="btn btn-outline-success" for="manualMode">
+                                                <div class="text-center">
+                                                    <i class="fas fa-hand-paper fa-2x d-block mb-2"></i>
+                                                    <strong>Manual Execution</strong>
+                                                    <br><small>Send emails via Compose tab</small>
+                                                </div>
+                                            </label>
+                                        </div>
+                                        
+                                        <!-- Scheduled Mode Benefits -->
+                                        <div id="scheduledBenefits" class="execution-benefits">
+                                            <div class="alert alert-info mb-0">
+                                                <strong><i class="fas fa-info-circle me-1"></i>Scheduled Mode Benefits:</strong>
+                                                <ul class="mb-0 mt-2">
+                                                    <li><strong>Automated delivery</strong> - Emails sent automatically based on timing rules</li>
+                                                    <li><strong>Business hours respect</strong> - Emails only sent during configured business hours</li>
+                                                    <li><strong>Rate limiting</strong> - Prevents spam triggers with controlled sending pace</li>
+                                                    <li><strong>Follow-up sequences</strong> - Automatic follow-ups for non-responders</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Manual Mode Benefits -->
+                                        <div id="manualBenefits" class="execution-benefits" style="display: none;">
+                                            <div class="alert alert-success mb-0">
+                                                <strong><i class="fas fa-info-circle me-1"></i>Manual Mode Benefits:</strong>
+                                                <ul class="mb-0 mt-2">
+                                                    <li><strong>Full control</strong> - Send emails when you choose via Compose tab</li>
+                                                    <li><strong>Review before send</strong> - Preview and customize each email individually</li>
+                                                    <li><strong>Immediate sending</strong> - No delays or scheduling restrictions</li>
+                                                    <li><strong>Perfect for testing</strong> - Ideal for campaign validation and A/B testing</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="row">
@@ -338,32 +398,34 @@
                             </div>
                         </div>
 
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-4">
-                                    <label for="scheduleDate" class="form-label fw-semibold">Send Schedule</label>
-                                    <input type="datetime-local" class="form-control" id="scheduleDate">
-                                    <div class="form-text">Leave blank to send immediately after creation</div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-4">
-                                    <label for="followupDays" class="form-label fw-semibold">Follow-up Schedule</label>
-                                    <div class="input-group">
-                                        <input type="number" class="form-control" id="followupDays" 
-                                               placeholder="3" min="1" max="30" value="3">
-                                        <span class="input-group-text">days later</span>
+                        <!-- Scheduled Mode Settings -->
+                        <div id="scheduledModeSettings">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-4">
+                                        <label for="scheduleDate" class="form-label fw-semibold">Send Schedule</label>
+                                        <input type="datetime-local" class="form-control" id="scheduleDate">
+                                        <div class="form-text">Leave blank to send immediately after creation</div>
                                     </div>
-                                    <div class="form-text">Automatic follow-up delay for non-responders</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-4">
+                                        <label for="followupDays" class="form-label fw-semibold">Follow-up Schedule</label>
+                                        <div class="input-group">
+                                            <input type="number" class="form-control" id="followupDays" 
+                                                   placeholder="3" min="1" max="30" value="3">
+                                            <span class="input-group-text">days later</span>
+                                        </div>
+                                        <div class="form-text">Automatic follow-up delay for non-responders</div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <!-- Email Sending Settings -->
-                        <div class="mb-4">
-                            <label class="form-label fw-semibold">
-                                <i class="fas fa-cog me-2"></i>Email Sending Settings
-                            </label>
+                            <!-- Email Sending Settings -->
+                            <div class="mb-4">
+                                <label class="form-label fw-semibold">
+                                    <i class="fas fa-cog me-2"></i>Email Sending Settings
+                                </label>
                             <div class="card border-light bg-light">
                                 <div class="card-body">
                                     <div class="row">
@@ -523,6 +585,54 @@
                                                         <input class="form-check-input" type="checkbox" id="businessSun">
                                                         <label class="form-check-label" for="businessSun">Sun</label>
                                                     </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        </div>
+
+                        <!-- Manual Mode Settings -->
+                        <div id="manualModeSettings" style="display: none;">
+                            <div class="card border-success mb-4">
+                                <div class="card-header bg-success text-white">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-hand-paper me-2"></i>Manual Execution Settings
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="alert alert-info mb-3">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        <strong>How Manual Execution Works:</strong>
+                                        <ol class="mb-0 mt-2">
+                                            <li>Campaign contacts will be available in the <strong>Compose tab</strong></li>
+                                            <li>Select any contact from this campaign to compose personalized emails</li>
+                                            <li>Template and settings will be pre-applied automatically</li>
+                                            <li>Send emails individually or in batches as you choose</li>
+                                        </ol>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="manualFollowupDays" class="form-label fw-semibold">Follow-up Reminder</label>
+                                                <div class="input-group">
+                                                    <input type="number" class="form-control" id="manualFollowupDays" 
+                                                           placeholder="7" min="1" max="30" value="7">
+                                                    <span class="input-group-text">days later</span>
+                                                </div>
+                                                <div class="form-text">Remind you to follow up with non-responders</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <div class="form-check mt-4">
+                                                    <input class="form-check-input" type="checkbox" id="enableComposePriority" checked>
+                                                    <label class="form-check-label fw-semibold" for="enableComposePriority">
+                                                        <i class="fas fa-star me-1 text-warning"></i>Prioritize in Compose Tab
+                                                    </label>
+                                                    <div class="form-text">Show this campaign's contacts at the top of the compose list</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -881,6 +991,27 @@
                                             <strong>Total Emails:</strong>
                                             <div id="detailsTotalEmails" class="text-muted">0</div>
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Campaign Contacts Section -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-header bg-primary text-white">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-users me-2"></i>Campaign Contacts
+                                    <span class="badge bg-light text-primary ms-2" id="contactsCount">0</span>
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div id="campaignContactsList">
+                                    <div class="text-center text-muted py-3">
+                                        <i class="fas fa-spinner fa-spin me-2"></i>Loading contacts...
                                     </div>
                                 </div>
                             </div>

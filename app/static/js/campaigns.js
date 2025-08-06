@@ -47,6 +47,7 @@ function initializeCampaignModal() {
         modal.addEventListener('show.bs.modal', resetCampaignModal);
         setupStepValidation();
         setupSelectionMethodListeners();
+        setupExecutionModeListeners();
         handleSelectionMethodChange();
     }
 }
@@ -66,6 +67,57 @@ function setupSelectionMethodListeners() {
             field.addEventListener('change', updateContactCount);
         }
     });
+}
+
+// Setup execution mode listeners
+function setupExecutionModeListeners() {
+    // Add event listeners for execution mode radio buttons
+    const executionModeRadios = document.querySelectorAll('input[name="executionMode"]');
+    executionModeRadios.forEach(radio => {
+        radio.addEventListener('change', handleExecutionModeChange);
+    });
+    
+    // Initialize with default state
+    handleExecutionModeChange();
+}
+
+// Handle execution mode change
+function handleExecutionModeChange() {
+    const scheduledMode = document.getElementById('scheduledMode');
+    const manualMode = document.getElementById('manualMode');
+    const scheduledSettings = document.getElementById('scheduledModeSettings');
+    const manualSettings = document.getElementById('manualModeSettings');
+    const scheduledBenefits = document.getElementById('scheduledBenefits');
+    const manualBenefits = document.getElementById('manualBenefits');
+    
+    if (!scheduledMode || !manualMode || !scheduledSettings || !manualSettings) {
+        console.warn('Execution mode elements not found');
+        return;
+    }
+    
+    if (scheduledMode.checked) {
+        // Show scheduled mode UI
+        scheduledSettings.style.display = 'block';
+        manualSettings.style.display = 'none';
+        
+        if (scheduledBenefits && manualBenefits) {
+            scheduledBenefits.style.display = 'block';
+            manualBenefits.style.display = 'none';
+        }
+        
+        console.log('Switched to scheduled execution mode');
+    } else if (manualMode.checked) {
+        // Show manual mode UI
+        scheduledSettings.style.display = 'none';
+        manualSettings.style.display = 'block';
+        
+        if (scheduledBenefits && manualBenefits) {
+            scheduledBenefits.style.display = 'none';
+            manualBenefits.style.display = 'block';
+        }
+        
+        console.log('Switched to manual execution mode');
+    }
 }
 
 function resetCampaignModal() {
@@ -319,40 +371,55 @@ function saveCurrentStepData(stepNumber) {
             }
             break;
         case 3:
+            // Save execution mode
+            const executionMode = document.querySelector('input[name="executionMode"]:checked');
+            currentCampaignData.execution_mode = executionMode ? executionMode.value : 'scheduled';
+            
             currentCampaignData.email_template = document.getElementById('emailTemplate').value;
-            currentCampaignData.schedule_date = document.getElementById('scheduleDate').value;
-            currentCampaignData.followup_days = parseInt(document.getElementById('followupDays').value) || 3;
             
-            // Email sending settings
-            currentCampaignData.email_frequency = {
-                value: parseInt(document.getElementById('emailFrequencyValue').value) || 30,
-                unit: document.getElementById('emailFrequencyUnit').value || 'minutes'
-            };
-            currentCampaignData.timezone = document.getElementById('campaignTimezone').value;
-            currentCampaignData.daily_email_limit = parseInt(document.getElementById('dailyEmailLimit').value) || 50;
-            
-            // Random delay settings
-            currentCampaignData.random_delay = {
-                min_minutes: parseInt(document.getElementById('randomDelayMin').value) || 1,
-                max_minutes: parseInt(document.getElementById('randomDelayMax').value) || 5
-            };
-            
-            // Business hours settings
-            currentCampaignData.respect_business_hours = document.getElementById('respectBusinessHours').checked;
-            if (currentCampaignData.respect_business_hours) {
-                currentCampaignData.business_hours = {
-                    start_time: document.getElementById('businessStartTime').value || '09:00',
-                    end_time: document.getElementById('businessEndTime').value || '17:00',
-                    days: {
-                        monday: document.getElementById('businessMon').checked,
-                        tuesday: document.getElementById('businessTue').checked,
-                        wednesday: document.getElementById('businessWed').checked,
-                        thursday: document.getElementById('businessThu').checked,
-                        friday: document.getElementById('businessFri').checked,
-                        saturday: document.getElementById('businessSat').checked,
-                        sunday: document.getElementById('businessSun').checked
-                    }
+            // Scheduled mode settings
+            if (currentCampaignData.execution_mode === 'scheduled') {
+                currentCampaignData.schedule_date = document.getElementById('scheduleDate').value;
+                currentCampaignData.followup_days = parseInt(document.getElementById('followupDays').value) || 3;
+                
+                // Email sending settings (only for scheduled mode)
+                currentCampaignData.email_frequency = {
+                    value: parseInt(document.getElementById('emailFrequencyValue').value) || 30,
+                    unit: document.getElementById('emailFrequencyUnit').value || 'minutes'
                 };
+                currentCampaignData.timezone = document.getElementById('campaignTimezone').value;
+                currentCampaignData.daily_email_limit = parseInt(document.getElementById('dailyEmailLimit').value) || 50;
+                
+                // Random delay settings
+                currentCampaignData.random_delay = {
+                    min_minutes: parseInt(document.getElementById('randomDelayMin').value) || 1,
+                    max_minutes: parseInt(document.getElementById('randomDelayMax').value) || 5
+                };
+                
+                // Business hours settings
+                currentCampaignData.respect_business_hours = document.getElementById('respectBusinessHours').checked;
+                if (currentCampaignData.respect_business_hours) {
+                    currentCampaignData.business_hours = {
+                        start_time: document.getElementById('businessStartTime').value || '09:00',
+                        end_time: document.getElementById('businessEndTime').value || '17:00',
+                        days: {
+                            monday: document.getElementById('businessMon').checked,
+                            tuesday: document.getElementById('businessTue').checked,
+                            wednesday: document.getElementById('businessWed').checked,
+                            thursday: document.getElementById('businessThu').checked,
+                            friday: document.getElementById('businessFri').checked,
+                            saturday: document.getElementById('businessSat').checked,
+                            sunday: document.getElementById('businessSun').checked
+                        }
+                    };
+                }
+            } else {
+                // Manual mode settings
+                currentCampaignData.followup_days = parseInt(document.getElementById('manualFollowupDays').value) || 7;
+                currentCampaignData.enable_compose_priority = document.getElementById('enableComposePriority').checked;
+                
+                // Set default timezone for manual mode
+                currentCampaignData.timezone = 'America/Los_Angeles';
             }
             break;
     }
@@ -398,10 +465,12 @@ function populateReviewStep() {
         reviewEmailTemplate.textContent = templateText;
     }
     
-    // Follow-up days
+    // Follow-up days and execution mode
     if (reviewFollowup) {
         const followupDays = currentCampaignData.followup_days || 3;
-        reviewFollowup.textContent = `${followupDays} days`;
+        const executionMode = currentCampaignData.execution_mode || 'scheduled';
+        const modeText = executionMode === 'manual' ? 'Manual Execution' : 'Scheduled Execution';
+        reviewFollowup.innerHTML = `${followupDays} days <span class="badge bg-${executionMode === 'manual' ? 'success' : 'primary'} ms-2">${modeText}</span>`;
     }
     
     // Contact count will be updated separately
@@ -1386,6 +1455,11 @@ function viewCampaignDetails(campaignId) {
     // Load campaign activity data
     loadCampaignActivity(campaignId);
     
+    // Load campaign contacts data
+    setTimeout(() => {
+        loadCampaignContacts(campaignId);
+    }, 100); // Small delay to ensure DOM is ready
+    
     // Fetch campaign data from campaigns list first (immediate display)
     const campaignsData = getCurrentCampaignData(campaignId);
     if (campaignsData) {
@@ -1748,6 +1822,215 @@ function deleteAllCampaigns() {
             }
         }
     });
+}
+
+// Load campaign contacts for details modal
+function loadCampaignContacts(campaignId) {
+    console.log('🔄 loadCampaignContacts called for campaign:', campaignId);
+    
+    const contactsList = document.getElementById('campaignContactsList');
+    const contactsCount = document.getElementById('contactsCount');
+    
+    // Check for duplicate elements
+    const allContactsLists = document.querySelectorAll('#campaignContactsList');
+    const allContactsCounts = document.querySelectorAll('#contactsCount');
+    
+    console.log('📋 DOM elements found:', {
+        contactsList: !!contactsList,
+        contactsCount: !!contactsCount,
+        contactsListCount: allContactsLists.length,
+        contactsCountElements: allContactsCounts.length
+    });
+    
+    if (allContactsLists.length > 1) {
+        console.warn('⚠️ Multiple campaignContactsList elements found! This may cause issues.');
+    }
+    
+    if (!contactsList) {
+        console.error('❌ campaignContactsList element not found! Modal may not be open.');
+        return;
+    }
+    
+    // Set loading state
+    contactsList.innerHTML = `
+        <div class="text-center text-muted py-3">
+            <i class="fas fa-spinner fa-spin me-2"></i>Loading contacts...
+        </div>
+    `;
+    
+    // Fetch campaign contacts
+    fetch(`/api/campaigns/${campaignId}/contacts`)
+        .then(response => {
+            console.log('Campaign contacts API response status:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('Campaign contacts API response data:', data);
+            if (data.success) {
+                console.log('Loading contacts into display:', data.contacts?.length || 0, 'contacts');
+                displayCampaignContacts(data.contacts || [], contactsCount);
+            } else {
+                console.error('API returned error:', data.message);
+                throw new Error(data.message || 'Failed to load contacts');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading campaign contacts:', error);
+            contactsList.innerHTML = `
+                <div class="text-center text-muted py-3">
+                    <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                    Failed to load contacts: ${error.message}
+                </div>
+            `;
+            if (contactsCount) {
+                contactsCount.textContent = '0';
+            }
+        });
+}
+
+// Display campaign contacts in the modal
+function displayCampaignContacts(contacts, contactsCountElement) {
+    console.log('displayCampaignContacts called with:', contacts?.length || 0, 'contacts');
+    
+    const contactsList = document.getElementById('campaignContactsList');
+    
+    if (!contactsList) {
+        console.error('campaignContactsList element not found!');
+        return;
+    }
+    
+    // Update contacts count for ALL badge elements
+    const allCountElements = document.querySelectorAll('#contactsCount');
+    console.log(`🔢 Updating ${allCountElements.length} contact count badges`);
+    
+    allCountElements.forEach((element, index) => {
+        element.textContent = contacts.length;
+        console.log(`📊 Updated badge ${index + 1}: ${contacts.length}`);
+    });
+    
+    if (contacts.length === 0) {
+        console.log('📭 No contacts to display, showing empty state');
+        contactsList.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-users-slash fa-2x mb-2"></i>
+                <p class="mb-0">No contacts in this campaign</p>
+            </div>
+        `;
+        return;
+    }
+    
+    console.log('📊 Building contacts table for', contacts.length, 'contacts');
+    
+    try {
+        // Simplified HTML for testing with obvious visual indicator
+        let contactsHTML = `
+            <div class="alert alert-success border-3" style="border-color: #00ff00 !important; background-color: #d4edda !important;">
+                <h5><i class="fas fa-check-circle me-2"></i>✅ CONTACTS LOADED SUCCESSFULLY! (${contacts.length})</h5>
+                <ul class="mb-0">
+        `;
+        
+        contacts.forEach((contact, index) => {
+            contactsHTML += `
+                <li>
+                    <strong>${contact.name || 'Unknown Name'}</strong> 
+                    (${contact.email || 'No email'}) - 
+                    ${contact.company_name || 'Unknown Company'}
+                    <span class="badge bg-${contact.status === 'active' ? 'success' : 'secondary'} ms-2">
+                        ${contact.status || 'active'}
+                    </span>
+                </li>
+            `;
+        });
+        
+        contactsHTML += `
+                </ul>
+            </div>
+        `;
+        
+        console.log('✅ Contacts HTML generated, setting innerHTML');
+        
+        // Force DOM update with multiple approaches - UPDATE ALL ELEMENTS WITH THIS ID
+        const allContactsElements = document.querySelectorAll('#campaignContactsList');
+        console.log(`🔄 Updating ${allContactsElements.length} campaignContactsList elements`);
+        
+        allContactsElements.forEach((element, index) => {
+            console.log(`📝 Updating element ${index + 1}/${allContactsElements.length}`);
+            element.innerHTML = '';  // Clear first
+            element.offsetHeight; // Force reflow
+            element.innerHTML = contactsHTML;  // Set new content
+        });
+        
+        // Additional verification
+        setTimeout(() => {
+            const currentContent = contactsList.innerHTML;
+            console.log('🔍 DOM content check after update:', currentContent.substring(0, 100) + '...');
+            if (currentContent.includes('Loading contacts')) {
+                console.error('❌ DOM still shows loading state! Forcing refresh...');
+                contactsList.innerHTML = `<div class="alert alert-success">✅ Contact: ${contacts[0]?.name} (${contacts[0]?.email})</div>`;
+            }
+        }, 50);
+        
+        console.log('✅ Contacts table displayed successfully');
+        
+    } catch (error) {
+        console.error('❌ Error building contacts display:', error);
+        contactsList.innerHTML = `
+            <div class="text-center text-muted py-3">
+                <i class="fas fa-exclamation-triangle text-danger me-2"></i>
+                Error displaying contacts: ${error.message}
+            </div>
+        `;
+    }
+}
+
+// Get contact status badge HTML
+function getContactStatusBadge(status) {
+    const statusConfig = {
+        'active': { class: 'bg-success', text: 'Active' },
+        'paused': { class: 'bg-warning text-dark', text: 'Paused' },
+        'completed': { class: 'bg-info', text: 'Completed' },
+        'failed': { class: 'bg-danger', text: 'Failed' },
+        'unsubscribed': { class: 'bg-secondary', text: 'Unsubscribed' },
+        'bounced': { class: 'bg-danger', text: 'Bounced' }
+    };
+    
+    const config = statusConfig[status] || { class: 'bg-secondary', text: status };
+    return `<span class="badge ${config.class}">${config.text}</span>`;
+}
+
+// Placeholder functions for contact actions
+function viewContactDetails(contactId) {
+    showToast('infoToast', `View contact details for ID: ${contactId} (feature coming soon)`);
+}
+
+function composeEmailToContact(contactId) {
+    // Navigate to compose tab and pre-select the contact
+    const composeTab = document.querySelector('[data-bs-target="#compose"]');
+    if (composeTab) {
+        const tabInstance = new bootstrap.Tab(composeTab);
+        tabInstance.show();
+        
+        // Pre-select contact after tab is shown
+        setTimeout(() => {
+            const contactSelect = document.getElementById('contactSelect');
+            if (contactSelect) {
+                // Find the option with this contact ID
+                const option = contactSelect.querySelector(`option[value*='"id":${contactId}']`);
+                if (option) {
+                    contactSelect.value = option.value;
+                    contactSelect.dispatchEvent(new Event('change'));
+                } else {
+                    showToast('warningToast', 'Contact not found in compose list');
+                }
+            }
+        }, 100);
+        
+        // Close the campaign details modal
+        const campaignDetailsModal = bootstrap.Modal.getInstance(document.getElementById('campaignDetailsModal'));
+        if (campaignDetailsModal) {
+            campaignDetailsModal.hide();
+        }
+    }
 }
 
 // Export functions for use in other modules
@@ -2452,8 +2735,13 @@ function displayCampaignSchedule(scheduleData, campaignName, campaignId, timeZon
         return;
     }
 
+    // Get campaign data to check execution mode
+    const campaignData = getCurrentCampaignData(campaignId);
+    const isManualCampaign = campaignData && campaignData.execution_mode === 'manual';
+    
     const pendingEmails = scheduleData.pending_emails || [];
     const sentEmails = scheduleData.sent_emails || [];
+    const contacts = scheduleData.contacts || [];
 
     const renderTable = (title, emails, isPending) => {
         let rows = '';
@@ -2499,10 +2787,247 @@ function displayCampaignSchedule(scheduleData, campaignName, campaignId, timeZon
         `;
     };
 
-    scheduleContent.innerHTML = `
-        ${renderTable('Pending Emails', pendingEmails, true)}
-        ${renderTable('Sent Emails', sentEmails, false)}
+    if (isManualCampaign) {
+        // For manual campaigns, show contacts and their email status
+        scheduleContent.innerHTML = renderManualCampaignView(contacts, sentEmails, campaignData, timeZone);
+    } else {
+        // For scheduled campaigns, show the traditional pending/sent emails view
+        scheduleContent.innerHTML = `
+            ${renderTable('Pending Emails', pendingEmails, true)}
+            ${renderTable('Recent Sent Emails', sentEmails, false)}
+        `;
+    }
+}
+
+function renderManualCampaignView(contacts, sentEmails, campaignData, timeZone) {
+    const totalContacts = contacts.length;
+    const emailsSent = sentEmails.length;
+    const contactsWithEmails = new Set(sentEmails.map(email => email.recipient_email));
+    const contactsNotEmailed = totalContacts - contactsWithEmails.size;
+    
+    // Build overview stats
+    const overviewHTML = `
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="mb-0">
+                            <i class="fas fa-hand-paper me-2"></i>Manual Campaign Overview
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-2">
+                                <div class="text-center">
+                                    <h4 class="text-primary mb-1">${campaignData.status || 'draft'}</h4>
+                                    <small class="text-muted">Status</small>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="text-center">
+                                    <h4 class="text-success mb-1">${totalContacts}</h4>
+                                    <small class="text-muted">Total Contacts</small>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="text-center">
+                                    <h4 class="text-info mb-1">${emailsSent}</h4>
+                                    <small class="text-muted">Emails Sent</small>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="text-center">
+                                    <h4 class="text-warning mb-1">${contactsNotEmailed}</h4>
+                                    <small class="text-muted">Not Emailed</small>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="text-center">
+                                    <h4 class="text-secondary mb-1">Manual</h4>
+                                    <small class="text-muted">Execution Mode</small>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="text-center">
+                                    <h4 class="text-muted mb-1">N/A</h4>
+                                    <small class="text-muted">Next Scheduled</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     `;
+    
+    // Build contacts table with email status
+    let contactsHTML = `
+        <div class="row">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0">
+                            <i class="fas fa-users me-2"></i>Campaign Contacts & Email Status
+                        </h6>
+                    </div>
+                    <div class="card-body">
+    `;
+    
+    if (totalContacts === 0) {
+        contactsHTML += `
+            <div class="text-center py-4">
+                <i class="fas fa-users-slash fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No Contacts</h5>
+                <p class="text-muted">Add contacts to this campaign to begin sending emails.</p>
+            </div>
+        `;
+    } else {
+        contactsHTML += `
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Contact</th>
+                            <th>Company</th>
+                            <th>Email Status</th>
+                            <th>Last Email</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        contacts.forEach(contact => {
+            const lastEmail = sentEmails.find(email => email.recipient_email === contact.email);
+            const emailStatus = lastEmail ? 
+                `<span class="badge bg-success">Sent</span>` : 
+                `<span class="badge bg-warning text-dark">Not Sent</span>`;
+            
+            const lastEmailDate = lastEmail ? 
+                formatDateInTimezone(lastEmail.sent_time, timeZone) : 
+                '<span class="text-muted">Never</span>';
+            
+            contactsHTML += `
+                <tr>
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <div class="me-2">
+                                <i class="fas fa-user-circle text-primary"></i>
+                            </div>
+                            <div>
+                                <div class="fw-bold">${contact.name || 'Unknown'}</div>
+                                <small class="text-muted">${contact.email || 'No email'}</small>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <div>
+                            <div class="fw-bold">${contact.company_name || 'Unknown Company'}</div>
+                            <small class="text-muted">${contact.position || 'Unknown Position'}</small>
+                        </div>
+                    </td>
+                    <td>${emailStatus}</td>
+                    <td><small>${lastEmailDate}</small></td>
+                    <td>
+                        <div class="btn-group btn-group-sm" role="group">
+                            ${!lastEmail ? `
+                                <button type="button" class="btn btn-outline-success btn-sm" 
+                                        onclick="composeEmailToContact(${contact.lead_id || contact.id})" 
+                                        title="Compose Email">
+                                    <i class="fas fa-envelope me-1"></i>Send
+                                </button>
+                            ` : `
+                                <button type="button" class="btn btn-outline-secondary btn-sm" disabled
+                                        title="Email already sent">
+                                    <i class="fas fa-check me-1"></i>Sent
+                                </button>
+                            `}
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        contactsHTML += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+    
+    contactsHTML += `
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add sent emails section if any exist
+    let sentEmailsHTML = '';
+    if (emailsSent > 0) {
+        sentEmailsHTML = `
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-success text-white">
+                            <h6 class="mb-0">
+                                <i class="fas fa-paper-plane me-2"></i>Recent Sent Emails (${emailsSent})
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-striped">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Contact</th>
+                                            <th>Sent Time</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+        `;
+        
+        sentEmails.slice(0, 10).forEach(email => { // Show only last 10
+            const formattedTime = formatDateInTimezone(email.sent_time, timeZone);
+            const statusBadge = getStatusBadge(email.status);
+            
+            sentEmailsHTML += `
+                <tr>
+                    <td>${email.recipient_email}</td>
+                    <td>${formattedTime}</td>
+                    <td>${statusBadge}</td>
+                </tr>
+            `;
+        });
+        
+        sentEmailsHTML += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        `;
+    }
+    
+    // Add instructions for manual sending
+    const instructionsHTML = `
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-info-circle me-2"></i>Manual Campaign Instructions</h6>
+                    <p class="mb-2">This campaign uses manual execution mode. To send emails:</p>
+                    <ol class="mb-0">
+                        <li>Click the "Send" button next to contacts who haven't received emails</li>
+                        <li>Or use the <strong>Compose</strong> tab to manually select contacts and send emails</li>
+                        <li>Email status will update automatically after sending</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    return overviewHTML + contactsHTML + sentEmailsHTML + instructionsHTML;
 }
 
 

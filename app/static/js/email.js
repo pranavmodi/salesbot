@@ -10,6 +10,8 @@ function initializeEmail() {
     loadGlobalEmailAccounts();
     setupGlobalAccountSelector();
     setupEmailHistoryPagination();
+    loadGTMCampaigns();
+    setupCampaignValidation();
 }
 
 // Email event listeners
@@ -726,6 +728,188 @@ if (typeof module !== 'undefined' && module.exports) {
 }
 
 // Global function assignments for HTML onclick handlers
+// GTM Campaign Integration for Manual Execution
+let availableGTMCampaigns = [];
+let currentSelectedContact = null;
+
+// Load GTM campaigns for manual execution
+function loadGTMCampaigns() {
+    fetch('/api/campaigns?execution_mode=manual')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                availableGTMCampaigns = data.campaigns || [];
+                updateGTMCampaignDropdown();
+                console.log(`Loaded ${availableGTMCampaigns.length} manual GTM campaigns`);
+            } else {
+                console.warn('Failed to load GTM campaigns:', data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading GTM campaigns:', error);
+        });
+}
+
+// Update the GTM campaign dropdown
+function updateGTMCampaignDropdown() {
+    const campaignSelect = document.getElementById('gtmCampaignSelect');
+    if (!campaignSelect) return;
+
+    campaignSelect.innerHTML = '<option value="">Select GTM Campaign (or send without campaign)</option>';
+    
+    availableGTMCampaigns.forEach(campaign => {
+        const option = document.createElement('option');
+        option.value = campaign.id;
+        option.textContent = `${campaign.name} (${campaign.type}) - ${campaign.execution_mode}`;
+        option.setAttribute('data-campaign', JSON.stringify(campaign));
+        campaignSelect.appendChild(option);
+    });
+}
+
+// Setup campaign validation event listeners
+function setupCampaignValidation() {
+    const campaignSelect = document.getElementById('gtmCampaignSelect');
+    const contactSelect = document.getElementById('contactSelect');
+    
+    if (campaignSelect) {
+        campaignSelect.addEventListener('change', validateCampaignSelection);
+    }
+    
+    if (contactSelect) {
+        contactSelect.addEventListener('change', function() {
+            const selectedValue = this.value;
+            if (selectedValue) {
+                try {
+                    currentSelectedContact = JSON.parse(selectedValue);
+                    validateCampaignSelection();
+                } catch (e) {
+                    console.error('Error parsing contact data:', e);
+                    currentSelectedContact = null;
+                }
+            } else {
+                currentSelectedContact = null;
+                validateCampaignSelection();
+            }
+        });
+    }
+    
+    // Initial validation
+    validateCampaignSelection();
+}
+
+// Validate campaign and contact selection
+function validateCampaignSelection() {
+    const campaignSelect = document.getElementById('gtmCampaignSelect');
+    const sendButton = document.getElementById('sendComposedEmail');
+    const statusText = document.getElementById('sendButtonStatusText');
+    const campaignStatusInfo = document.getElementById('campaignStatusInfo');
+    const campaignWarning = document.getElementById('campaignWarning');
+    const campaignSuccess = document.getElementById('campaignSuccess');
+    const campaignWarningText = document.getElementById('campaignWarningText');
+    const campaignSuccessText = document.getElementById('campaignSuccessText');
+    
+    if (!sendButton || !statusText) return;
+
+    // Reset campaign status display
+    if (campaignStatusInfo) campaignStatusInfo.style.display = 'none';
+    if (campaignWarning) campaignWarning.style.display = 'none';
+    if (campaignSuccess) campaignSuccess.style.display = 'none';
+    
+    // Check if contact is selected
+    if (!currentSelectedContact) {
+        sendButton.disabled = true;
+        statusText.textContent = 'Select a contact to enable sending';
+        return;
+    }
+    
+    const selectedCampaignId = campaignSelect ? campaignSelect.value : '';
+    
+    // If no campaign selected, allow sending without campaign
+    if (!selectedCampaignId) {
+        sendButton.disabled = false;
+        statusText.textContent = 'Ready to send (without campaign tracking)';
+        return;
+    }
+    
+    // Validate campaign selection
+    const selectedCampaign = availableGTMCampaigns.find(c => c.id == selectedCampaignId);
+    if (!selectedCampaign) {
+        sendButton.disabled = true;
+        statusText.textContent = 'Invalid campaign selected';
+        showCampaignWarning('Selected campaign not found');
+        return;
+    }
+    
+    // Check if contact is part of the campaign and email hasn't been sent
+    checkContactCampaignStatus(selectedCampaignId, currentSelectedContact.lead_id || currentSelectedContact.id);
+}
+
+// Check if contact is in campaign and email status
+function checkContactCampaignStatus(campaignId, contactId) {
+    const sendButton = document.getElementById('sendComposedEmail');
+    const statusText = document.getElementById('sendButtonStatusText');
+    
+    fetch(`/api/campaigns/${campaignId}/contact/${contactId}/status`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const isInCampaign = data.in_campaign;
+                const emailSent = data.email_sent;
+                const lastEmailDate = data.last_email_date;
+                
+                if (!isInCampaign) {
+                    sendButton.disabled = true;
+                    statusText.textContent = 'Contact is not part of this campaign';
+                    showCampaignWarning('This contact is not included in the selected campaign');
+                } else if (emailSent) {
+                    sendButton.disabled = true;
+                    statusText.textContent = `Email already sent on ${lastEmailDate || 'unknown date'}`;
+                    showCampaignWarning(`An email has already been sent to this contact for this campaign on ${lastEmailDate || 'unknown date'}`);
+                } else {
+                    sendButton.disabled = false;
+                    statusText.textContent = 'Ready to send via GTM campaign';
+                    showCampaignSuccess('Contact is part of this campaign and ready to receive email');
+                }
+            } else {
+                sendButton.disabled = true;
+                statusText.textContent = 'Error validating campaign status';
+                showCampaignWarning('Unable to verify campaign status');
+            }
+        })
+        .catch(error => {
+            console.error('Error checking campaign status:', error);
+            sendButton.disabled = true;
+            statusText.textContent = 'Error validating campaign status';
+            showCampaignWarning('Unable to verify campaign status');
+        });
+}
+
+// Show campaign warning message
+function showCampaignWarning(message) {
+    const campaignStatusInfo = document.getElementById('campaignStatusInfo');
+    const campaignWarning = document.getElementById('campaignWarning');
+    const campaignWarningText = document.getElementById('campaignWarningText');
+    
+    if (campaignStatusInfo && campaignWarning && campaignWarningText) {
+        campaignWarningText.textContent = message;
+        campaignStatusInfo.style.display = 'block';
+        campaignWarning.style.display = 'block';
+    }
+}
+
+// Show campaign success message
+function showCampaignSuccess(message) {
+    const campaignStatusInfo = document.getElementById('campaignStatusInfo');
+    const campaignSuccess = document.getElementById('campaignSuccess');
+    const campaignSuccessText = document.getElementById('campaignSuccessText');
+    
+    if (campaignStatusInfo && campaignSuccess && campaignSuccessText) {
+        campaignSuccessText.textContent = message;
+        campaignStatusInfo.style.display = 'block';
+        campaignSuccess.style.display = 'block';
+    }
+}
+
 window.generateEmailPreview = generateEmailPreview;
 window.sendComposedEmail = sendComposedEmail;
 window.testGlobalAccountConnection = testGlobalAccountConnection;

@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, current_app
 from datetime import datetime, timedelta
 import json
 import threading
+from sqlalchemy import text
 
 from app.models.campaign import Campaign
 from app.models.contact import Contact
@@ -39,6 +40,7 @@ def create_campaign():
         campaign_name = data.get('name')
         campaign_type = data.get('type')
         email_template = data.get('email_template')
+        execution_mode = data.get('execution_mode', 'scheduled')
         schedule_date = data.get('schedule_date')
         # Convert empty string to None for database
         if schedule_date == '':
@@ -47,6 +49,7 @@ def create_campaign():
         
         # Extract campaign settings
         campaign_settings = {
+            'execution_mode': execution_mode,
             'email_frequency': data.get('email_frequency', {'value': 30, 'unit': 'minutes'}),
             'random_delay': data.get('random_delay', {'min_minutes': 1, 'max_minutes': 5}),
             'timezone': data.get('timezone', 'America/Los_Angeles'),
@@ -190,11 +193,29 @@ def create_campaign():
 
 @campaign_bp.route('/campaigns', methods=['GET'])
 def get_campaigns():
-    """Get all campaigns."""
+    """Get all campaigns with optional execution_mode filter."""
     try:
         current_app.logger.info("Loading campaigns...")
         campaigns = Campaign.load_all()
         current_app.logger.info(f"Loaded {len(campaigns)} campaigns")
+        
+        # Filter by execution_mode if specified
+        execution_mode = request.args.get('execution_mode')
+        if execution_mode:
+            filtered_campaigns = []
+            for campaign in campaigns:
+                try:
+                    # Parse campaign_settings JSON
+                    import json
+                    settings = json.loads(campaign.campaign_settings) if campaign.campaign_settings else {}
+                    if settings.get('execution_mode') == execution_mode:
+                        filtered_campaigns.append(campaign)
+                except json.JSONDecodeError:
+                    # Skip campaigns with invalid JSON settings
+                    continue
+            campaigns = filtered_campaigns
+            current_app.logger.info(f"Filtered to {len(campaigns)} campaigns with execution_mode={execution_mode}")
+        
         campaign_dicts = [campaign.to_dict() for campaign in campaigns]
         current_app.logger.info(f"Converted to {len(campaign_dicts)} campaign dicts")
         return jsonify({'success': True, 'campaigns': campaign_dicts})
@@ -537,12 +558,39 @@ def get_campaign_schedule(campaign_id):
                 'success_rate': 0
             }
         
+        # Get contacts data for manual campaigns
+        contacts_data = []
+        execution_mode = campaign_settings.get('execution_mode', 'scheduled')
+        
+        if execution_mode == 'manual':
+            try:
+                # Get campaign contacts for manual campaigns
+                campaign_contacts = Campaign.get_campaign_contacts(campaign_id)
+                
+                for cc in campaign_contacts:
+                    contact_data = {
+                        'id': cc.get('id') or cc.get('company_id'),
+                        'lead_id': cc.get('id') or cc.get('company_id'),
+                        'name': cc.get('full_name') or cc.get('first_name', 'Unknown'),
+                        'email': cc.get('email', 'No email'),
+                        'company_name': cc.get('company_name', 'Unknown Company'),
+                        'position': cc.get('job_title', 'Unknown Position'),
+                        'status': cc.get('campaign_status', 'active'),
+                        'created_at': cc.get('added_at'),
+                        'updated_at': cc.get('status_updated_at')
+                    }
+                    contacts_data.append(contact_data)
+                    
+            except Exception as e:
+                current_app.logger.error(f"Error getting contacts for manual campaign {campaign_id}: {e}")
+        
         # Format campaign data for frontend
         campaign_data = {
             'id': campaign.id,
             'name': campaign.name,
             'status': campaign.status,
             'type': campaign.type,
+            'execution_mode': execution_mode,
             'daily_email_limit': campaign_settings.get('daily_email_limit', 50),
             'email_frequency': campaign_settings.get('email_frequency', {'value': 30, 'unit': 'minutes'}),
             'timezone': campaign_settings.get('timezone', 'UTC'),
@@ -552,13 +600,14 @@ def get_campaign_schedule(campaign_id):
             'updated_at': campaign.updated_at.isoformat() if campaign.updated_at else None
         }
         
-        current_app.logger.info(f"Schedule data for campaign {campaign_id}: {len(pending_emails)} pending, {len(sent_emails)} sent")
+        current_app.logger.info(f"Schedule data for campaign {campaign_id} ({execution_mode}): {len(pending_emails)} pending, {len(sent_emails)} sent, {len(contacts_data)} contacts")
         
         return jsonify({
             'success': True,
             'campaign': campaign_data,
             'pending_emails': pending_emails,
             'sent_emails': sent_emails,
+            'contacts': contacts_data,
             'stats': stats
         })
         
@@ -925,3 +974,125 @@ def duplicate_campaign(campaign_id):
     except Exception as e:
         current_app.logger.error(f"Error duplicating campaign {campaign_id}: {str(e)}")
         return jsonify({'success': False, 'message': f'Failed to duplicate campaign: {str(e)}'}), 500
+
+@campaign_bp.route('/campaigns/<int:campaign_id>/contact/<int:contact_id>/status', methods=['GET'])
+def get_contact_campaign_status(campaign_id, contact_id):
+    """Check if a contact is in a campaign and if email has been sent."""
+    try:
+        # Check if campaign exists
+        campaign = Campaign.get_by_id(campaign_id)
+        if not campaign:
+            return jsonify({
+                'success': False,
+                'message': 'Campaign not found'
+            }), 404
+            
+        # Check if contact is part of the campaign
+        from app.models.campaign_contact import CampaignContact
+        campaign_contact = CampaignContact.get_by_campaign_and_contact(campaign_id, contact_id)
+        
+        if not campaign_contact:
+            return jsonify({
+                'success': True,
+                'in_campaign': False,
+                'email_sent': False,
+                'last_email_date': None
+            })
+        
+        # Check if email has been sent for this campaign contact
+        email_sent = campaign_contact.status in ['email_sent', 'responded', 'completed']
+        last_email_date = None
+        
+        if hasattr(campaign_contact, 'last_email_sent_at') and campaign_contact.last_email_sent_at:
+            last_email_date = campaign_contact.last_email_sent_at.strftime('%Y-%m-%d %H:%M')
+        
+        return jsonify({
+            'success': True,
+            'in_campaign': True,
+            'email_sent': email_sent,
+            'last_email_date': last_email_date,
+            'contact_status': campaign_contact.status,
+            'campaign_name': campaign.name
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error checking contact campaign status: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error checking status: {str(e)}'
+        }), 500
+
+@campaign_bp.route('/campaigns/<int:campaign_id>/contacts', methods=['GET'])
+def get_campaign_contacts(campaign_id):
+    """Get all contacts associated with a campaign."""
+    try:
+        # Get campaign
+        campaign = Campaign.get_by_id(campaign_id)
+        if not campaign:
+            return jsonify({
+                'success': False,
+                'message': 'Campaign not found'
+            }), 404
+        
+        # Get campaign contacts using existing method
+        campaign_contacts = Campaign.get_campaign_contacts(campaign_id)
+        
+        # Format contacts for frontend
+        contacts = []
+        for cc in campaign_contacts:
+            contact_data = {
+                'id': cc.get('id') or cc.get('company_id'),
+                'lead_id': cc.get('id') or cc.get('company_id'), # Use contact ID as lead_id for compatibility
+                'campaign_id': campaign_id,
+                'status': cc.get('campaign_status', 'active'),
+                'name': cc.get('full_name') or cc.get('first_name', 'Unknown'),
+                'email': cc.get('email', 'No email'),
+                'company_name': cc.get('company_name', 'Unknown Company'),
+                'position': cc.get('job_title', 'Unknown Position'),
+                'created_at': cc.get('added_at'),
+                'updated_at': cc.get('status_updated_at')
+            }
+            
+            # Get last email date from email history for this contact
+            try:
+                # Query email history directly to get last email
+                from app.database import get_shared_engine
+                engine = get_shared_engine()
+                with engine.connect() as conn:
+                    last_email_query = text("""
+                        SELECT sent_at FROM email_history 
+                        WHERE campaign_id = :campaign_id 
+                        AND recipient_email = :email
+                        ORDER BY sent_at DESC 
+                        LIMIT 1
+                    """)
+                    last_email_result = conn.execute(last_email_query, {
+                        'campaign_id': campaign_id,
+                        'email': cc.get('email')
+                    })
+                    last_email_row = last_email_result.fetchone()
+                    
+                    if last_email_row:
+                        contact_data['last_email_date'] = last_email_row[0].isoformat() if last_email_row[0] else None
+                    else:
+                        contact_data['last_email_date'] = None
+            except Exception as e:
+                current_app.logger.warning(f"Could not get last email date for contact {cc.get('email')}: {e}")
+                contact_data['last_email_date'] = None
+            
+            contacts.append(contact_data)
+        
+        return jsonify({
+            'success': True,
+            'contacts': contacts,
+            'count': len(contacts),
+            'campaign_id': campaign_id,
+            'campaign_name': campaign.name
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error fetching campaign contacts: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error fetching contacts: {str(e)}'
+        }), 500
