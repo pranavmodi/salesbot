@@ -298,6 +298,11 @@ function toggleRawHtml() {
     const emailBodyElement = document.getElementById('emailBody');
     const htmlPreviewContainer = document.getElementById('htmlPreviewContainer');
     
+    if (!emailBodyElement || !htmlPreviewContainer) {
+        console.warn('Could not find email body or preview container to toggle');
+        return;
+    }
+    
     if (emailBodyElement.style.display === 'none') {
         // Show raw HTML
         emailBodyElement.style.display = 'block';
@@ -356,7 +361,10 @@ function sendComposedEmail(e) {
             
             // Reset form
             document.getElementById('composeForm').reset();
-            document.getElementById('emailPreviewSection').style.display = 'none';
+            const emailPreviewSection = document.getElementById('emailPreviewSection');
+            if (emailPreviewSection) {
+                emailPreviewSection.style.display = 'none';
+            }
             
             // Refresh email history
             refreshEmailHistory();
@@ -490,18 +498,28 @@ function changeEmailHistoryPage(page) {
 }
 
 function refreshEmailHistory() {
-    fetch('/api/email/history')
-        .then(response => response.json())
+    fetch('/api/email/all')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
                 emailHistory = data.emails || [];
                 paginateEmailHistory(1);
             } else {
                 console.error('Failed to refresh email history:', data.message);
+                throw new Error(data.message || 'API returned success:false');
             }
         })
         .catch(error => {
             console.error('Error refreshing email history:', error);
+            const emailHistoryContainer = document.getElementById('emailHistoryContainer');
+            if(emailHistoryContainer) {
+                emailHistoryContainer.innerHTML = `<div class="alert alert-danger">Error loading email history.</div>`;
+            }
         });
 }
 
