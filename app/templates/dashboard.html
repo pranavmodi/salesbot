@@ -328,4 +328,119 @@ document.addEventListener('DOMContentLoaded', function() {
     window.NETLIFY_PUBLISH_URL = "{{ netlify_publish_url }}";
 </script>
 <script src="{{ url_for('static', filename='js/deep-research.js') }}"></script>
+
+<!-- Follow-up Email Modal functionality -->
+<script>
+// Global modal instance to prevent recreation
+let followUpModalInstance = null;
+
+function composeFollowUp(recipient, originalSubject, originalFrom) {
+    console.log('composeFollowUp called with:', { recipient, originalSubject, originalFrom });
+    
+    // Set modal values immediately
+    document.getElementById('followUpRecipient').value = recipient;
+    document.getElementById('followUpSubject').value = 'Re: ' + originalSubject;
+    document.getElementById('followUpBody').value = '';
+    
+    // Create modal instance only once
+    const modalElement = document.getElementById('followUpModal');
+    if (modalElement) {
+        if (!followUpModalInstance) {
+            followUpModalInstance = new bootstrap.Modal(modalElement);
+            console.log('Created new modal instance');
+        }
+        
+        followUpModalInstance.show();
+        console.log('Modal shown using persistent instance');
+    }
+}
+
+// Event delegation for follow-up buttons (prevents accordion conflicts)
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle follow-up button clicks using event delegation
+    document.addEventListener('click', function(e) {
+        // Check if it's specifically our button
+        const followupBtn = e.target.closest('.followup-btn');
+        if (followupBtn) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            
+            // Add a flag to prevent multiple triggers
+            if (followupBtn.hasAttribute('data-processing')) {
+                return;
+            }
+            
+            followupBtn.setAttribute('data-processing', 'true');
+            
+            const recipient = followupBtn.getAttribute('data-recipient');
+            const subject = followupBtn.getAttribute('data-subject');
+            const from = followupBtn.getAttribute('data-from');
+            
+            // Call the compose function
+            composeFollowUp(recipient, subject, from);
+            
+            // Remove processing flag after a short delay
+            setTimeout(() => {
+                followupBtn.removeAttribute('data-processing');
+            }, 2000);
+        }
+    });
+
+    // Send follow-up email
+    const sendBtn = document.getElementById('sendFollowUpBtn');
+    if (sendBtn) {
+        sendBtn.addEventListener('click', function() {
+            const recipient = document.getElementById('followUpRecipient').value;
+            const subject = document.getElementById('followUpSubject').value;
+            const body = document.getElementById('followUpBody').value;
+            const includeTracking = document.getElementById('followUpTracking').checked;
+            
+            if (!body.trim()) {
+                showToast('Please enter a message body', 'error');
+                return;
+            }
+            
+            // Disable button and show loading
+            sendBtn.disabled = true;
+            const originalHTML = sendBtn.innerHTML;
+            sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Sending...';
+            
+            // Send follow-up email
+            fetch('/api/send-followup', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    recipient: recipient,
+                    subject: subject,
+                    body: body,
+                    include_tracking: includeTracking
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Follow-up email sent successfully!', 'success');
+                    // Hide modal
+                    bootstrap.Modal.getInstance(document.getElementById('followUpModal')).hide();
+                    // Clear form
+                    document.getElementById('followUpBody').value = '';
+                } else {
+                    showToast('Failed to send follow-up: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Error sending follow-up: ' + error.message, 'error');
+            })
+            .finally(() => {
+                // Restore button state
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = originalHTML;
+            });
+        });
+    }
+});
+</script>
 {% endblock %} 

@@ -97,7 +97,20 @@
 {% endif %}
 
 <div class="accordion" id="threadsAccordion">
-    {% if threads and threads|length > 0 %}
+    {% if inbox_error %}
+        <div class="text-center p-5">
+            <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+            <h5 class="text-warning">Email Connection Error</h5>
+            <p class="text-muted">{{ inbox_error }}</p>
+            <div class="mt-3">
+                <small class="text-muted">
+                    To fix this:
+                    <br>• Enable IMAP access in your email provider settings
+                    <br>• Contact your email administrator if needed
+                </small>
+            </div>
+        </div>
+    {% elif threads and threads|length > 0 %}
         <!-- Inbox Thread Results Info -->
         <div class="mb-3">
             <small class="text-muted">
@@ -139,6 +152,16 @@
                                     </div>
                                     <div class="mt-3 ps-3">
                                         <p style="white-space: pre-wrap; font-size: 0.9rem;">{{ email.body }}</p>
+                                        {% if loop.last %}
+                                            <div class="mt-3">
+                                                <button class="btn btn-sm btn-primary followup-btn" 
+                                                        data-recipient="{{ email.to }}" 
+                                                        data-subject="{{ latest_email.subject }}" 
+                                                        data-from="{{ email.from }}">
+                                                    <i class="fas fa-reply me-1"></i>Compose Follow-up
+                                                </button>
+                                            </div>
+                                        {% endif %}
                                     </div>
                                     {% if not loop.last %}
                                         <hr class="my-3">
@@ -158,4 +181,143 @@
             <p>Sent and received emails will appear here as conversations.</p>
         </div>
     {% endif %}
+</div>
+
+<!-- Move modal OUTSIDE the accordion structure to avoid conflicts -->
+<script>
+// Move modal to body when DOM is ready to avoid accordion conflicts
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('followUpModal');
+    if (modal && modal.parentElement.id !== 'moved-modals-container') {
+        // Create a container at the end of body if it doesn't exist
+        let container = document.getElementById('moved-modals-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'moved-modals-container';
+            document.body.appendChild(container);
+        }
+        
+        // Move modal to the container
+        container.appendChild(modal);
+        console.log('Modal moved outside accordion to prevent conflicts');
+    }
+});
+</script>
+
+<!-- Follow-up Compose Modal CSS Fixes -->
+<style>
+/* Completely isolate modal from accordion */
+#moved-modals-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 9999;
+    pointer-events: none;
+}
+
+#moved-modals-container .modal {
+    pointer-events: auto;
+}
+
+#followUpModal {
+    /* Override any accordion inherited styles */
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    transform: none !important;
+    transition: opacity 0.15s linear !important;
+}
+
+#followUpModal .modal-dialog {
+    transform: none !important;
+    transition: transform 0.3s ease-out !important;
+    margin: 1.75rem auto !important;
+    max-width: 800px !important;
+}
+
+#followUpModal .modal-content {
+    border: none;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    transform: none !important;
+}
+
+/* Prevent any accordion interference */
+#followUpModal * {
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
+
+/* Completely disable accordion behavior on modal */
+.accordion-item .followup-btn {
+    pointer-events: auto !important;
+    position: relative !important;
+    z-index: 10 !important;
+}
+
+/* Prevent touch/hover events from triggering clicks */
+.followup-btn {
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+.followup-btn:hover {
+    cursor: pointer;
+}
+
+/* Disable any potential hover-to-click behavior */
+.followup-btn:focus {
+    outline: 2px solid #0d6efd;
+    outline-offset: 2px;
+}
+</style>
+
+<!-- Follow-up Compose Modal -->
+<div class="modal fade" id="followUpModal" tabindex="-1" aria-labelledby="followUpModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="followUpModalLabel">
+                    <i class="fas fa-reply me-2"></i>Compose Follow-up Email
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="followUpForm">
+                    <div class="mb-3">
+                        <label for="followUpRecipient" class="form-label">To:</label>
+                        <input type="email" class="form-control" id="followUpRecipient" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="followUpSubject" class="form-label">Subject:</label>
+                        <input type="text" class="form-control" id="followUpSubject" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="followUpBody" class="form-label">Message:</label>
+                        <textarea class="form-control" id="followUpBody" rows="10" placeholder="Type your follow-up message here..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="followUpTracking" checked>
+                            <label class="form-check-label" for="followUpTracking">
+                                <i class="fas fa-chart-line me-1 text-info"></i>
+                                <strong>Include open tracking</strong>
+                                <small class="text-muted d-block">Add an invisible pixel to track when the email is opened</small>
+                            </label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="sendFollowUpBtn">
+                    <i class="fas fa-paper-plane me-1"></i>Send Follow-up
+                </button>
+            </div>
+        </div>
+    </div>
 </div> 

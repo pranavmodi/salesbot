@@ -1,6 +1,7 @@
-from flask import Blueprint, render_template, request, current_app, Response
+from flask import Blueprint, render_template, request, current_app, Response, jsonify
 import os
 import json
+import uuid
 from datetime import datetime
 from sqlalchemy import text
 
@@ -8,6 +9,8 @@ from app.models.contact import Contact
 from app.models.email_history import EmailHistory
 from app.models.company import Company
 from app.services.email_reader_service import email_reader, configure_email_reader
+from app.services.email_service import EmailService
+from app.utils.email_config import email_config
 
 bp = Blueprint('main', __name__)
 
@@ -51,6 +54,22 @@ def index():
     else:
         uncontacted_count = 0
     
+    # Get inbox threads and calculate pagination
+    inbox_result = get_inbox_threads()
+    inbox_per_page = 10
+    inbox_current_page = 1
+    
+    # Handle both successful threads (list) and error (dict)
+    if isinstance(inbox_result, list):
+        inbox_threads = inbox_result
+        inbox_error = None
+        inbox_total_pages = max(1, (len(inbox_threads) + inbox_per_page - 1) // inbox_per_page)
+    else:
+        # Error case - inbox_result is a dict with 'error' key
+        inbox_threads = []
+        inbox_error = inbox_result.get('error', 'Unknown error')
+        inbox_total_pages = 1
+    
     return render_template(
         'dashboard.html',
         contacts=contact_data['contacts'],
@@ -69,18 +88,51 @@ def index():
         success_rate=success_rate,
         pending_contacts=len(contact_data['contacts']),
         uncontacted_count=uncontacted_count,
-        threads=get_inbox_threads(), # Add threads to dashboard context
+        threads=inbox_threads,
+        inbox_error=inbox_error,
+        inbox_current_page=inbox_current_page,
+        inbox_per_page=inbox_per_page,
+        inbox_total_pages=inbox_total_pages,
         netlify_publish_url=os.getenv("NETLIFY_PUBLISH_URL", "https://possibleminds.in/.netlify/functions/publish-report-persistent")
     )
+
+def _configure_email_reader_from_accounts():
+    """Configure email reader using JSON email accounts."""
+    try:
+        accounts = email_config.get_all_accounts()
+        if not accounts:
+            current_app.logger.warning("No email accounts found in JSON config")
+            return False
+        
+        # Use the first account for inbox reading
+        account = accounts[0]
+        if not all([account.imap_host, account.email, account.password]):
+            current_app.logger.warning(f"Incomplete IMAP configuration for account {account.email}")
+            return False
+            
+        email_reader.configure_imap(
+            host=account.imap_host,
+            email=account.email, 
+            password=account.password,
+            port=account.imap_port
+        )
+        current_app.logger.info(f"Configured email reader for {account.email}")
+        return True
+        
+    except Exception as e:
+        current_app.logger.error(f"Error configuring email reader from accounts: {e}")
+        return False
 
 def get_inbox_threads():
     """Helper function to fetch and process inbox threads."""
     if not email_reader.connection:
-        configure_email_reader()
-        if not email_reader.connection:
-            if not email_reader.connect():
-                current_app.logger.error("Failed to connect to email reader for inbox.")
-                return [] # Return empty list on connection failure
+        # Use JSON email accounts instead of environment variables
+        if not _configure_email_reader_from_accounts():
+            current_app.logger.error("Failed to configure email reader for inbox.")
+            return {'error': 'Email accounts not configured properly'}
+        if not email_reader.connect():
+            current_app.logger.error("Failed to connect to email reader for inbox.")
+            return {'error': 'Cannot connect to email server (IMAP may not be enabled)'}
 
     emails = []
     for folder in ['INBOX', 'Sent']:
@@ -159,5 +211,64 @@ def track_email_open(tracking_id):
     response.headers['Expires'] = '0'
     
     return response
+
+@bp.route('/api/send-followup', methods=['POST'])
+def send_followup():
+    """Send a follow-up email."""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+            
+        recipient = data.get('recipient')
+        subject = data.get('subject')
+        body = data.get('body')
+        include_tracking = data.get('include_tracking', True)
+        
+        if not all([recipient, subject, body]):
+            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+            
+        # Initialize email service
+        email_service = EmailService()
+        
+        # Generate tracking ID if tracking is enabled
+        tracking_id = str(uuid.uuid4()) if include_tracking else None
+        
+        # Add tracking pixel to email body if enabled
+        email_body = body
+        if include_tracking and tracking_id:
+            tracking_pixel = f'<img src="{request.url_root}api/track/open/{tracking_id}.png" width="1" height="1" style="display:none;" />'
+            email_body = f"{body}\n\n{tracking_pixel}"
+        
+        # Send the email
+        success = email_service.send_email(
+            to_email=recipient,
+            subject=subject,
+            body=email_body,
+            tracking_id=tracking_id
+        )
+        
+        if success:
+            # Save to email history
+            email_history = EmailHistory(
+                to=recipient,
+                subject=subject,
+                body=body,
+                status='Success',
+                sent_at=datetime.now(),
+                tracking_id=tracking_id
+            )
+            email_history.save()
+            
+            current_app.logger.info(f"Follow-up email sent successfully to {recipient}")
+            return jsonify({'success': True, 'message': 'Follow-up email sent successfully'})
+        else:
+            current_app.logger.error(f"Failed to send follow-up email to {recipient}")
+            return jsonify({'success': False, 'error': 'Failed to send email'}), 500
+            
+    except Exception as e:
+        current_app.logger.error(f"Error sending follow-up email: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
  
