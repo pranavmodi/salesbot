@@ -9,8 +9,7 @@ from app.models.email_history import EmailHistory
 from app.utils.email_config import email_config, EmailAccount
 from email_composers.composer_instance import composer
 from send_emails import send_email
-from email_composers.email_composer_warm import WarmEmailComposer
-from email_composers.email_composer_alt_subject import AltSubjectEmailComposer
+# Using only deep research composer now
 from email_composers.email_composer_deep_research import DeepResearchEmailComposer
 
 class EmailService:
@@ -214,14 +213,8 @@ class EmailService:
                     campaign_id=campaign_id
                 )
             else:
-                # Use regular composers for other types (legacy support)
-                if composer_type == "alt_subject":
-                    composer = AltSubjectEmailComposer()
-                elif composer_type == "possible_minds":
-                    from email_composers.email_composer_possible_minds import PossibleMindsEmailComposer
-                    composer = PossibleMindsEmailComposer()
-                else: # Default to warm
-                    composer = WarmEmailComposer()
+                # Use deep research composer for all types now
+                composer = DeepResearchEmailComposer()
 
                 # Pass campaign_id to composer if it supports it
                 if hasattr(composer, 'compose_email'):

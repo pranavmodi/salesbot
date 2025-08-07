@@ -502,19 +502,20 @@ class DeepResearchEmailComposer:
             
             if research_status == 'step_3_completed' and has_html_report:
                 print(f"✅ DEBUG: Company {company_name} has completed research - ensuring it's published")
-                research_text = company.research_step_1_basic or company.company_research or "Research completed - see full report for details."
+                research_text = company.llm_research_step_1_basic or company.research_step_1_basic or company.company_research or "Research completed - see full report for details."
                 return research_text, company.id
             elif research_status == 'step_3_completed':
                 print(f"⚠️ DEBUG: Company {company_name} shows completed status but missing HTML report - using basic research")
-                research_text = company.research_step_1_basic or company.company_research or "Research completed - see full report for details."
+                research_text = company.llm_research_step_1_basic or company.research_step_1_basic or company.company_research or "Research completed - see full report for details."
                 return research_text, company.id
             
             # Check if we have basic research but need full report
-            elif hasattr(company, 'research_step_1_basic') and company.research_step_1_basic:
+            elif (hasattr(company, 'llm_research_step_1_basic') and company.llm_research_step_1_basic) or (hasattr(company, 'research_step_1_basic') and company.research_step_1_basic):
                 if auto_trigger:
                     return self._trigger_full_deep_research(company_name, company.id)
                 else:
-                    return company.research_step_1_basic, company.id
+                    research_text = company.llm_research_step_1_basic or company.research_step_1_basic
+                    return research_text, company.id
             
             # Check if we have old-style company research but need full report
             elif hasattr(company, 'company_research') and company.company_research:
@@ -575,7 +576,7 @@ class DeepResearchEmailComposer:
             print(f"🚀 DEBUG: _trigger_full_deep_research called for '{company_name}' with company_id={company_id}")
             
             # Import research services
-            from deepresearch.step_by_step_researcher import StepByStepResearcher
+            from deepresearch.llm_step_by_step_researcher import LLMStepByStepResearcher
             from app.models.company import Company
             
             # If no company_id provided, we need to create the company first
@@ -598,8 +599,8 @@ class DeepResearchEmailComposer:
             
             # Trigger step-by-step deep research
             print(f"🔬 DEBUG: Starting step-by-step research for company_id={company_id} ('{company_name}')")
-            researcher = StepByStepResearcher()
-            result = researcher.start_deep_research(company_id, force_refresh=False)
+            researcher = LLMStepByStepResearcher()
+            result = researcher.start_llm_step_research(company_id, provider='perplexity', force_refresh=False)
             print(f"🔬 DEBUG: Research trigger result: {result}")
             
             if result.get('success'):
@@ -617,7 +618,7 @@ class DeepResearchEmailComposer:
                     if company:
                         status = getattr(company, 'llm_research_step_status', 'unknown')
                         has_html_report = hasattr(company, 'html_report') and company.html_report
-                        has_basic = hasattr(company, 'research_step_1_basic') and company.research_step_1_basic
+                        has_basic = (hasattr(company, 'llm_research_step_1_basic') and company.llm_research_step_1_basic) or (hasattr(company, 'research_step_1_basic') and company.research_step_1_basic)
                         
                         # Safe length check for polling
                         html_report_len = len(company.html_report) if company.html_report else 0
@@ -626,7 +627,7 @@ class DeepResearchEmailComposer:
                         # Only return when we have BOTH completed status AND html_report
                         if status == 'step_3_completed' and has_html_report:
                             print(f"✅ DEBUG: Research fully completed with HTML report after {elapsed_time}s")
-                            research_text = company.research_step_1_basic or company.company_research or "Research completed - see full report for details."
+                            research_text = company.llm_research_step_1_basic or company.research_step_1_basic or company.company_research or "Research completed - see full report for details."
                             return research_text, company_id
                         elif status == 'failed':
                             print(f"❌ DEBUG: Research failed after {elapsed_time}s")
@@ -645,11 +646,12 @@ class DeepResearchEmailComposer:
                     print(f"⚠️ DEBUG: Final status check - Status: {status}, Has HTML report: {html_report_len}")
                     
                     # If research is completed, allow email sending even without HTML report
-                    if company.research_step_1_basic and not has_html_report and status != 'step_3_completed':
+                    basic_research = company.llm_research_step_1_basic or company.research_step_1_basic
+                    if basic_research and not has_html_report and status != 'step_3_completed':
                         print(f"🚫 DEBUG: Research in progress but report not ready - preventing email composition")
                         return None, company_id  # Return None to signal "not ready"
-                    elif company.research_step_1_basic:
-                        research_text = company.research_step_1_basic
+                    elif basic_research:
+                        research_text = basic_research
                         return research_text, company_id
                     else:
                         return "", company_id

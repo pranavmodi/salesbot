@@ -8,8 +8,7 @@ import json
 from app.services.email_service import EmailService
 from app.services.email_reader_service import email_reader, configure_email_reader, EmailReaderService
 from app.utils.email_config import email_config, EmailAccount
-from email_composers.email_composer_alt_subject import AltSubjectEmailComposer
-from email_composers.email_composer_warm import WarmEmailComposer
+# Using only deep research composer now
 from email_composers.email_composer_deep_research import DeepResearchEmailComposer
 
 email_bp = Blueprint('email_api', __name__, url_prefix='/api')
@@ -44,12 +43,8 @@ def preview_email():
         if contact_data:
             # For the old format, we need to create a temporary contact or use the composer directly
             # Import the composers directly
-            if composer_type == "alt_subject":
-                composer = AltSubjectEmailComposer()
-            elif composer_type == "deep_research":
-                composer = DeepResearchEmailComposer()
-            else:
-                composer = WarmEmailComposer()
+            # Use deep research composer for all types now
+            composer = DeepResearchEmailComposer()
             
             # Use the composer directly with the contact data
             lead_data = {

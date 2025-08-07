@@ -696,8 +696,7 @@ def _compose_fallback_email(campaign: Campaign, contact: Dict, settings: Dict) -
     """Compose fallback email when main composer fails."""
     try:
         from flask import current_app
-        from email_composers.email_composer_warm import WarmEmailComposer
-        from email_composers.email_composer_alt_subject import AltSubjectEmailComposer
+        # Using only deep research composer now
         from email_composers.email_composer_deep_research import DeepResearchEmailComposer
         
         template_type = settings.get('email_template', 'deep_research')  # Changed default to deep_research
@@ -715,57 +714,27 @@ def _compose_fallback_email(campaign: Campaign, contact: Dict, settings: Dict) -
             
         current_app.logger.info(f"🏢 DEBUG: Final company name for email composer: '{company_name}'")
         
-        if template_type == "alt_subject":
-            composer = AltSubjectEmailComposer()
-        elif template_type == "deep_research":
-            # Use direct composer to avoid thread-safe wrapper malloc issues
-            from email_composers.email_composer_deep_research import DeepResearchEmailComposer
-            composer = DeepResearchEmailComposer()
-            
-            lead_data = {
-                "name": contact.get('first_name') or contact.get('name') or 'there',
-                "email": contact.get('email'),
-                "company": company_name or 'your company',
-                "position": contact.get('job_title') or contact.get('title') or '',
-                "website": contact.get('company_domain') or '',
-                "notes": "",
-            }
-            
-            calendar_url = os.getenv("CALENDAR_URL", "https://calendly.com/pranav-modi/15-minute-meeting")
-            extra_context = f"This email is part of the '{campaign.name}' campaign."
-            
-            current_app.logger.info(f"📧 DEBUG: Using direct deep research composer for campaign {campaign.id}")
-            
-            return composer.compose_email(
-                lead=lead_data,
-                calendar_url=calendar_url,
-                extra_context=extra_context,
-                campaign_id=campaign.id
-            )
-        elif template_type == "possible_minds":
-            from email_composers.email_composer_possible_minds import PossibleMindsEmailComposer
-            composer = PossibleMindsEmailComposer()
-        else:
-            composer = WarmEmailComposer()
+        # Use deep research composer for all template types now  
+        composer = DeepResearchEmailComposer()
         
         lead_data = {
-            "name": contact.get('display_name') or contact.get('full_name') or f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip(),
+            "name": contact.get('first_name') or contact.get('name') or 'there',
             "email": contact.get('email'),
-            "company": company_name,  # Now uses smart extraction
-            "position": contact.get('job_title'),
-            "website": contact.get('company_domain'),
-            "notes": f"Campaign: {campaign.name}",
+            "company": company_name or 'your company',
+            "position": contact.get('job_title') or contact.get('title') or '',
+            "website": contact.get('company_domain') or '',
+            "notes": "",
         }
         
         calendar_url = os.getenv("CALENDAR_URL", "https://calendly.com/pranav-modi/15-minute-meeting")
+        extra_context = f"This email is part of the '{campaign.name}' campaign."
         
-        current_app.logger.info(f"🎯 DEBUG: Calling {template_type} composer for {contact.get('email')} with campaign_id={campaign.id}")
-        current_app.logger.info(f"📋 DEBUG: Lead data - Company: {lead_data.get('company')}, Email: {lead_data.get('email')}")
+        current_app.logger.info(f"📧 DEBUG: Using direct deep research composer for campaign {campaign.id}")
         
-        email_content = composer.compose_email(
-            lead=lead_data, 
-            calendar_url=calendar_url, 
-            extra_context=f"This email is part of the '{campaign.name}' campaign.",
+        return composer.compose_email(
+            lead=lead_data,
+            calendar_url=calendar_url,
+            extra_context=extra_context,
             campaign_id=campaign.id
         )
         

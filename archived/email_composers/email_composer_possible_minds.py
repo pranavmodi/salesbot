@@ -252,15 +252,16 @@ Founder, <a href="https://possibleminds.in">Possible Minds</a>
             # Check if we have a published HTML report (full research completed)
             if hasattr(company, 'html_report') and company.html_report:
                 # Use basic research for email context, but we have the full report published
-                research_text = company.research_step_1_basic or company.company_research or "Strategic analysis report available"
+                research_text = company.llm_research_step_1_basic or company.research_step_1_basic or company.company_research or "Strategic analysis report available"
                 return research_text, company.id
             
             # Check if we have basic research but need full report
-            elif hasattr(company, 'research_step_1_basic') and company.research_step_1_basic:
+            elif (hasattr(company, 'llm_research_step_1_basic') and company.llm_research_step_1_basic) or (hasattr(company, 'research_step_1_basic') and company.research_step_1_basic):
                 if auto_trigger:
                     return self._trigger_full_deep_research(company_name, company.id)
                 else:
-                    return company.research_step_1_basic, company.id
+                    research_text = company.llm_research_step_1_basic or company.research_step_1_basic
+                    return research_text, company.id
             
             # Check if we have old-style company research but need full report
             elif hasattr(company, 'company_research') and company.company_research:
@@ -284,7 +285,7 @@ Founder, <a href="https://possibleminds.in">Possible Minds</a>
         """Trigger full step-by-step deep research and return (research_text, company_id)."""
         try:
             # Import research services
-            from deepresearch.step_by_step_researcher import StepByStepResearcher
+            from deepresearch.llm_step_by_step_researcher import LLMStepByStepResearcher
             from app.models.company import Company
             
             # If no company_id provided, we need to create the company first
@@ -301,8 +302,8 @@ Founder, <a href="https://possibleminds.in">Possible Minds</a>
                     return "", None
             
             # Trigger step-by-step deep research
-            researcher = StepByStepResearcher()
-            result = researcher.start_deep_research(company_id, force_refresh=False)
+            researcher = LLMStepByStepResearcher()
+            result = researcher.start_llm_step_research(company_id, provider='perplexity', force_refresh=False)
             
             if result.get('success'):
                 # Wait for research to complete with polling (max 60 seconds)
@@ -316,17 +317,19 @@ Founder, <a href="https://possibleminds.in">Possible Minds</a>
                     
                     company = Company.get_by_id(company_id)
                     if company and company.research_status == 'completed' and company.html_report:
-                        research_text = company.research_step_1_basic or company.company_research or "Research completed - see full report for details."
+                        research_text = company.llm_research_step_1_basic or company.research_step_1_basic or company.company_research or "Research completed - see full report for details."
                         return research_text, company_id
-                    elif company and company.research_step_1_basic:
-                        return company.research_step_1_basic, company_id
+                    elif company and (company.llm_research_step_1_basic or company.research_step_1_basic):
+                        research_text = company.llm_research_step_1_basic or company.research_step_1_basic
+                        return research_text, company_id
                     elif company and company.research_status == 'failed':
                         break
                 
                 # Timeout or failure - try to get whatever research is available
                 company = Company.get_by_id(company_id)
-                if company and (company.research_step_1_basic or company.company_research):
-                    research_text = company.research_step_1_basic or company.company_research
+                basic_research = company.llm_research_step_1_basic or company.research_step_1_basic if company else None
+                if company and (basic_research or company.company_research):
+                    research_text = basic_research or company.company_research
                     return research_text, company_id
                 else:
                     return "", company_id
