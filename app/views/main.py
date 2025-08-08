@@ -309,4 +309,110 @@ def send_followup():
         current_app.logger.error(f"Error sending follow-up email: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@bp.route('/api/refresh-emails', methods=['POST'])
+def refresh_emails():
+    """Refresh and fetch the latest emails."""
+    try:
+        # Get organized inbox threads by pipeline
+        inbox_result = get_inbox_threads()
+        
+        # Handle both successful organized inbox (dict) and error (dict with 'error' key)
+        if isinstance(inbox_result, dict) and 'error' not in inbox_result:
+            # Success - organized inbox with sent/inbox sections
+            organized_threads = inbox_result
+            
+            # Calculate totals
+            inbox_count = len(organized_threads.get('inbox', []))
+            sent_count = len(organized_threads.get('sent', []))
+            total_count = inbox_count + sent_count
+            
+            current_app.logger.info(f"Refreshed emails: {inbox_count} inbox, {sent_count} sent")
+            
+            return jsonify({
+                'success': True,
+                'inbox_count': inbox_count,
+                'sent_count': sent_count,
+                'total_count': total_count,
+                'message': f'Refreshed {total_count} conversations'
+            })
+        else:
+            # Error case
+            error_msg = inbox_result.get('error', 'Unknown error') if isinstance(inbox_result, dict) else 'Unknown error'
+            current_app.logger.error(f"Failed to refresh emails: {error_msg}")
+            return jsonify({'success': False, 'error': error_msg}), 500
+            
+    except Exception as e:
+        current_app.logger.error(f"Error refreshing emails: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@bp.route('/api/generate-followup-draft', methods=['POST'])
+def generate_followup_draft():
+    """Generate an AI draft for follow-up email using OpenAI."""
+    try:
+        import openai
+        import os
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+            
+        recipient = data.get('recipient')
+        subject = data.get('subject')
+        original_context = data.get('original_context', '')
+        
+        if not all([recipient, subject]):
+            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+        
+        # Set up OpenAI client
+        openai.api_key = os.getenv('OPENAI_API_KEY')
+        if not openai.api_key:
+            return jsonify({'success': False, 'error': 'OpenAI API key not configured'}), 500
+        
+        # Prepare the prompt for follow-up generation
+        prompt = f"""You are a professional sales assistant. Generate a polite, concise follow-up email based on the context below.
+
+CONTEXT:
+- Recipient: {recipient}
+- Original Subject: {subject}
+- Previous Email Context: {original_context[:1000] if original_context else 'No previous context available'}
+
+REQUIREMENTS:
+- Write a polite, professional follow-up email
+- Keep it concise (2-3 short paragraphs maximum)
+- Reference the previous communication appropriately
+- Include a gentle call-to-action
+- Use a warm but professional tone
+- Don't be pushy or aggressive
+- Make it sound natural and human
+
+Generate only the email body text, no subject line or signatures."""
+
+        # Call OpenAI API
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a professional email writing assistant specializing in sales follow-ups."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=300,
+            temperature=0.7
+        )
+        
+        draft_content = response.choices[0].message.content.strip()
+        
+        current_app.logger.info(f"Generated AI draft for follow-up to {recipient}")
+        
+        return jsonify({
+            'success': True,
+            'draft': draft_content,
+            'message': 'AI draft generated successfully'
+        })
+        
+    except ImportError:
+        current_app.logger.error("OpenAI library not installed")
+        return jsonify({'success': False, 'error': 'OpenAI library not available'}), 500
+    except Exception as e:
+        current_app.logger.error(f"Error generating AI draft: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
  

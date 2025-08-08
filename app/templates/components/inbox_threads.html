@@ -123,6 +123,53 @@
     transform: rotate(180deg);
 }
 
+/* Refresh button styling */
+.refresh-emails-btn {
+    transition: all 0.2s ease;
+    position: relative;
+    border-radius: 6px;
+}
+
+.refresh-emails-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+}
+
+.refresh-emails-btn:disabled {
+    transform: none;
+    box-shadow: none;
+    opacity: 0.7;
+}
+
+.refresh-emails-btn .fa-sync-alt {
+    transition: transform 0.3s ease;
+}
+
+.refresh-emails-btn:not(:disabled):hover .fa-sync-alt {
+    transform: rotate(180deg);
+}
+
+.refresh-emails-btn.loading .fa-sync-alt {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Sidebar refresh button specific styling */
+.email-sidebar .refresh-emails-btn {
+    font-weight: 500;
+    border-radius: 8px;
+}
+
+/* Header refresh buttons specific styling */
+.tab-pane .refresh-emails-btn {
+    font-size: 0.8rem;
+    padding: 4px 12px;
+}
+
 .empty-state {
     padding: 80px 40px;
     text-align: center;
@@ -166,6 +213,13 @@
                     </button>
                 </div>
                 
+                <!-- Refresh Button -->
+                <div class="mt-3">
+                    <button class="btn btn-primary btn-sm w-100 refresh-emails-btn" id="refreshEmailsBtn" type="button">
+                        <i class="fas fa-sync-alt me-2"></i>Refresh
+                    </button>
+                </div>
+                
                 <!-- Summary Stats -->
                 <div class="mt-4 pt-3 border-top">
                     <small class="text-muted d-block mb-1">Total Conversations</small>
@@ -193,11 +247,14 @@
                 <div class="tab-content h-100" id="emailTabContent">
                     <!-- Inbox Tab -->
                     <div class="tab-pane fade show active" id="inbox-content" role="tabpanel">
-                        <div class="p-3 border-bottom">
+                        <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
                             <h5 class="mb-0">
                                 <i class="fas fa-inbox me-2 text-primary"></i>Inbox
                                 <span class="text-muted ms-2">({{ organized_threads.inbox|length }} conversations)</span>
                             </h5>
+                            <button class="btn btn-outline-primary btn-sm refresh-emails-btn" type="button">
+                                <i class="fas fa-sync-alt me-1"></i>Refresh
+                            </button>
                         </div>
                         
                         <div class="email-list">
@@ -264,11 +321,14 @@
                     
                     <!-- Sent Tab -->
                     <div class="tab-pane fade" id="sent-content" role="tabpanel">
-                        <div class="p-3 border-bottom">
+                        <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
                             <h5 class="mb-0">
                                 <i class="fas fa-paper-plane me-2 text-success"></i>Sent
                                 <span class="text-muted ms-2">({{ organized_threads.sent|length }} conversations)</span>
                             </h5>
+                            <button class="btn btn-outline-success btn-sm refresh-emails-btn" type="button">
+                                <i class="fas fa-sync-alt me-1"></i>Refresh
+                            </button>
                         </div>
                         
                         <div class="email-list">
@@ -397,6 +457,97 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+    
+    // Refresh emails functionality for all refresh buttons
+    const refreshButtons = document.querySelectorAll('.refresh-emails-btn');
+    
+    refreshButtons.forEach(refreshBtn => {
+        refreshBtn.addEventListener('click', function() {
+            console.log('Refresh button clicked');
+            
+            // Disable all refresh buttons and show loading state
+            refreshButtons.forEach(btn => {
+                btn.disabled = true;
+                btn.classList.add('loading');
+                const icon = btn.querySelector('.fa-sync-alt');
+                if (icon) {
+                    icon.style.animation = 'spin 1s linear infinite';
+                }
+                // Update button text for sidebar button
+                if (btn.id === 'refreshEmailsBtn') {
+                    btn.innerHTML = '<i class="fas fa-sync-alt me-2"></i>Refreshing...';
+                }
+            });
+            
+            // Call refresh API
+            fetch('/api/refresh-emails', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => {
+                console.log('API response received:', response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log('API response data:', data);
+                if (data.success) {
+                    // Show success notification (fallback if showToast not available)
+                    if (typeof showToast === 'function') {
+                        showToast(data.message || 'Emails refreshed successfully!', 'success');
+                    } else {
+                        alert(data.message || 'Emails refreshed successfully!');
+                    }
+                    
+                    // Update badge counts
+                    const inboxBadge = document.querySelector('#inbox-nav-tab .badge');
+                    const sentBadge = document.querySelector('#sent-nav-tab .badge');
+                    const totalCount = document.querySelector('.email-sidebar .fw-semibold');
+                    
+                    if (inboxBadge) inboxBadge.textContent = data.inbox_count;
+                    if (sentBadge) sentBadge.textContent = data.sent_count;
+                    if (totalCount) totalCount.textContent = data.total_count;
+                    
+                    // Reload the page after a short delay to show updated emails
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
+                } else {
+                    const errorMsg = 'Failed to refresh emails: ' + (data.error || 'Unknown error');
+                    if (typeof showToast === 'function') {
+                        showToast(errorMsg, 'error');
+                    } else {
+                        alert(errorMsg);
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error refreshing emails:', error);
+                const errorMsg = 'Error refreshing emails: ' + error.message;
+                if (typeof showToast === 'function') {
+                    showToast(errorMsg, 'error');
+                } else {
+                    alert(errorMsg);
+                }
+            })
+            .finally(() => {
+                // Restore all button states
+                refreshButtons.forEach(btn => {
+                    btn.disabled = false;
+                    btn.classList.remove('loading');
+                    const icon = btn.querySelector('.fa-sync-alt');
+                    if (icon) {
+                        icon.style.animation = '';
+                    }
+                    // Restore sidebar button text
+                    if (btn.id === 'refreshEmailsBtn') {
+                        btn.innerHTML = '<i class="fas fa-sync-alt me-2"></i>Refresh';
+                    }
+                });
+            });
+        });
+    });
 });
 </script>
 
@@ -492,8 +643,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         <input type="text" class="form-control" id="followUpSubject" readonly>
                     </div>
                     <div class="mb-3">
-                        <label for="followUpBody" class="form-label">Message:</label>
-                        <textarea class="form-control" id="followUpBody" rows="10" placeholder="Type your follow-up message here..."></textarea>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label for="followUpBody" class="form-label mb-0">Message:</label>
+                            <button type="button" class="btn btn-outline-info btn-sm" id="generateDraftBtn">
+                                <i class="fas fa-magic me-1"></i>Generate AI Draft
+                            </button>
+                        </div>
+                        <textarea class="form-control" id="followUpBody" rows="10" placeholder="Type your follow-up message here or click 'Generate AI Draft' to create one automatically..."></textarea>
                     </div>
                     <div class="mb-3">
                         <div class="form-check">
