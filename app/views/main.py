@@ -54,20 +54,23 @@ def index():
     else:
         uncontacted_count = 0
     
-    # Get inbox threads and calculate pagination
+    # Get organized inbox threads (Sent/Inbox sections)
     inbox_result = get_inbox_threads()
     inbox_per_page = 10
     inbox_current_page = 1
     
-    # Handle both successful threads (list) and error (dict)
-    if isinstance(inbox_result, list):
-        inbox_threads = inbox_result
+    # Handle both successful organized inbox (dict) and error (dict with 'error' key)
+    if isinstance(inbox_result, dict) and 'error' not in inbox_result:
+        # Success - organized inbox with sent/inbox sections
+        organized_threads = inbox_result
         inbox_error = None
-        inbox_total_pages = max(1, (len(inbox_threads) + inbox_per_page - 1) // inbox_per_page)
+        # Calculate total threads across both sections for pagination
+        total_threads = len(organized_threads.get('sent', [])) + len(organized_threads.get('inbox', []))
+        inbox_total_pages = max(1, (total_threads + inbox_per_page - 1) // inbox_per_page)
     else:
-        # Error case - inbox_result is a dict with 'error' key
-        inbox_threads = []
-        inbox_error = inbox_result.get('error', 'Unknown error')
+        # Error case - inbox_result is a dict with 'error' key or wrong format
+        organized_threads = {'sent': [], 'inbox': []}
+        inbox_error = inbox_result.get('error', 'Unknown error') if isinstance(inbox_result, dict) else 'Unknown error'
         inbox_total_pages = 1
     
     return render_template(
@@ -88,7 +91,7 @@ def index():
         success_rate=success_rate,
         pending_contacts=len(contact_data['contacts']),
         uncontacted_count=uncontacted_count,
-        threads=inbox_threads,
+        organized_threads=organized_threads,
         inbox_error=inbox_error,
         inbox_current_page=inbox_current_page,
         inbox_per_page=inbox_per_page,
@@ -124,7 +127,7 @@ def _configure_email_reader_from_accounts():
         return False
 
 def get_inbox_threads():
-    """Helper function to fetch and process inbox threads."""
+    """Helper function to fetch and organize inbox threads by Sent/Inbox sections."""
     if not email_reader.connection:
         # Use JSON email accounts instead of environment variables
         if not _configure_email_reader_from_accounts():
@@ -156,9 +159,44 @@ def get_inbox_threads():
             # Attempt to reconnect on error
             email_reader.connect()
 
+    # Group emails into threads
     threads = email_reader.group_emails_by_thread(emails)
-    sorted_threads = sorted(threads.values(), key=lambda t: t[-1]['date'], reverse=True)
-    return sorted_threads
+    
+    # Organize threads by Sent vs Inbox
+    organized_threads = _organize_threads_by_folder(threads)
+    return organized_threads
+
+def _organize_threads_by_folder(threads):
+    """Organize email threads into Sent and Inbox sections."""
+    from app.utils.email_config import email_config
+    
+    # Get our email addresses to identify sent vs received
+    our_emails = {acc.email.lower() for acc in email_config.get_all_accounts()}
+    
+    organized = {
+        'sent': [],      # Threads where we sent the latest message
+        'inbox': []      # Threads where we received the latest message
+    }
+    
+    for thread_emails in threads.values():
+        if not thread_emails:
+            continue
+            
+        latest_email = thread_emails[-1]
+        
+        # Determine if latest email is from us or them
+        latest_from_us = latest_email.get('from', '').lower() in our_emails
+        
+        if latest_from_us:
+            organized['sent'].append(thread_emails)
+        else:
+            organized['inbox'].append(thread_emails)
+    
+    # Sort each section by date (most recent first)
+    for section in organized:
+        organized[section].sort(key=lambda t: t[-1].get('date', datetime.min), reverse=True)
+    
+    return organized
 
 @bp.route('/import')
 def import_contacts():

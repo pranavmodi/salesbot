@@ -1,186 +1,308 @@
-<!-- Enhanced Inbox Pagination Controls -->
-{% if threads|length > 10 %}
-<div class="pagination-container">
-    <div class="row align-items-center">
-        <div class="col-lg-3 col-md-6 mb-2 mb-lg-0">
-            <div class="pagination-controls d-flex align-items-center">
-                <label for="inboxPerPage" class="form-label me-2 mb-0">Show:</label>
-                <select id="inboxPerPage" class="form-select form-select-sm" style="width: auto;">
-                    <option value="5" {% if inbox_per_page == 5 %}selected{% endif %}>5</option>
-                    <option value="10" {% if inbox_per_page == 10 %}selected{% endif %}>10</option>
-                    <option value="25" {% if inbox_per_page == 25 %}selected{% endif %}>25</option>
-                    <option value="50" {% if inbox_per_page == 50 %}selected{% endif %}>50</option>
-                </select>
-                <span class="text-muted ms-2 small">per page</span>
-            </div>
-        </div>
-        
-        <div class="col-lg-6 col-md-6 mb-2 mb-lg-0">
-            <div class="pagination-summary">
-                Showing {{ ((inbox_current_page - 1) * inbox_per_page + 1) }} to 
-                {{ (inbox_current_page * inbox_per_page if inbox_current_page * inbox_per_page < threads|length else threads|length) }} 
-                of <strong>{{ threads|length }}</strong> threads
-            </div>
-        </div>
-        
-        <div class="col-lg-3 col-md-12">
-            <nav aria-label="Inbox pagination" class="d-flex justify-content-lg-end justify-content-center">
-                <ul class="pagination pagination-modern mb-0">
-                    <!-- First Page -->
-                    <li class="page-item {% if inbox_current_page == 1 %}disabled{% endif %}">
-                        <a class="page-link" href="#" data-inbox-page="1" title="First page" aria-label="First page">
-                            <i class="fas fa-angle-double-left"></i>
-                        </a>
-                    </li>
-                    
-                    <!-- Previous Page -->
-                    <li class="page-item {% if inbox_current_page == 1 %}disabled{% endif %}">
-                        <a class="page-link" href="#" data-inbox-page="{{ inbox_current_page - 1 }}" title="Previous page" aria-label="Previous page">
-                            <i class="fas fa-chevron-left"></i>
-                        </a>
-                    </li>
-                    
-                    <!-- Page Numbers -->
-                    {% set start_page = [1, inbox_current_page - 2]|max %}
-                    {% set end_page = [inbox_total_pages, inbox_current_page + 2]|min %}
-                    
-                    {% if start_page > 1 %}
-                        <li class="page-item">
-                            <a class="page-link" href="#" data-inbox-page="1">1</a>
-                        </li>
-                        {% if start_page > 2 %}
-                            <li class="page-item disabled">
-                                <span class="page-link" aria-disabled="true">…</span>
-                            </li>
-                        {% endif %}
-                    {% endif %}
-                    
-                    {% for page_num in range(start_page, end_page + 1) %}
-                        <li class="page-item {% if page_num == inbox_current_page %}active{% endif %}">
-                            {% if page_num == inbox_current_page %}
-                                <span class="page-link" aria-current="page">{{ page_num }}</span>
-                            {% else %}
-                                <a class="page-link" href="#" data-inbox-page="{{ page_num }}">{{ page_num }}</a>
-                            {% endif %}
-                        </li>
-                    {% endfor %}
-                    
-                    {% if end_page < inbox_total_pages %}
-                        {% if end_page < inbox_total_pages - 1 %}
-                            <li class="page-item disabled">
-                                <span class="page-link" aria-disabled="true">…</span>
-                            </li>
-                        {% endif %}
-                        <li class="page-item">
-                            <a class="page-link" href="#" data-inbox-page="{{ inbox_total_pages }}">{{ inbox_total_pages }}</a>
-                        </li>
-                    {% endif %}
-                    
-                    <!-- Next Page -->
-                    <li class="page-item {% if inbox_current_page == inbox_total_pages %}disabled{% endif %}">
-                        <a class="page-link" href="#" data-inbox-page="{{ inbox_current_page + 1 }}" title="Next page" aria-label="Next page">
-                            <i class="fas fa-chevron-right"></i>
-                        </a>
-                    </li>
-                    
-                    <!-- Last Page -->
-                    <li class="page-item {% if inbox_current_page == inbox_total_pages %}disabled{% endif %}">
-                        <a class="page-link" href="#" data-inbox-page="{{ inbox_total_pages }}" title="Last page" aria-label="Last page">
-                            <i class="fas fa-angle-double-right"></i>
-                        </a>
-                    </li>
-                </ul>
-            </nav>
-        </div>
-    </div>
-</div>
-{% endif %}
+<!-- Email Client Layout with Left Navigation -->
+<style>
+.email-client-layout {
+    min-height: 600px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    overflow: hidden;
+}
 
-<div class="accordion" id="threadsAccordion">
-    {% if inbox_error %}
-        <div class="text-center p-5">
-            <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
-            <h5 class="text-warning">Email Connection Error</h5>
-            <p class="text-muted">{{ inbox_error }}</p>
-            <div class="mt-3">
-                <small class="text-muted">
-                    To fix this:
-                    <br>• Enable IMAP access in your email provider settings
-                    <br>• Contact your email administrator if needed
-                </small>
+.email-sidebar {
+    background: #f8f9fa;
+    border-right: 1px solid #e0e0e0;
+    min-height: 600px;
+}
+
+.email-nav .nav-link {
+    color: #495057;
+    border: none;
+    border-radius: 6px;
+    margin-bottom: 2px;
+    padding: 12px 16px;
+    text-align: left;
+    transition: all 0.2s;
+}
+
+.email-nav .nav-link:hover {
+    background: rgba(13, 110, 253, 0.1);
+    color: #0d6efd;
+}
+
+.email-nav .nav-link.active {
+    background: #0d6efd;
+    color: white;
+}
+
+.email-nav .nav-link.active .badge {
+    background: rgba(255, 255, 255, 0.2) !important;
+}
+
+.email-content {
+    background: white;
+}
+
+.email-list {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.email-item {
+    border-bottom: 1px solid #f0f0f0;
+    padding: 16px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.email-item:hover {
+    background: #f8f9fa;
+}
+
+.email-item:last-child {
+    border-bottom: none;
+}
+
+.email-subject {
+    font-weight: 600;
+    color: #212529;
+    margin-bottom: 4px;
+}
+
+.email-preview {
+    color: #6c757d;
+    font-size: 0.9rem;
+    margin-bottom: 4px;
+}
+
+.email-meta {
+    font-size: 0.8rem;
+    color: #9ca3af;
+}
+
+.empty-state {
+    padding: 80px 40px;
+    text-align: center;
+    color: #6c757d;
+}
+</style>
+
+<div class="email-client-layout">
+    <div class="row g-0 h-100">
+        <!-- Left Navigation Panel -->
+        <div class="col-3 email-sidebar">
+            <div class="p-3">
+                <h6 class="mb-3 text-muted fw-semibold">
+                    <i class="fas fa-envelope me-2"></i>Email
+                </h6>
+                
+                <!-- Navigation Menu -->
+                <div class="nav nav-pills flex-column email-nav" role="tablist">
+                    <button class="nav-link active d-flex justify-content-between align-items-center" 
+                            id="inbox-nav-tab" 
+                            data-bs-toggle="pill" 
+                            data-bs-target="#inbox-content" 
+                            type="button" 
+                            role="tab">
+                        <span>
+                            <i class="fas fa-inbox me-2"></i>Inbox
+                        </span>
+                        <span class="badge bg-primary">{{ organized_threads.inbox|length }}</span>
+                    </button>
+                    
+                    <button class="nav-link d-flex justify-content-between align-items-center" 
+                            id="sent-nav-tab" 
+                            data-bs-toggle="pill" 
+                            data-bs-target="#sent-content" 
+                            type="button" 
+                            role="tab">
+                        <span>
+                            <i class="fas fa-paper-plane me-2"></i>Sent
+                        </span>
+                        <span class="badge bg-secondary">{{ organized_threads.sent|length }}</span>
+                    </button>
+                </div>
+                
+                <!-- Summary Stats -->
+                <div class="mt-4 pt-3 border-top">
+                    <small class="text-muted d-block mb-1">Total Conversations</small>
+                    <div class="fw-semibold text-primary">{{ organized_threads.inbox|length + organized_threads.sent|length }}</div>
+                </div>
             </div>
         </div>
-    {% elif threads and threads|length > 0 %}
-        <!-- Inbox Thread Results Info -->
-        <div class="mb-3">
-            <small class="text-muted">
-                Showing {{ threads|length }} email threads
-            </small>
-        </div>
-        {% for thread in threads %}
-            {% set latest_email = thread[-1] %}
-            {% set thread_id = 'thread-' ~ loop.index %}
-            <div class="accordion-item">
-                <h2 class="accordion-header" id="heading-{{ thread_id }}">
-                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ thread_id }}" aria-expanded="false" aria-controls="collapse-{{ thread_id }}">
-                        <div class="d-flex w-100 justify-content-between">
-                            <span class="fw-bold text-truncate" style="max-width: 400px;">{{ latest_email.subject or 'No Subject' }}</span>
-                            <span class="text-muted small ms-3">
-                                {{ thread|length }} message{{ 's' if thread|length > 1 else '' }}
-                            </span>
+        
+        <!-- Main Content Area -->
+        <div class="col-9 email-content">
+            {% if inbox_error %}
+                <div class="empty-state">
+                    <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                    <h5 class="text-warning">Email Connection Error</h5>
+                    <p class="text-muted">{{ inbox_error }}</p>
+                    <div class="mt-3">
+                        <small class="text-muted">
+                            To fix this:
+                            <br>• Enable IMAP access in your email provider settings
+                            <br>• Contact your email administrator if needed
+                        </small>
+                    </div>
+                </div>
+            {% else %}
+                <div class="tab-content h-100" id="emailTabContent">
+                    <!-- Inbox Tab -->
+                    <div class="tab-pane fade show active" id="inbox-content" role="tabpanel">
+                        <div class="p-3 border-bottom">
+                            <h5 class="mb-0">
+                                <i class="fas fa-inbox me-2 text-primary"></i>Inbox
+                                <span class="text-muted ms-2">({{ organized_threads.inbox|length }} conversations)</span>
+                            </h5>
                         </div>
-                    </button>
-                </h2>
-                <div id="collapse-{{ thread_id }}" class="accordion-collapse collapse" aria-labelledby="heading-{{ thread_id }}" data-bs-parent="#threadsAccordion">
-                    <div class="accordion-body">
-                        <ul class="list-group">
-                            {% for email in thread | reverse %}
-                                <li class="list-group-item border-0">
-                                    <div class="d-flex w-100 justify-content-between">
-                                        <div class="d-flex">
-                                            <div class="flex-shrink-0">
-                                                <div class="contact-avatar contact-avatar-sm">
-                                                    {{ email.from.split('@')[0][:1] | upper }}
+                        
+                        <div class="email-list">
+                            {% if organized_threads.inbox|length > 0 %}
+                                {% for thread in organized_threads.inbox %}
+                                    {% set latest_email = thread[-1] %}
+                                    <div class="email-item" data-bs-toggle="collapse" data-bs-target="#inbox-thread-{{ loop.index }}" aria-expanded="false">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div class="flex-grow-1">
+                                                <div class="email-subject">{{ latest_email.subject or 'No Subject' }}</div>
+                                                <div class="email-preview">
+                                                    <strong>{{ latest_email.from.split('@')[0] }}</strong> - 
+                                                    {{ (latest_email.body or '')[:100] }}{% if (latest_email.body or '')|length > 100 %}...{% endif %}
+                                                </div>
+                                                <div class="email-meta">
+                                                    {{ thread|length }} message{{ 's' if thread|length > 1 else '' }} • 
+                                                    {{ latest_email.date.strftime('%b %d, %Y at %H:%M') if latest_email.date else 'No date' }}
                                                 </div>
                                             </div>
                                             <div class="ms-3">
-                                                <h6 class="mb-0">{{ email.from }}</h6>
-                                                <small class="text-muted">to {{ email.to }}</small>
+                                                <i class="fas fa-chevron-down text-muted"></i>
                                             </div>
                                         </div>
-                                        <small class="text-muted">{{ email.date.strftime('%b %d, %H:%M') if email.date else '' }}</small>
-                                    </div>
-                                    <div class="mt-3 ps-3">
-                                        <p style="white-space: pre-wrap; font-size: 0.9rem;">{{ email.body }}</p>
-                                        {% if loop.last %}
-                                            <div class="mt-3">
-                                                <button class="btn btn-sm btn-primary followup-btn" 
-                                                        data-recipient="{{ email.to }}" 
-                                                        data-subject="{{ latest_email.subject }}" 
-                                                        data-from="{{ email.from }}">
-                                                    <i class="fas fa-reply me-1"></i>Compose Follow-up
-                                                </button>
+                                        
+                                        <!-- Expandable Thread Content -->
+                                        <div class="collapse mt-3" id="inbox-thread-{{ loop.index }}">
+                                            <div class="border-top pt-3">
+                                                {% for email in thread | reverse %}
+                                                    <div class="mb-3 p-3 bg-light rounded">
+                                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                                            <div class="d-flex align-items-center">
+                                                                <div class="contact-avatar contact-avatar-sm me-2">
+                                                                    {{ email.from.split('@')[0][:1] | upper }}
+                                                                </div>
+                                                                <div>
+                                                                    <div class="fw-semibold">{{ email.from }}</div>
+                                                                    <small class="text-muted">to {{ email.to }}</small>
+                                                                </div>
+                                                            </div>
+                                                            <small class="text-muted">{{ email.date.strftime('%b %d, %H:%M') if email.date else '' }}</small>
+                                                        </div>
+                                                        <div class="email-body">
+                                                            <p style="white-space: pre-wrap; font-size: 0.9rem; margin-bottom: 0;">{{ email.body }}</p>
+                                                        </div>
+                                                        {% if loop.last %}
+                                                            <div class="mt-3">
+                                                                <button class="btn btn-sm btn-primary followup-btn" 
+                                                                        data-recipient="{{ email.to }}" 
+                                                                        data-subject="{{ latest_email.subject }}" 
+                                                                        data-from="{{ email.from }}">
+                                                                    <i class="fas fa-reply me-1"></i>Compose Follow-up
+                                                                </button>
+                                                            </div>
+                                                        {% endif %}
+                                                    </div>
+                                                {% endfor %}
                                             </div>
-                                        {% endif %}
+                                        </div>
                                     </div>
-                                    {% if not loop.last %}
-                                        <hr class="my-3">
-                                    {% endif %}
-                                </li>
-                            {% endfor %}
-                        </ul>
+                                {% endfor %}
+                            {% else %}
+                                <div class="empty-state">
+                                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                                    <h5 class="text-muted">No messages in Inbox</h5>
+                                    <p>Received emails will appear here.</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Sent Tab -->
+                    <div class="tab-pane fade" id="sent-content" role="tabpanel">
+                        <div class="p-3 border-bottom">
+                            <h5 class="mb-0">
+                                <i class="fas fa-paper-plane me-2 text-success"></i>Sent
+                                <span class="text-muted ms-2">({{ organized_threads.sent|length }} conversations)</span>
+                            </h5>
+                        </div>
+                        
+                        <div class="email-list">
+                            {% if organized_threads.sent|length > 0 %}
+                                {% for thread in organized_threads.sent %}
+                                    {% set latest_email = thread[-1] %}
+                                    <div class="email-item" data-bs-toggle="collapse" data-bs-target="#sent-thread-{{ loop.index }}" aria-expanded="false">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div class="flex-grow-1">
+                                                <div class="email-subject">{{ latest_email.subject or 'No Subject' }}</div>
+                                                <div class="email-preview">
+                                                    <strong>To: {{ latest_email.to.split('@')[0] }}</strong> - 
+                                                    {{ (latest_email.body or '')[:100] }}{% if (latest_email.body or '')|length > 100 %}...{% endif %}
+                                                </div>
+                                                <div class="email-meta">
+                                                    {{ thread|length }} message{{ 's' if thread|length > 1 else '' }} • 
+                                                    {{ latest_email.date.strftime('%b %d, %Y at %H:%M') if latest_email.date else 'No date' }}
+                                                </div>
+                                            </div>
+                                            <div class="ms-3">
+                                                <i class="fas fa-chevron-down text-muted"></i>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Expandable Thread Content -->
+                                        <div class="collapse mt-3" id="sent-thread-{{ loop.index }}">
+                                            <div class="border-top pt-3">
+                                                {% for email in thread | reverse %}
+                                                    <div class="mb-3 p-3 bg-light rounded">
+                                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                                            <div class="d-flex align-items-center">
+                                                                <div class="contact-avatar contact-avatar-sm me-2">
+                                                                    {{ email.from.split('@')[0][:1] | upper }}
+                                                                </div>
+                                                                <div>
+                                                                    <div class="fw-semibold">{{ email.from }}</div>
+                                                                    <small class="text-muted">to {{ email.to }}</small>
+                                                                </div>
+                                                            </div>
+                                                            <small class="text-muted">{{ email.date.strftime('%b %d, %H:%M') if email.date else '' }}</small>
+                                                        </div>
+                                                        <div class="email-body">
+                                                            <p style="white-space: pre-wrap; font-size: 0.9rem; margin-bottom: 0;">{{ email.body }}</p>
+                                                        </div>
+                                                        {% if loop.last %}
+                                                            <div class="mt-3">
+                                                                <button class="btn btn-sm btn-primary followup-btn" 
+                                                                        data-recipient="{{ email.to }}" 
+                                                                        data-subject="{{ latest_email.subject }}" 
+                                                                        data-from="{{ email.from }}">
+                                                                    <i class="fas fa-reply me-1"></i>Compose Follow-up
+                                                                </button>
+                                                            </div>
+                                                        {% endif %}
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="empty-state">
+                                    <i class="fas fa-paper-plane fa-3x text-muted mb-3"></i>
+                                    <h5 class="text-muted">No sent messages</h5>
+                                    <p>Emails you send will appear here.</p>
+                                </div>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
-            </div>
-        {% endfor %}
-        
-    {% else %}
-        <div class="text-center p-5">
-            <i class="fas fa-envelope-open-text fa-3x text-muted mb-3"></i>
-            <h5 class="text-muted">Your inbox is empty.</h5>
-            <p>Sent and received emails will appear here as conversations.</p>
+            {% endif %}
         </div>
-    {% endif %}
+    </div>
 </div>
 
 <!-- Move modal OUTSIDE the accordion structure to avoid conflicts -->
@@ -269,7 +391,6 @@ document.addEventListener('DOMContentLoaded', function() {
     cursor: pointer;
 }
 
-/* Disable any potential hover-to-click behavior */
 .followup-btn:focus {
     outline: 2px solid #0d6efd;
     outline-offset: 2px;
@@ -320,4 +441,4 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         </div>
     </div>
-</div> 
+</div>
