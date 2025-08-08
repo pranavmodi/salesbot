@@ -227,7 +227,9 @@ def _send_threaded_followup_email(recipient: str, subject: str, body: str, origi
         msg["To"] = recipient
         msg["Message-ID"] = make_msgid()
         
-        # Set threading headers if we have the original message ID
+        # Set threading headers for better email client compatibility
+        # Some email clients also use subject-based threading as a fallback
+        
         if original_message_id and original_message_id.strip():
             # Ensure proper Message-ID format (should be enclosed in angle brackets)
             clean_msg_id = original_message_id.strip()
@@ -241,6 +243,14 @@ def _send_threaded_followup_email(recipient: str, subject: str, body: str, origi
             current_app.logger.info(f"Setting threading headers - In-Reply-To: {clean_msg_id}, References: {clean_msg_id}")
         else:
             current_app.logger.warning(f"No valid Message-ID provided for threading. original_message_id='{original_message_id}'")
+            
+        # Additional headers for better threading compatibility
+        # Some email clients use Thread-Topic and Thread-Index for threading
+        base_subject = clean_subject  # Use the clean subject without "Re:"
+        msg["Thread-Topic"] = base_subject
+        
+        # Add a custom header to help identify this as a follow-up
+        msg["X-Original-Subject"] = base_subject
         
         # Set content - check if body contains HTML
         if '<a href=' in body or '<html>' in body.lower() or '<img' in body.lower():
@@ -472,7 +482,7 @@ def generate_followup_draft():
             return jsonify({'success': False, 'error': 'OpenAI API key not configured'}), 500
         
         # Prepare the prompt for follow-up generation
-        prompt = f"""You are a professional sales assistant. Generate a polite, concise follow-up email based on the context below.
+        prompt = f"""You are a thoughtful sales assistant who writes engaging follow-up emails. Generate a concise, subtly humorous but respectful follow-up email based on the context below.
 
 CONTEXT:
 - Recipient: {recipient}
@@ -480,13 +490,15 @@ CONTEXT:
 - Previous Email Context: {original_context[:1000] if original_context else 'No previous context available'}
 
 REQUIREMENTS:
-- Write a polite, professional follow-up email
-- Keep it concise (2-3 short paragraphs maximum)
-- Reference the previous communication appropriately
-- Include a gentle call-to-action
-- Use a warm but professional tone
-- Don't be pushy or aggressive
-- Make it sound natural and human
+- Write a super short follow-up email (1-2 sentences ONLY)
+- Use subtle, gentle humor that's warm and professional
+- Be conversational and relatable, not corporate-speak
+- Include a gentle nudge/call-to-action
+- Sound human and authentic, not robotic
+- Reference the previous communication naturally if possible
+- Don't be pushy or desperate
+- Keep it extremely short and punchy
+- ALWAYS end with a P.S. section that mentions if they don't want to hear from me, just mention why (keep this part straightforward and respectful)
 
 Generate only the email body text, no subject line or signatures."""
 

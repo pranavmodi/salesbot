@@ -300,7 +300,8 @@
                                                                         data-subject="{{ latest_email.subject }}" 
                                                                         data-from="{{ email.from }}"
                                                                         data-original-body="{{ email.body }}"
-                                                                        data-message-id="{{ email.message_id }}">
+                                                                        data-message-id="{{ email.message_id }}"
+                                                                        title="Message-ID: {{ email.message_id or 'None' }}">
                                                                     <i class="fas fa-reply me-1"></i>Compose Follow-up
                                                                 </button>
                                                             </div>
@@ -376,7 +377,8 @@
                                                                         data-subject="{{ latest_email.subject }}" 
                                                                         data-from="{{ email.from }}"
                                                                         data-original-body="{{ email.body }}"
-                                                                        data-message-id="{{ email.message_id }}">
+                                                                        data-message-id="{{ email.message_id }}"
+                                                                        title="Message-ID: {{ email.message_id or 'None' }}">
                                                                     <i class="fas fa-reply me-1"></i>Compose Follow-up
                                                                 </button>
                                                             </div>
