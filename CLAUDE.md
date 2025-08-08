@@ -6,6 +6,8 @@ This is a sales automation project which sends out cold emails to prospects and 
 
 when running python scripts use the python interpreter from the venv salesbot/bin/activate directly, always
 
+## OpenAI Model Usage
+ALWAYS use GPT-4o model for all OpenAI API calls. Never use GPT-3.5-turbo.
 
 ## Dependency Management Rules
 When installing new Python packages or system libraries:

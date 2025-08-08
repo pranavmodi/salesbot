@@ -198,6 +198,96 @@ def _organize_threads_by_folder(threads):
     
     return organized
 
+def _send_threaded_followup_email(recipient: str, subject: str, body: str, original_message_id: str = None) -> bool:
+    """Send a threaded follow-up email that appears as a reply in email clients."""
+    try:
+        from app.utils.email_config import email_config
+        from email.message import EmailMessage
+        from email.utils import make_msgid
+        import smtplib
+        import ssl
+        
+        # Get default account
+        account = email_config.get_default_account()
+        if not account:
+            current_app.logger.error("No default email account available")
+            return False
+        
+        # Create email message
+        msg = EmailMessage()
+        
+        # Ensure proper reply subject formatting (strip existing Re: before adding it back)
+        clean_subject = subject
+        if subject.lower().startswith('re:'):
+            clean_subject = subject[3:].strip()
+        reply_subject = f"Re: {clean_subject}"
+        
+        msg["Subject"] = reply_subject
+        msg["From"] = account.email
+        msg["To"] = recipient
+        msg["Message-ID"] = make_msgid()
+        
+        # Set threading headers if we have the original message ID
+        if original_message_id and original_message_id.strip():
+            # Ensure proper Message-ID format (should be enclosed in angle brackets)
+            clean_msg_id = original_message_id.strip()
+            if not clean_msg_id.startswith('<'):
+                clean_msg_id = f"<{clean_msg_id}>"
+            if not clean_msg_id.endswith('>'):
+                clean_msg_id = f"{clean_msg_id}>"
+                
+            msg["In-Reply-To"] = clean_msg_id
+            msg["References"] = clean_msg_id
+            current_app.logger.info(f"Setting threading headers - In-Reply-To: {clean_msg_id}, References: {clean_msg_id}")
+        else:
+            current_app.logger.warning(f"No valid Message-ID provided for threading. original_message_id='{original_message_id}'")
+        
+        # Set content - check if body contains HTML
+        if '<a href=' in body or '<html>' in body.lower() or '<img' in body.lower():
+            msg.set_content(body, subtype='html')
+        else:
+            msg.set_content(body)
+        
+        # Create SSL context
+        context = ssl.create_default_context()
+        
+        # Send the email
+        if account.smtp_use_ssl:
+            with smtplib.SMTP_SSL(account.smtp_host, account.smtp_port, context=context) as server:
+                server.login(account.email, account.password)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(account.smtp_host, account.smtp_port) as server:
+                server.starttls(context=context)
+                server.login(account.email, account.password)
+                server.send_message(msg)
+        
+        current_app.logger.info(f"Threaded follow-up email sent successfully to {recipient} from {account.email}")
+        
+        # Save to email history
+        from app.models.email_history import EmailHistory
+        from datetime import datetime
+        
+        email_data = {
+            'date': datetime.now(),
+            'to': recipient,
+            'subject': reply_subject,
+            'body': body,
+            'status': 'sent',
+            'campaign_id': None,
+            'sent_via': account.email,
+            'email_type': 'followup',
+            'error_details': None
+        }
+        
+        EmailHistory.save(email_data)
+        
+        return True
+        
+    except Exception as e:
+        current_app.logger.error(f"Failed to send threaded follow-up email to {recipient}: {str(e)}")
+        return False
+
 @bp.route('/import')
 def import_contacts():
     """CSV import page."""
@@ -263,6 +353,9 @@ def send_followup():
         subject = data.get('subject')
         body = data.get('body')
         include_tracking = data.get('include_tracking', True)
+        original_message_id = data.get('original_message_id')  # For threading
+        
+        current_app.logger.info(f"Follow-up request: recipient={recipient}, subject={subject}, original_message_id={original_message_id}")
         
         if not all([recipient, subject, body]):
             return jsonify({'success': False, 'error': 'Missing required fields'}), 400
@@ -279,25 +372,33 @@ def send_followup():
             tracking_pixel = f'<img src="{request.url_root}api/track/open/{tracking_id}.png" width="1" height="1" style="display:none;" />'
             email_body = f"{body}\n\n{tracking_pixel}"
         
-        # Send the email
-        success = email_service.send_email(
-            to_email=recipient,
+        # Send the threaded follow-up email
+        success = _send_threaded_followup_email(
+            recipient=recipient,
             subject=subject,
             body=email_body,
-            tracking_id=tracking_id
+            original_message_id=original_message_id
         )
         
         if success:
-            # Save to email history
-            email_history = EmailHistory(
-                to=recipient,
-                subject=subject,
-                body=body,
-                status='Success',
-                sent_at=datetime.now(),
-                tracking_id=tracking_id
-            )
-            email_history.save()
+            # Save tracking ID if provided (EmailService already saves basic email history)
+            if include_tracking and tracking_id:
+                try:
+                    from app.database import get_shared_engine
+                    
+                    engine = get_shared_engine()
+                    with engine.connect() as conn:
+                        with conn.begin():
+                            # Save tracking information
+                            conn.execute(text("""
+                                INSERT INTO email_tracking (tracking_id, recipient_email, sent_at)
+                                VALUES (:tracking_id, :recipient_email, CURRENT_TIMESTAMP)
+                            """), {
+                                'tracking_id': tracking_id,
+                                'recipient_email': recipient
+                            })
+                except Exception as e:
+                    current_app.logger.warning(f"Failed to save tracking data: {e}")
             
             current_app.logger.info(f"Follow-up email sent successfully to {recipient}")
             return jsonify({'success': True, 'message': 'Follow-up email sent successfully'})
@@ -364,8 +465,10 @@ def generate_followup_draft():
             return jsonify({'success': False, 'error': 'Missing required fields'}), 400
         
         # Set up OpenAI client
-        openai.api_key = os.getenv('OPENAI_API_KEY')
-        if not openai.api_key:
+        from openai import OpenAI
+        client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        
+        if not os.getenv('OPENAI_API_KEY'):
             return jsonify({'success': False, 'error': 'OpenAI API key not configured'}), 500
         
         # Prepare the prompt for follow-up generation
@@ -388,8 +491,8 @@ REQUIREMENTS:
 Generate only the email body text, no subject line or signatures."""
 
         # Call OpenAI API
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+        response = client.chat.completions.create(
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": "You are a professional email writing assistant specializing in sales follow-ups."},
                 {"role": "user", "content": prompt}

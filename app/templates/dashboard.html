@@ -331,15 +331,31 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- Follow-up Email Modal functionality -->
 <script>
-// Global modal instance to prevent recreation
+// Global modal instance and context storage
 let followUpModalInstance = null;
+let currentEmailContext = {};
 
-function composeFollowUp(recipient, originalSubject, originalFrom) {
-    console.log('composeFollowUp called with:', { recipient, originalSubject, originalFrom });
+function composeFollowUp(recipient, originalSubject, originalFrom, originalEmailBody = '', messageId = '') {
+    console.log('composeFollowUp called with:', { recipient, originalSubject, originalFrom, messageId });
+    
+    // Store context for AI draft generation and threading
+    currentEmailContext = {
+        recipient: recipient,
+        subject: originalSubject,
+        from: originalFrom,
+        originalBody: originalEmailBody,
+        messageId: messageId
+    };
     
     // Set modal values immediately
     document.getElementById('followUpRecipient').value = recipient;
-    document.getElementById('followUpSubject').value = 'Re: ' + originalSubject;
+    
+    // Only add "Re:" if it's not already there
+    let replySubject = originalSubject;
+    if (!originalSubject.toLowerCase().startsWith('re:')) {
+        replySubject = 'Re: ' + originalSubject;
+    }
+    document.getElementById('followUpSubject').value = replySubject;
     document.getElementById('followUpBody').value = '';
     
     // Create modal instance only once
@@ -375,9 +391,11 @@ document.addEventListener('DOMContentLoaded', function() {
             const recipient = followupBtn.getAttribute('data-recipient');
             const subject = followupBtn.getAttribute('data-subject');
             const from = followupBtn.getAttribute('data-from');
+            const originalBody = followupBtn.getAttribute('data-original-body') || '';
+            const messageId = followupBtn.getAttribute('data-message-id') || '';
             
             // Call the compose function
-            composeFollowUp(recipient, subject, from);
+            composeFollowUp(recipient, subject, from, originalBody, messageId);
             
             // Remove processing flag after a short delay
             setTimeout(() => {
@@ -385,6 +403,52 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 2000);
         }
     });
+
+    // Generate AI Draft functionality
+    const generateDraftBtn = document.getElementById('generateDraftBtn');
+    if (generateDraftBtn) {
+        generateDraftBtn.addEventListener('click', function() {
+            console.log('Generate AI Draft clicked');
+            
+            // Disable button and show loading state
+            generateDraftBtn.disabled = true;
+            const originalHTML = generateDraftBtn.innerHTML;
+            generateDraftBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Generating...';
+            
+            // Call AI draft generation API
+            fetch('/api/generate-followup-draft', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    recipient: currentEmailContext.recipient,
+                    subject: currentEmailContext.subject,
+                    original_context: currentEmailContext.originalBody || ''
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Insert the generated draft into the textarea
+                    const bodyField = document.getElementById('followUpBody');
+                    bodyField.value = data.draft;
+                    showToast('AI draft generated successfully!', 'success');
+                } else {
+                    showToast('Failed to generate draft: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error generating draft:', error);
+                showToast('Error generating draft: ' + error.message, 'error');
+            })
+            .finally(() => {
+                // Restore button state
+                generateDraftBtn.disabled = false;
+                generateDraftBtn.innerHTML = originalHTML;
+            });
+        });
+    }
 
     // Send follow-up email
     const sendBtn = document.getElementById('sendFollowUpBtn');
@@ -415,7 +479,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     recipient: recipient,
                     subject: subject,
                     body: body,
-                    include_tracking: includeTracking
+                    include_tracking: includeTracking,
+                    original_message_id: currentEmailContext.messageId || null
                 })
             })
             .then(response => response.json())
