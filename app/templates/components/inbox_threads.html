@@ -46,36 +46,81 @@
     overflow-y: auto;
 }
 
-.email-item {
-    border-bottom: 1px solid #f0f0f0;
-    padding: 16px;
+/* Compact email list styling - SCOPED to email-client-layout only */
+.email-client-layout .email-item {
+    border-bottom: 1px solid #e9ecef;
+    padding: 8px 16px;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: all 0.15s ease;
+    background: white;
 }
 
-.email-item:hover {
+.email-client-layout .email-item:hover {
     background: #f8f9fa;
+    border-left: 3px solid #0d6efd;
+    padding-left: 13px;
 }
 
-.email-item:last-child {
+.email-client-layout .email-item:last-child {
     border-bottom: none;
 }
 
-.email-subject {
-    font-weight: 600;
+.email-client-layout .email-item.expanded {
+    background: #f8f9fa;
+    border-left: 3px solid #0d6efd;
+    padding-left: 13px;
+}
+
+/* Compact row layout */
+.email-client-layout .email-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 16px;
+}
+
+.email-client-layout .email-subject {
+    font-weight: 500;
     color: #212529;
-    margin-bottom: 4px;
-}
-
-.email-preview {
-    color: #6c757d;
     font-size: 0.9rem;
-    margin-bottom: 4px;
+    margin: 0;
+    flex-grow: 1;
+    line-height: 1.2;
 }
 
-.email-meta {
-    font-size: 0.8rem;
+/* Hide preview text for compact view */
+.email-client-layout .email-preview {
+    display: none;
+}
+
+.email-client-layout .email-meta {
+    font-size: 0.75rem;
+    color: #6c757d;
+    white-space: nowrap;
+    margin-left: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.email-client-layout .thread-count {
+    background: #e9ecef;
+    color: #495057;
+    padding: 1px 5px;
+    border-radius: 8px;
+    font-size: 0.65rem;
+    font-weight: 500;
+}
+
+.email-client-layout .expand-icon {
+    margin-left: 6px;
+    transition: transform 0.2s ease;
     color: #9ca3af;
+    font-size: 0.7rem;
+}
+
+.email-client-layout .email-item[aria-expanded="true"] .expand-icon {
+    transform: rotate(180deg);
 }
 
 .empty-state {
@@ -160,20 +205,14 @@
                                 {% for thread in organized_threads.inbox %}
                                     {% set latest_email = thread[-1] %}
                                     <div class="email-item" data-bs-toggle="collapse" data-bs-target="#inbox-thread-{{ loop.index }}" aria-expanded="false">
-                                        <div class="d-flex justify-content-between align-items-start">
-                                            <div class="flex-grow-1">
-                                                <div class="email-subject">{{ latest_email.subject or 'No Subject' }}</div>
-                                                <div class="email-preview">
-                                                    <strong>{{ latest_email.from.split('@')[0] }}</strong> - 
-                                                    {{ (latest_email.body or '')[:100] }}{% if (latest_email.body or '')|length > 100 %}...{% endif %}
-                                                </div>
-                                                <div class="email-meta">
-                                                    {{ thread|length }} message{{ 's' if thread|length > 1 else '' }} • 
-                                                    {{ latest_email.date.strftime('%b %d, %Y at %H:%M') if latest_email.date else 'No date' }}
-                                                </div>
-                                            </div>
-                                            <div class="ms-3">
-                                                <i class="fas fa-chevron-down text-muted"></i>
+                                        <div class="email-row">
+                                            <div class="email-subject">{{ latest_email.subject or 'No Subject' }}</div>
+                                            <div class="email-meta">
+                                                {% if thread|length > 1 %}
+                                                    <span class="thread-count">{{ thread|length }}</span>
+                                                {% endif %}
+                                                <span>{{ latest_email.date.strftime('%b %d') if latest_email.date else 'No date' }}</span>
+                                                <i class="fas fa-chevron-down expand-icon"></i>
                                             </div>
                                         </div>
                                         
@@ -237,20 +276,14 @@
                                 {% for thread in organized_threads.sent %}
                                     {% set latest_email = thread[-1] %}
                                     <div class="email-item" data-bs-toggle="collapse" data-bs-target="#sent-thread-{{ loop.index }}" aria-expanded="false">
-                                        <div class="d-flex justify-content-between align-items-start">
-                                            <div class="flex-grow-1">
-                                                <div class="email-subject">{{ latest_email.subject or 'No Subject' }}</div>
-                                                <div class="email-preview">
-                                                    <strong>To: {{ latest_email.to.split('@')[0] }}</strong> - 
-                                                    {{ (latest_email.body or '')[:100] }}{% if (latest_email.body or '')|length > 100 %}...{% endif %}
-                                                </div>
-                                                <div class="email-meta">
-                                                    {{ thread|length }} message{{ 's' if thread|length > 1 else '' }} • 
-                                                    {{ latest_email.date.strftime('%b %d, %Y at %H:%M') if latest_email.date else 'No date' }}
-                                                </div>
-                                            </div>
-                                            <div class="ms-3">
-                                                <i class="fas fa-chevron-down text-muted"></i>
+                                        <div class="email-row">
+                                            <div class="email-subject">{{ latest_email.subject or 'No Subject' }}</div>
+                                            <div class="email-meta">
+                                                {% if thread|length > 1 %}
+                                                    <span class="thread-count">{{ thread|length }}</span>
+                                                {% endif %}
+                                                <span>{{ latest_email.date.strftime('%b %d') if latest_email.date else 'No date' }}</span>
+                                                <i class="fas fa-chevron-down expand-icon"></i>
                                             </div>
                                         </div>
                                         
@@ -305,23 +338,64 @@
     </div>
 </div>
 
-<!-- Move modal OUTSIDE the accordion structure to avoid conflicts -->
+<!-- Compact Email List JavaScript -->
 <script>
-// Move modal to body when DOM is ready to avoid accordion conflicts
 document.addEventListener('DOMContentLoaded', function() {
+    // Move modal to body to avoid conflicts
     const modal = document.getElementById('followUpModal');
     if (modal && modal.parentElement.id !== 'moved-modals-container') {
-        // Create a container at the end of body if it doesn't exist
         let container = document.getElementById('moved-modals-container');
         if (!container) {
             container = document.createElement('div');
             container.id = 'moved-modals-container';
             document.body.appendChild(container);
         }
-        
-        // Move modal to the container
         container.appendChild(modal);
-        console.log('Modal moved outside accordion to prevent conflicts');
+    }
+    
+    // Enhanced compact email list interactions - SCOPED to email-client-layout only
+    const emailClientLayout = document.querySelector('.email-client-layout');
+    if (emailClientLayout) {
+        const emailItems = emailClientLayout.querySelectorAll('.email-item');
+        
+        emailItems.forEach(item => {
+            const collapseTarget = item.getAttribute('data-bs-target');
+            const collapseElement = document.querySelector(collapseTarget);
+            
+            if (collapseElement) {
+                // Handle collapse show events
+                collapseElement.addEventListener('show.bs.collapse', function() {
+                    item.classList.add('expanded');
+                    item.setAttribute('aria-expanded', 'true');
+                });
+                
+                // Handle collapse hide events  
+                collapseElement.addEventListener('hide.bs.collapse', function() {
+                    item.classList.remove('expanded');
+                    item.setAttribute('aria-expanded', 'false');
+                });
+            }
+        });
+        
+        // Auto-close other threads when opening a new one (accordion behavior)
+        emailItems.forEach(item => {
+            item.addEventListener('click', function() {
+                const collapseTarget = this.getAttribute('data-bs-target');
+                const currentSection = this.closest('.tab-pane');
+                
+                if (currentSection) {
+                    // Close other threads in the same section
+                    const otherItems = currentSection.querySelectorAll('.email-item:not([data-bs-target="' + collapseTarget + '"])');
+                    otherItems.forEach(otherItem => {
+                        const otherTarget = otherItem.getAttribute('data-bs-target');
+                        const otherCollapse = document.querySelector(otherTarget);
+                        if (otherCollapse && otherCollapse.classList.contains('show')) {
+                            bootstrap.Collapse.getOrCreateInstance(otherCollapse).hide();
+                        }
+                    });
+                }
+            });
+        });
     }
 });
 </script>
