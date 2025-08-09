@@ -8,37 +8,39 @@
                 <small class="text-muted">Comprehensive contact information and details</small>
             </div>
             <div class="col-md-6">
-                <div class="d-flex justify-content-end align-items-center">
-                    <div class="input-group me-3" style="max-width: 300px;">
-                        <input type="text" class="form-control search-box" placeholder="Search contacts..." id="contactSearch">
-                        <button class="btn btn-outline-secondary" type="button" onclick="clearContactSearch()" title="Clear search">
+                <div class="d-flex justify-content-end align-items-center gap-2">
+                    <div class="input-group" style="max-width: 280px;">
+                        <input type="text" class="form-control form-control-sm search-box" placeholder="Search contacts..." id="contactSearch">
+                        <button class="btn btn-outline-secondary btn-sm" type="button" onclick="clearContactSearch()" title="Clear search">
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
-                    <div class="dropdown me-2">
-                        <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-filter me-2"></i>Filter
+                    <div class="btn-group" role="group">
+                        <div class="dropdown">
+                            <button class="btn btn-outline-primary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-filter me-1"></i>Filter
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="#" data-filter="all">All Contacts</a></li>
+                                <li><a class="dropdown-item" href="#" data-filter="has-phone">Has Phone</a></li>
+                                <li><a class="dropdown-item" href="#" data-filter="has-linkedin">Has LinkedIn</a></li>
+                                <li><a class="dropdown-item" href="#" data-filter="recent">Recently Added</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="#" data-filter="uncontacted">
+                                    <i class="fas fa-envelope-open me-2 text-warning"></i>Uncontacted
+                                    {% if uncontacted_count > 0 %}
+                                    <span class="badge bg-warning text-dark ms-2">{{ uncontacted_count }}</span>
+                                    {% endif %}
+                                </a></li>
+                            </ul>
+                        </div>
+                        <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addContactModal">
+                            <i class="fas fa-plus me-1"></i>Add Contact
                         </button>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="#" data-filter="all">All Contacts</a></li>
-                            <li><a class="dropdown-item" href="#" data-filter="has-phone">Has Phone</a></li>
-                            <li><a class="dropdown-item" href="#" data-filter="has-linkedin">Has LinkedIn</a></li>
-                            <li><a class="dropdown-item" href="#" data-filter="recent">Recently Added</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="#" data-filter="uncontacted">
-                                <i class="fas fa-envelope-open me-2 text-warning"></i>Uncontacted
-                                {% if uncontacted_count > 0 %}
-                                <span class="badge bg-warning text-dark ms-2">{{ uncontacted_count }}</span>
-                                {% endif %}
-                            </a></li>
-                        </ul>
+                        <a href="/import" class="btn btn-primary btn-sm">
+                            <i class="fas fa-file-upload me-1"></i>Import
+                        </a>
                     </div>
-                    <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#addContactModal">
-                        <i class="fas fa-plus me-2"></i>Add Contact
-                    </button>
-                    <a href="/import" class="btn btn-primary">
-                        <i class="fas fa-file-upload me-2"></i>Import
-                    </a>
                 </div>
             </div>
         </div>

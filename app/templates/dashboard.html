@@ -111,25 +111,27 @@
                         <small class="text-muted">Researched company information</small>
                     </div>
                     <div class="col-md-6">
-                        <div class="d-flex justify-content-end align-items-center">
-                            <div class="input-group me-3" style="max-width: 300px;">
-                                <input type="text" class="form-control search-box" placeholder="Search companies..." id="companySearch">
-                                <button class="btn btn-outline-secondary" type="button" onclick="clearCompanySearch()" title="Clear search">
+                        <div class="d-flex justify-content-end align-items-center gap-2">
+                            <div class="input-group" style="max-width: 280px;">
+                                <input type="text" class="form-control form-control-sm search-box" placeholder="Search companies..." id="companySearch">
+                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="clearCompanySearch()" title="Clear search">
                                     <i class="fas fa-times"></i>
                                 </button>
                             </div>
-                            <button class="btn btn-success me-2" id="extractCompaniesBtn" title="Extract companies from contacts">
-                                <i class="fas fa-download me-1"></i>Extract Companies
-                            </button>
-                            <button class="btn btn-warning me-2" id="researchCompaniesBtn" title="Start AI research for companies">
-                                <i class="fas fa-search me-1"></i>Research Companies
-                            </button>
-                            <button class="btn btn-danger me-2" id="cleanAllResearchBtn" title="Clean all research data from all companies">
-                                <i class="fas fa-trash me-1"></i>Clean All Research
-                            </button>
-                            <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#addCompanyModal">
-                                <i class="fas fa-plus me-1"></i>Add Company
-                            </button>
+                            <div class="btn-group" role="group">
+                                <button class="btn btn-outline-primary btn-sm" id="extractCompaniesBtn" title="Extract companies from contacts">
+                                    <i class="fas fa-download me-1"></i>Extract
+                                </button>
+                                <button class="btn btn-outline-primary btn-sm" id="researchCompaniesBtn" title="Start AI research for companies">
+                                    <i class="fas fa-search me-1"></i>Research
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm" id="cleanAllResearchBtn" title="Clean all research data from all companies">
+                                    <i class="fas fa-trash me-1"></i>Clean All
+                                </button>
+                                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addCompanyModal">
+                                    <i class="fas fa-plus me-1"></i>Add Company
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

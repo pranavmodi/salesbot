@@ -9,19 +9,21 @@
                 <small class="text-muted">Create and manage go-to-market campaigns</small>
             </div>
             <div class="col-md-6">
-                <div class="d-flex justify-content-end align-items-center">
-                    <div class="input-group me-3" style="max-width: 300px;">
-                        <input type="text" class="form-control search-box" placeholder="Search campaigns..." id="campaignSearch">
-                        <button class="btn btn-outline-secondary" type="button" onclick="clearCampaignSearch()" title="Clear search">
+                <div class="d-flex justify-content-end align-items-center gap-2">
+                    <div class="input-group" style="max-width: 280px;">
+                        <input type="text" class="form-control form-control-sm search-box" placeholder="Search campaigns..." id="campaignSearch">
+                        <button class="btn btn-outline-secondary btn-sm" type="button" onclick="clearCampaignSearch()" title="Clear search">
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
-                    <button id="deleteAllCampaigns" class="btn btn-danger me-2" onclick="deleteAllCampaigns()" title="Delete all campaigns and associated data">
-                        <i class="fas fa-trash me-1"></i>Delete All
-                    </button>
-                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createCampaignModal">
-                        <i class="fas fa-plus me-1"></i>Create Campaign
-                    </button>
+                    <div class="btn-group" role="group">
+                        <button id="deleteAllCampaigns" class="btn btn-outline-danger btn-sm" onclick="deleteAllCampaigns()" title="Delete all campaigns and associated data">
+                            <i class="fas fa-trash me-1"></i>Delete All
+                        </button>
+                        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createCampaignModal">
+                            <i class="fas fa-plus me-1"></i>Create Campaign
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -61,7 +63,7 @@
             <div class="text-center text-muted py-4">
                 <i class="fas fa-bullhorn fa-3x mb-3"></i>
                 <p>No campaigns yet. Create your first GTM campaign to get started!</p>
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createCampaignModal">
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createCampaignModal">
                     <i class="fas fa-plus me-1"></i>Create Campaign
                 </button>
             </div>
