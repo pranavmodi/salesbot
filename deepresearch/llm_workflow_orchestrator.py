@@ -61,7 +61,8 @@ class LLMWorkflowOrchestrator:
             strategic_result = self.step_2_handler.perform_strategic_analysis(company_name, step_1_results)
             
             if not strategic_result:
-                self._mark_research_failed(company_id, "Step 2 strategic analysis failed")
+                self._mark_research_failed(company_id, "Step 2 strategic analysis failed or validation failed")
+                logger.error(f"🚫 WORKFLOW STOPPED for {company_name}: Step 2 strategic analysis returned None - this indicates either generation failure or validation failure")
                 return
             
             # Extract and store AI agent recommendations (original logic)

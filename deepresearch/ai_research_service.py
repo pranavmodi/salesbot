@@ -26,8 +26,8 @@ class AIResearchService:
             api_key=os.getenv("OPENAI_API_KEY"),
             timeout=120.0  # 2 minute timeout for API calls
         )
-        self.model = os.getenv("OPENAI_MODEL", "o3")
-        logger.info("AIResearchService initialized with 2-minute timeout")
+        self.model = os.getenv("OPENAI_MODEL", "gpt-4o")  # Changed default to gpt-4o
+        logger.info(f"AIResearchService initialized with model: {self.model} (2-minute timeout)")
 
     def research_company(self, company_name: str, company_domain: str = "") -> Optional[str]:
         """Use OpenAI to research a company and return comprehensive research."""
@@ -245,6 +245,7 @@ Keep content professional, data-driven, and specific to AI agent applications. T
 Return a complete JSON response following the exact schema structure."""
 
         try:
+            logger.info(f"Calling OpenAI API for strategic recommendations using model: {self.model}")
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -261,6 +262,7 @@ Return a complete JSON response following the exact schema structure."""
                 },
                 timeout=120.0  # Explicit 2-minute timeout
             )
+            logger.info(f"OpenAI API response received, processing structured JSON")
             
             # Parse the structured JSON response
             import json
@@ -274,7 +276,9 @@ Return a complete JSON response following the exact schema structure."""
             }
             
         except Exception as e:
-            logger.error(f"Error generating strategic recommendations for {company_name}: {e}")
+            logger.error(f"❌ ERROR in generate_strategic_recommendations for {company_name}: {e}")
+            logger.error(f"❌ Exception type: {type(e).__name__}")
+            logger.error(f"❌ Exception details: {str(e)}")
             return None
         finally:
             # Force garbage collection to clean up OpenAI client resources

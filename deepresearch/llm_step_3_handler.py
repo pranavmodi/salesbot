@@ -30,14 +30,14 @@ class LLMStep3Handler:
         try:
             logger.info(f"Starting final report generation for {company_name}")
             
-            # Convert JSON string back to structured data for report rendering - identical logic
+            # Convert JSON string back to structured data for report rendering (identical to archived version)
             try:
                 strategic_data = json.loads(step_2_results)
             except (json.JSONDecodeError, TypeError):
                 # If it's not JSON, treat as legacy format
                 strategic_data = step_2_results
             
-            # Generate strategic imperatives and agent recommendations - identical to original
+            # Generate strategic imperatives and agent recommendations (identical to archived version)
             strategic_imperatives, agent_recommendations = self.ai_service.generate_strategic_imperatives_and_agent_recommendations(
                 company_name, 
                 step_1_results
@@ -105,3 +105,77 @@ class LLMStep3Handler:
         except Exception as e:
             logger.error(f"Error storing report data for {company_name}: {e}")
             return False
+    
+    def _extract_strategic_imperatives_from_json(self, strategic_data: Dict[str, Any]) -> str:
+        """Extract and format strategic imperatives from step 2 JSON."""
+        try:
+            imperatives = strategic_data.get('strategic_imperatives', [])
+            if not imperatives:
+                return "No strategic imperatives found in step 2 data."
+            
+            formatted_imperatives = []
+            for i, imperative in enumerate(imperatives, 1):
+                title = imperative.get('title', f'Imperative {i}')
+                context = imperative.get('context', '')
+                ai_opportunity = imperative.get('ai_agent_opportunity', '')
+                expected_impact = imperative.get('expected_impact', '')
+                
+                formatted_imperative = f"""**{title}**
+
+Context: {context}
+
+AI Agent Opportunity:
+{ai_opportunity}
+
+Expected Impact: {expected_impact}"""
+                
+                formatted_imperatives.append(formatted_imperative)
+            
+            result = "\n\n---\n\n".join(formatted_imperatives)
+            logger.info(f"✅ Extracted {len(imperatives)} strategic imperatives from JSON")
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Error extracting strategic imperatives from JSON: {e}")
+            return "Error extracting strategic imperatives from step 2 data."
+    
+    def _extract_agent_recommendations_from_json(self, strategic_data: Dict[str, Any]) -> str:
+        """Extract and format AI agent recommendations from step 2 JSON."""
+        try:
+            ai_recommendations = strategic_data.get('ai_agent_recommendations', {})
+            if not ai_recommendations:
+                return "No AI agent recommendations found in step 2 data."
+            
+            introduction = ai_recommendations.get('introduction', '')
+            priorities = ai_recommendations.get('priorities', [])
+            
+            formatted_recommendations = [introduction] if introduction else []
+            
+            for i, priority in enumerate(priorities, 1):
+                imperative_ref = priority.get('imperative_reference', f'Reference {i}')
+                title = priority.get('title', f'AI Agent {i}')
+                use_case = priority.get('use_case', '')
+                business_impact = priority.get('business_impact', '')
+                
+                formatted_recommendation = f"""**{title}** (Supporting: {imperative_ref})
+
+Use Case: {use_case}
+
+Business Impact: {business_impact}"""
+                
+                formatted_recommendations.append(formatted_recommendation)
+            
+            # Add business impact summary
+            expected_impact = strategic_data.get('expected_business_impact', [])
+            if expected_impact:
+                formatted_recommendations.append("**Expected Business Impact:**")
+                for impact in expected_impact:
+                    formatted_recommendations.append(f"• {impact}")
+            
+            result = "\n\n".join(formatted_recommendations)
+            logger.info(f"✅ Extracted AI recommendations with {len(priorities)} priorities from JSON")
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Error extracting AI recommendations from JSON: {e}")
+            return "Error extracting AI agent recommendations from step 2 data."

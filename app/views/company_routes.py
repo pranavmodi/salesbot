@@ -252,42 +252,57 @@ def llm_deep_research_company(company_id):
                 try:
                     llm_service = LLMDeepResearchService()
                     
-                    # Generate the deep research prompt
-                    research_prompt = llm_service.research_company_deep(
+                    # Execute the full research using the new 3-step workflow
+                    app_instance.logger.info(f"Starting complete 3-step LLM research workflow for {company.company_name} using {provider}")
+                    
+                    # Execute step 1 (deep research) using the selected provider
+                    step_1_results = llm_service.research_company_deep(
                         company.company_name, 
-                        company.company_website or ""
+                        company.company_website or "",
+                        provider=provider,
+                        company_id=company_id
                     )
                     
-                    # Store the prompt and mark as ready for LLM processing
-                    from deepresearch.database_service import DatabaseService
-                    db_service = DatabaseService()
-                    
-                    # Update company with LLM research prompt and status
-                    db_service.update_company_llm_research(
-                        company_id,
-                        prompt=research_prompt,
-                        status='prompt_ready'
-                    )
-                    
-                    app_instance.logger.info(f"LLM deep research prompt ready for {company.company_name}")
+                    if step_1_results and step_1_results != "__BACKGROUND_JOB_STARTED__":
+                        # Step 1 completed immediately, continue with workflow
+                        from deepresearch.llm_workflow_orchestrator import LLMWorkflowOrchestrator
+                        orchestrator = LLMWorkflowOrchestrator(llm_service.openai_client)
+                        
+                        # Process step 1 completion and continue to step 2 & 3
+                        orchestrator.process_step_1_completion_and_start_step_2(
+                            company_id,
+                            company.company_name,
+                            company.company_website or "",
+                            step_1_results
+                        )
+                        
+                        app_instance.logger.info(f"Successfully completed full 3-step workflow for {company.company_name}")
+                        
+                    elif step_1_results == "__BACKGROUND_JOB_STARTED__":
+                        # OpenAI background job started, workflow will continue via polling
+                        app_instance.logger.info(f"OpenAI background job started for {company.company_name}, workflow will continue automatically")
+                        
+                    else:
+                        # Step 1 failed
+                        app_instance.logger.error(f"Step 1 research failed for {company.company_name}")
                     
                 except Exception as e:
-                    app_instance.logger.error(f"Error in LLM deep research for company {company_id}: {str(e)}")
+                    app_instance.logger.error(f"Error in LLM 3-step research workflow for {company_id}: {str(e)}")
         
-        # Start the research preparation in a background thread
+        # Start the complete research workflow in a background thread
         research_thread = threading.Thread(target=run_llm_deep_research)
         research_thread.daemon = False
         research_thread.start()
         
         return jsonify({
             'success': True,
-            'message': f'LLM deep research initiated for {company.company_name}. The research prompt has been prepared and is ready for processing.',
+            'message': f'Complete 3-step LLM research workflow initiated for {company.company_name} using {provider}. This includes step 1 (research), step 2 (strategic analysis), and step 3 (report generation).',
             'company_name': company.company_name,
-            'status': 'prompt_ready',
+            'status': 'workflow_initiated',
             'force_refresh': force_refresh,
-            'research_type': 'llm_deep_research',
+            'research_type': '3_step_llm_workflow',
             'provider': provider,
-            'next_step': 'The system is ready to receive the LLM\'s deep research analysis. You can now provide the research results.'
+            'next_step': f'The complete research workflow is running in the background using {provider}. Step 2 will automatically generate structured JSON strategic analysis.'
         })
         
     except Exception as e:
@@ -344,34 +359,70 @@ def submit_llm_research_results(company_id):
         formatted_research = llm_service.format_research_for_system(research_results)
         formatted_research['research_method'] = f'{provider}_deep_research'
         
-        # Store the research results
-        db_service = DatabaseService()
-        success = db_service.store_llm_research_results(
-            company_id,
-            research_results,
-            formatted_research,
-            validation_results
-        )
+        # Store the research results in the new 3-step workflow format
+        from deepresearch.llm_workflow_orchestrator import LLMWorkflowOrchestrator
+        from deepresearch.llm_deep_research_service import LLMDeepResearchService
         
-        if success:
-            current_app.logger.info(f"Successfully stored LLM deep research results for {company.company_name}")
+        # Store step 1 results in the correct field for the new workflow
+        llm_service = LLMDeepResearchService()
+        orchestrator = LLMWorkflowOrchestrator(llm_service.openai_client)
+        
+        current_app.logger.info(f"Processing manual paste as step 1 and continuing with step 2 & 3 for {company.company_name}")
+        
+        try:
+            # Use the workflow orchestrator to process step 1 completion and start step 2
+            # This will store step 1 results and automatically continue to step 2 and 3
+            orchestrator.process_step_1_completion_and_start_step_2(
+                company_id, 
+                company.company_name, 
+                company.company_website or "",
+                research_results
+            )
+            
+            current_app.logger.info(f"Successfully processed manual paste and triggered step 2 & 3 for {company.company_name}")
             return jsonify({
                 'success': True,
-                'message': f'LLM deep research results stored successfully for {company.company_name}',
+                'message': f'Research results processed successfully for {company.company_name}. Step 2 (strategic analysis) and Step 3 (report generation) have been initiated.',
                 'company_name': company.company_name,
-                'research_method': formatted_research['research_method'],
+                'research_method': f'{provider}_deep_research',
                 'provider': provider,
                 'word_count': formatted_research['word_count'],
                 'character_count': formatted_research['character_count'],
                 'quality_score': validation_results['quality_score'],
-                'validation_status': 'passed'
+                'validation_status': 'passed',
+                'next_steps': 'Step 2 (strategic analysis) and Step 3 (report generation) are now running in the background'
             })
-        else:
-            current_app.logger.error(f"Failed to store LLM research results for {company.company_name}")
-            return jsonify({
-                'success': False,
-                'message': 'Failed to store research results in database'
-            }), 500
+            
+        except Exception as workflow_error:
+            current_app.logger.error(f"Error in workflow orchestrator for {company.company_name}: {workflow_error}")
+            
+            # Fallback: Store in old format if workflow fails
+            db_service = DatabaseService()
+            success = db_service.store_llm_research_results(
+                company_id,
+                research_results,
+                formatted_research,
+                validation_results
+            )
+            
+            if success:
+                return jsonify({
+                    'success': True,
+                    'message': f'Research results stored (legacy format) for {company.company_name}. Workflow continuation failed: {str(workflow_error)}',
+                    'company_name': company.company_name,
+                    'warning': 'Step 2 and 3 were not automatically triggered due to workflow error',
+                    'research_method': formatted_research['research_method'],
+                    'provider': provider,
+                    'word_count': formatted_research['word_count'],
+                    'character_count': formatted_research['character_count'],
+                    'quality_score': validation_results['quality_score'],
+                    'validation_status': 'passed'
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'message': f'Failed to store research results and workflow failed: {str(workflow_error)}'
+                }), 500
         
     except Exception as e:
         current_app.logger.error(f"Error processing LLM research results for company {company_id}: {str(e)}")
