@@ -317,6 +317,8 @@ class LLMReportGenerator:
             from app.models.company import Company
             from deepresearch.database_service import DatabaseService
             from sqlalchemy import text
+            # Use the canonical ReportGenerator + Jinja renderer so HTML matches the public endpoint format
+            from deepresearch.report_generator import ReportGenerator
             
             # Get company
             company = Company.get_by_id(company_id)
@@ -326,8 +328,26 @@ class LLMReportGenerator:
                     'error': f'Company with ID {company_id} not found'
                 }
             
-            # Generate HTML report
-            html_report = self.generate_html_report(company.company_name, step_3_content, provider)
+            # Prefer generating via structured template using Step 1/2 outputs to ensure exact format
+            basic_research = getattr(company, 'llm_research_step_1_basic', '') or getattr(company, 'research_step_1_basic', '')
+            strategic_analysis = getattr(company, 'llm_research_step_2_strategic', '') or getattr(company, 'research_step_2_strategic', '')
+
+            html_report: str
+            try:
+                if strategic_analysis:
+                    generator = ReportGenerator()
+                    report_bundle = generator.generate_strategic_report(
+                        company.company_name,
+                        basic_research,
+                        strategic_analysis
+                    )
+                    html_report = report_bundle.get('html_report', '')
+                else:
+                    # Fallback: render markdown-based HTML if step 2 data missing
+                    html_report = self.generate_html_report(company.company_name, step_3_content, provider)
+            except Exception as render_err:
+                logger.error(f"Primary renderer failed for company {company.id}, falling back to markdown HTML: {render_err}")
+                html_report = self.generate_html_report(company.company_name, step_3_content, provider)
             
             # Store reports in database
             db_service = DatabaseService()
