@@ -281,6 +281,7 @@
                 if (reportFormatButtons) reportFormatButtons.style.display = 'inline-block';
                 if (publishBtn) publishBtn.style.display = 'inline-block';
                 updateReportLinks();
+                checkAndToggleGeneratePdfsButton();
                 break;
             case 'failed':
                 console.log(`🚨 BUTTON STATE: Failed state - showing RESUME and START buttons for company ${currentResearchCompanyId}`);
@@ -298,6 +299,7 @@
 
         const htmlReportLink = document.getElementById('viewHtmlReportLink');
         const pdfReportLink = document.getElementById('downloadPdfReportLink');
+        const basicResearchPdfLink = document.getElementById('downloadBasicResearchPdfLink');
         const embedReportLink = document.getElementById('viewEmbedReportLink');
 
         if (htmlReportLink) {
@@ -306,9 +308,59 @@
         if (pdfReportLink) {
             pdfReportLink.href = `/api/public/reports/${currentResearchCompanyId}/pdf`;
         }
+        if (basicResearchPdfLink) {
+            basicResearchPdfLink.href = `/api/public/reports/${currentResearchCompanyId}/basic-research.pdf`;
+        }
         if (embedReportLink) {
             embedReportLink.href = `/api/public/reports/${currentResearchCompanyId}/embed`;
         }
+    }
+
+    function checkAndToggleGeneratePdfsButton() {
+        const btn = document.getElementById('generatePdfsBtn');
+        if (!btn || !currentResearchCompanyId) return;
+
+        fetch(`/api/public/reports/${currentResearchCompanyId}/info`)
+            .then(r => r.json())
+            .then(info => {
+                const missingFinal = !info.has_pdf_report;
+                const missingBasic = !info.has_basic_research_pdf;
+                btn.style.display = (missingFinal || missingBasic) ? 'block' : 'none';
+                btn.onclick = () => generatePdfs();
+            })
+            .catch(() => {
+                btn.style.display = 'block';
+                btn.onclick = () => generatePdfs();
+            });
+    }
+
+    function generatePdfs() {
+        if (!currentResearchCompanyId) return;
+        const btn = document.getElementById('generatePdfsBtn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Generating...';
+        }
+        fetch(`/api/companies/${currentResearchCompanyId}/generate-pdfs`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+            .then(r => r.json())
+            .then(res => {
+                if (!res.success) throw new Error(res.error || 'Failed to generate PDFs');
+                showSuccess('PDFs generated successfully');
+                updateReportLinks();
+                checkAndToggleGeneratePdfsButton();
+            })
+            .catch(err => {
+                showError(`Failed to generate PDFs: ${err.message}`);
+            })
+            .finally(() => {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class=\"fas fa-cogs me-2\"></i>Generate PDFs';
+                }
+            });
     }
 
     function displayProgressBar(data) {

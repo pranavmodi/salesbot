@@ -46,6 +46,8 @@ class Company:
         self.llm_research_step_3_report = data.get('llm_research_step_3_report', '')
         self.llm_markdown_report = data.get('llm_markdown_report', '')
         self.llm_html_report = data.get('llm_html_report', '')
+        self.llm_pdf_report_base64 = data.get('llm_pdf_report_base64', '')
+        self.basic_research_pdf_base64 = data.get('basic_research_pdf_base64', '')
         self.llm_research_step_status = data.get('llm_research_step_status', 'not_started')
         self.llm_research_provider = data.get('llm_research_provider', '')
         self.llm_research_started_at = data.get('llm_research_started_at')
@@ -244,7 +246,9 @@ class Company:
                            llm_research_quality_score, llm_research_updated_at,
                            llm_research_step_1_basic, llm_research_step_2_strategic, llm_research_step_3_report,
                            llm_markdown_report, llm_html_report, llm_research_step_status, llm_research_provider,
-                           llm_research_started_at, llm_research_completed_at, created_at, updated_at
+                           llm_research_started_at, llm_research_completed_at,
+                           llm_pdf_report_base64, basic_research_pdf_base64,
+                           created_at, updated_at
                     FROM companies 
                     WHERE id = :id
                 """), {"id": company_id})
@@ -281,7 +285,9 @@ class Company:
                            llm_research_quality_score, llm_research_updated_at,
                            llm_research_step_1_basic, llm_research_step_2_strategic, llm_research_step_3_report,
                            llm_markdown_report, llm_html_report, llm_research_step_status, llm_research_provider,
-                           llm_research_started_at, llm_research_completed_at, created_at, updated_at
+                           llm_research_started_at, llm_research_completed_at,
+                           llm_pdf_report_base64, basic_research_pdf_base64,
+                           created_at, updated_at
                     FROM companies 
                     WHERE LOWER(company_name) = LOWER(:company_name)
                     ORDER BY created_at DESC

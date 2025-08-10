@@ -166,13 +166,48 @@ def get_company_report_pdf(company_id: int):
         # Return PDF with proper headers for download
         response = make_response(pdf_bytes)
         response.headers['Content-Type'] = 'application/pdf'
-        response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+        # Render inline in browser
+        response.headers['Content-Disposition'] = f'inline; filename="{filename}"'
         response.headers['Content-Length'] = len(pdf_bytes)
         
         return response
         
     except Exception as e:
         logger.error(f"Error serving PDF report for company {company_id}: {e}")
+        abort(500, description="Internal server error")
+
+@api_bp.route('/public/reports/<int:company_id>/basic-research.pdf')
+def get_basic_research_pdf(company_id: int):
+    """Download Basic Research (Step 1) PDF for a company."""
+    try:
+        company = Company.get_by_id(company_id)
+        if not company:
+            abort(404, description="Company not found")
+
+        pdf_data = getattr(company, 'basic_research_pdf_base64', '')
+        if not pdf_data:
+            abort(404, description="Basic research PDF not available for this company")
+
+        import base64
+        try:
+            pdf_bytes = base64.b64decode(pdf_data)
+        except Exception as e:
+            logger.error(f"Error decoding basic research PDF for company {company_id}: {e}")
+            abort(500, description="Error processing basic research PDF")
+
+        safe_company_name = "".join(c for c in company.company_name if c.isalnum() or c in (' ', '-', '_')).strip()
+        safe_company_name = safe_company_name.replace(' ', '_')
+        filename = f"{safe_company_name}_Basic_Research.pdf"
+
+        response = make_response(pdf_bytes)
+        response.headers['Content-Type'] = 'application/pdf'
+        # Render inline in browser
+        response.headers['Content-Disposition'] = f'inline; filename="{filename}"'
+        response.headers['Content-Length'] = len(pdf_bytes)
+        return response
+    
+    except Exception as e:
+        logger.error(f"Error serving basic research PDF for company {company_id}: {e}")
         abort(500, description="Internal server error")
 
 @api_bp.route('/public/reports/<int:company_id>/embed')
@@ -295,6 +330,7 @@ def get_company_report_info(company_id: int):
             'website_url': company.website_url,
             'has_html_report': bool(getattr(company, 'html_report', '') or getattr(company, 'llm_html_report', '')),
             'has_pdf_report': bool(getattr(company, 'pdf_report_base64', '') or getattr(company, 'llm_pdf_report_base64', '')),
+            'has_basic_research_pdf': bool(getattr(company, 'basic_research_pdf_base64', '')),
             'research_status': company.research_status,
             'research_completed_at': company.research_completed_at.isoformat() if company.research_completed_at else None,
             'updated_at': company.updated_at.isoformat() if company.updated_at else None
@@ -307,6 +343,43 @@ def get_company_report_info(company_id: int):
     except Exception as e:
         logger.error(f"Error getting report info for company {company_id}: {e}")
         abort(500, description="Internal server error")
+
+@api_bp.route('/companies/<int:company_id>/generate-pdfs', methods=['POST'])
+def generate_company_pdfs(company_id: int):
+    """Generate and store PDFs for final report and basic research for a company."""
+    try:
+        company = Company.get_by_id(company_id)
+        if not company:
+            return jsonify({'success': False, 'error': 'Company not found'}), 404
+
+        # Ensure Step 3 content exists
+        step3_content = getattr(company, 'llm_research_step_3_report', '') or getattr(company, 'research_step_3_report', '')
+        if not step3_content:
+            return jsonify({'success': False, 'error': 'Step 3 report content not found; run report generation first.'}), 400
+
+        # Use LLMReportGenerator finalization to generate/store HTML and PDFs
+        from deepresearch.llm_report_generator import LLMReportGenerator
+        provider = getattr(company, 'llm_research_provider', '') or 'claude'
+        result = LLMReportGenerator().finalize_step_3_report(company_id, step3_content, provider)
+
+        if not result or not result.get('success'):
+            return jsonify({'success': False, 'error': result.get('error', 'Failed to generate PDFs')}), 500
+
+        # Re-fetch info flags for client convenience
+        refreshed = Company.get_by_id(company_id)
+        return jsonify({
+            'success': True,
+            'message': 'PDFs generated successfully',
+            'has_pdf_report': bool(getattr(refreshed, 'pdf_report_base64', '') or getattr(refreshed, 'llm_pdf_report_base64', '')),
+            'has_basic_research_pdf': bool(getattr(refreshed, 'basic_research_pdf_base64', '')),
+            'details': {
+                'llm_pdf_report_saved': result.get('llm_pdf_report_saved', False),
+                'basic_research_pdf_saved': result.get('basic_research_pdf_saved', False)
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error generating PDFs for company {company_id}: {e}")
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 @api_bp.errorhandler(404)
 def not_found(error):

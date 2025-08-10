@@ -386,6 +386,7 @@ class LLMStepByStepResearcher:
             
             # Use structured JSON generation for strategic analysis (NEW METHOD)
             logger.info(f"Using structured JSON generation for step 2 strategic analysis for {company.company_name}")
+            # ENFORCED: Always use OpenAI for Step 2 generation via AIResearchService (already OpenAI-backed)
             strategic_result_dict = ai_service.generate_strategic_recommendations(company.company_name, basic_research)
             
             if strategic_result_dict and isinstance(strategic_result_dict, dict) and 'json_string' in strategic_result_dict:
@@ -492,11 +493,12 @@ class LLMStepByStepResearcher:
             )
             
             # Execute report generation using regular completion (no web search needed)
+            # ENFORCED: Always use OpenAI for Step 3 content generation
             from deepresearch.llm_deep_research_service import LLMDeepResearchService
             llm_service = LLMDeepResearchService()
             
-            # Use regular completion for report generation (no deep research needed)
-            report_results = llm_service.execute_regular_completion(report_prompt, company.company_name, provider)
+            # Use regular completion for report generation (no deep research needed) with OpenAI provider enforced
+            report_results = llm_service.execute_regular_completion(report_prompt, company.company_name, 'openai')
             
             if not report_results:
                 return {
@@ -522,10 +524,10 @@ class LLMStepByStepResearcher:
                         'company_id': company.id
                     })
             
-            # Generate final reports using the report generator
+            # Generate final reports using the report generator (label as OpenAI)
             from deepresearch.llm_report_generator import LLMReportGenerator
             report_generator = LLMReportGenerator()
-            report_result = report_generator.finalize_step_3_report(company.id, report_results, provider)
+            report_result = report_generator.finalize_step_3_report(company.id, report_results, 'openai')
             
             if not report_result['success']:
                 logger.error(f"Failed to generate final reports for company {company.id}: {report_result.get('error', 'Unknown error')}")

@@ -333,6 +333,7 @@ class LLMReportGenerator:
             strategic_analysis = getattr(company, 'llm_research_step_2_strategic', '') or getattr(company, 'research_step_2_strategic', '')
 
             html_report: str
+            llm_pdf_report_base64: str = ''
             try:
                 if strategic_analysis:
                     generator = ReportGenerator()
@@ -342,12 +343,37 @@ class LLMReportGenerator:
                         strategic_analysis
                     )
                     html_report = report_bundle.get('html_report', '')
+                    llm_pdf_report_base64 = report_bundle.get('pdf_report_base64', '')
                 else:
                     # Fallback: render markdown-based HTML if step 2 data missing
                     html_report = self.generate_html_report(company.company_name, step_3_content, provider)
             except Exception as render_err:
                 logger.error(f"Primary renderer failed for company {company.id}, falling back to markdown HTML: {render_err}")
                 html_report = self.generate_html_report(company.company_name, step_3_content, provider)
+
+            # Generate a PDF for basic research content as a separate downloadable artifact
+            basic_research_pdf_base64: str = ''
+            try:
+                if basic_research:
+                    # Convert basic research (likely markdown/text) to simple styled HTML
+                    try:
+                        md = markdown.Markdown(extensions=['tables', 'toc', 'codehilite'])
+                        basic_html = md.convert(basic_research)
+                    except Exception:
+                        basic_html = f"<pre style='white-space: pre-wrap; line-height: 1.6;'>{basic_research}</pre>"
+
+                    basic_html_wrapped = f"""
+<!DOCTYPE html>
+<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n<title>Basic Research: {company.company_name}</title>\n<style>body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; padding: 32px; }} h1 {{ color: #0066cc; font-weight: 500; }} .content {{ margin-top: 16px; }}</style>\n</head>\n<body>\n<h1>Basic Research: <span class=\"company-name\">{company.company_name}</span></h1>\n<div class=\"content\">{basic_html}</div>\n</body>\n</html>"""
+
+                    # Use ReportRenderer to produce PDF bytes
+                    from deepresearch.report_renderer import ReportRenderer
+                    renderer = ReportRenderer()
+                    pdf_bytes = renderer._generate_pdf_from_html(basic_html_wrapped)
+                    if pdf_bytes:
+                        basic_research_pdf_base64 = renderer.get_pdf_base64(pdf_bytes)
+            except Exception as e:
+                logger.error(f"Failed generating basic research PDF for company {company.id}: {e}")
             
             # Store reports in database
             db_service = DatabaseService()
@@ -358,11 +384,15 @@ class LLMReportGenerator:
                         UPDATE companies 
                         SET llm_html_report = :html_report,
                             llm_markdown_report = :markdown_report,
+                            llm_pdf_report_base64 = COALESCE(:llm_pdf_report_base64, llm_pdf_report_base64),
+                            basic_research_pdf_base64 = COALESCE(:basic_research_pdf_base64, basic_research_pdf_base64),
                             llm_research_updated_at = CURRENT_TIMESTAMP
                         WHERE id = :company_id
                     """), {
                         'html_report': html_report,
                         'markdown_report': step_3_content,
+                        'llm_pdf_report_base64': llm_pdf_report_base64,
+                        'basic_research_pdf_base64': basic_research_pdf_base64,
                         'company_id': company_id
                     })
             
@@ -374,7 +404,9 @@ class LLMReportGenerator:
                 'company_name': company.company_name,
                 'html_report_length': len(html_report),
                 'markdown_report_length': len(step_3_content),
-                'provider': provider
+                'provider': provider,
+                'llm_pdf_report_saved': bool(llm_pdf_report_base64),
+                'basic_research_pdf_saved': bool(basic_research_pdf_base64)
             }
             
         except Exception as e:
