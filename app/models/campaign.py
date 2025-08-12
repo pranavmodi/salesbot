@@ -387,9 +387,9 @@ class Campaign:
                 contact_result = conn.execute(text("""
                     SELECT 
                         COUNT(*) as total_contacts,
-                        COUNT(CASE WHEN status = 'active' THEN 1 END) as active_contacts,
-                        COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_contacts,
-                        COUNT(CASE WHEN status = 'paused' THEN 1 END) as paused_contacts
+                        COUNT(CASE WHEN cc.status = 'active' THEN 1 END) as active_contacts,
+                        COUNT(CASE WHEN cc.status = 'completed' THEN 1 END) as completed_contacts,
+                        COUNT(CASE WHEN cc.status = 'paused' THEN 1 END) as paused_contacts
                     FROM campaign_contacts cc
                     JOIN campaigns c ON cc.campaign_id = c.id
                     WHERE cc.campaign_id = :campaign_id AND c.tenant_id = :tenant_id
