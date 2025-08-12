@@ -106,10 +106,10 @@ class DeepResearchEmailComposer:
         print(f"✅ STEP 1 COMPLETED: Research available for {company_name} (length: {len(company_research)} chars)")
         # NOTE: company_research content is passed to OpenAI for email composition but not logged by our debug statements
         
-        # STEP 2: Publish report to possibleminds.in and generate tracking URL (saved for later use)
-        print(f"🌐 STEP 2: Publishing report to possibleminds.in for company_id={company_id}")
+        # STEP 2: Publish report only for campaign execution (not draft composition)
         report_url = None
-        if company_id:
+        if company_id and campaign_id:
+            print(f"🌐 STEP 2: Publishing report to possibleminds.in for campaign execution (company_id={company_id})")
             print(f"📧 STEP 2 INFO: Campaign_id={campaign_id}, Contact={lead.get('email', '')}")
             report_url = self._get_or_publish_report_url(company_id, company_name, lead.get("email", ""), campaign_id)
             if report_url:
@@ -117,6 +117,8 @@ class DeepResearchEmailComposer:
                 print(f"🔗 STEP 2 RESULT: URL={report_url[:50]}...")
             else:
                 print(f"❌ STEP 2 FAILED: No report URL generated")
+        elif company_id and not campaign_id:
+            print(f"⏭️  STEP 2 SKIPPED: Draft composition mode - no publishing required for {company_name}")
         else:
             print(f"❌ STEP 2 FAILED: No company_id found, cannot publish report")
 

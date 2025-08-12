@@ -101,8 +101,8 @@ def index():
         netlify_publish_url=os.getenv("NETLIFY_PUBLISH_URL", "https://possibleminds.in/.netlify/functions/publish-report-persistent")
     )
 
-def _configure_email_reader_from_accounts():
-    """Configure email reader using tenant email accounts."""
+def _configure_tenant_email_reader(email_reader_instance):
+    """Configure email reader using tenant-specific email accounts."""
     try:
         email_manager = TenantEmailConfigManager()
         accounts = email_manager.get_accounts()
@@ -116,54 +116,62 @@ def _configure_email_reader_from_accounts():
             current_app.logger.warning(f"Incomplete IMAP configuration for account {account.email}")
             return False
             
-        email_reader.configure_imap(
+        email_reader_instance.configure_imap(
             host=account.imap_host,
             email=account.email, 
             password=account.password,
             port=account.imap_port
         )
-        current_app.logger.info(f"Configured email reader for {account.email}")
+        current_app.logger.info(f"Tenant email reader configured for {account.email}")
         return True
         
     except Exception as e:
-        current_app.logger.error(f"Error configuring email reader from accounts: {e}")
+        current_app.logger.error(f"Error configuring tenant email reader: {e}")
         return False
+
+def _configure_email_reader_from_accounts():
+    """Deprecated: Configure global email reader using tenant email accounts."""
+    return _configure_tenant_email_reader(email_reader)
 
 def get_inbox_threads():
     """Helper function to fetch and organize inbox threads by Sent/Inbox sections."""
-    if not email_reader.connection:
-        # Use JSON email accounts instead of environment variables
-        if not _configure_email_reader_from_accounts():
-            current_app.logger.error("Failed to configure email reader for inbox.")
-            return {'error': 'Email accounts not configured properly'}
-        if not email_reader.connect():
-            current_app.logger.error("Failed to connect to email reader for inbox.")
-            return {'error': 'Cannot connect to email server (IMAP may not be enabled)'}
+    # Always create a new EmailReaderService instance for tenant isolation
+    from app.services.email_reader_service import EmailReaderService
+    tenant_email_reader = EmailReaderService()
+    
+    # Configure with tenant-specific accounts
+    if not _configure_tenant_email_reader(tenant_email_reader):
+        current_app.logger.error("Failed to configure email reader for tenant.")
+        return {'error': 'No email accounts configured for this tenant'}
+    
+    if not tenant_email_reader.connect():
+        current_app.logger.error("Failed to connect to email reader for tenant.")
+        return {'error': 'Cannot connect to email server (IMAP may not be enabled)'}
 
     emails = []
     for folder in ['INBOX', 'Sent']:
         try:
             # Check if connection is alive, otherwise reconnect
-            status, _ = email_reader.connection.noop()
+            status, _ = tenant_email_reader.connection.noop()
             if status != 'OK':
-                email_reader.connect()
+                tenant_email_reader.connect()
 
-            email_reader.connection.select(folder, readonly=True)
-            status, message_ids = email_reader.connection.search(None, 'ALL')
+            tenant_email_reader.connection.select(folder, readonly=True)
+            status, message_ids = tenant_email_reader.connection.search(None, 'ALL')
             if status == 'OK' and message_ids[0]:
                 ids = message_ids[0].split()
                 # Fetch recent emails, e.g., last 50
                 for msg_id in ids[-50:]:
-                    email_data = email_reader._fetch_email_data(msg_id, folder)
+                    email_data = tenant_email_reader._fetch_email_data(msg_id, folder)
                     if email_data:
                         emails.append(email_data)
         except Exception as e:
             current_app.logger.warning(f"Error fetching emails from {folder}: {e}")
             # Attempt to reconnect on error
-            email_reader.connect()
+            tenant_email_reader.connect()
 
     # Group emails into threads
-    threads = email_reader.group_emails_by_thread(emails)
+    threads = tenant_email_reader.group_emails_by_thread(emails)
     
     # Organize threads by Sent vs Inbox
     organized_threads = _organize_threads_by_folder(threads)
