@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, current_app, render_template
+from flask import Blueprint, request, jsonify, current_app, render_template, g
 from datetime import datetime
 import os
 import tempfile
@@ -124,8 +124,8 @@ def update_contact(email):
                     # Check by name first
                     if company_name:
                         result = conn.execute(text("""
-                            SELECT id FROM companies WHERE LOWER(company_name) = LOWER(:company_name) LIMIT 1
-                        """), {"company_name": company_name})
+                            SELECT id FROM companies WHERE LOWER(company_name) = LOWER(:company_name) AND tenant_id = :tenant_id LIMIT 1
+                        """), {"company_name": company_name, "tenant_id": g.tenant_id})
                         row = result.fetchone()
                         if row:
                             company_id = row.id
@@ -134,8 +134,8 @@ def update_contact(email):
                     if not company_id and company_domain:
                         domain_pattern = f"%{company_domain.lower()}%"
                         result = conn.execute(text("""
-                            SELECT id FROM companies WHERE LOWER(website_url) LIKE :domain_pattern LIMIT 1
-                        """), {"domain_pattern": domain_pattern})
+                            SELECT id FROM companies WHERE LOWER(website_url) LIKE :domain_pattern AND tenant_id = :tenant_id LIMIT 1
+                        """), {"domain_pattern": domain_pattern, "tenant_id": g.tenant_id})
                         row = result.fetchone()
                         if row:
                             company_id = row.id
@@ -149,16 +149,17 @@ def update_contact(email):
                         result = conn.execute(text("""
                             INSERT INTO companies (
                                 company_name, website_url, research_status, 
-                                created_at, updated_at
+                                created_at, updated_at, tenant_id
                             )
                             VALUES (
                                 :company_name, :website_url, 'pending',
-                                CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                                CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, :tenant_id
                             )
                             RETURNING id
                         """), {
                             "company_name": fallback_name,
-                            "website_url": website_url
+                            "website_url": website_url,
+                            "tenant_id": g.tenant_id
                         })
                         company_id = result.fetchone().id
                     
@@ -169,10 +170,11 @@ def update_contact(email):
                 set_clause = ", ".join([f"{field} = :{field}" for field in update_fields.keys()])
                 update_fields['updated_at'] = datetime.now()
                 update_fields['email'] = email
+                update_fields['tenant_id'] = g.tenant_id
                 conn.execute(text(f"""
                     UPDATE contacts 
                     SET {set_clause}, updated_at = :updated_at
-                    WHERE LOWER(email) = LOWER(:email)
+                    WHERE LOWER(email) = LOWER(:email) AND tenant_id = :tenant_id
                 """), update_fields)
  
         current_app.logger.info(f"Updated contact: {email}")
@@ -304,8 +306,9 @@ def add_contact():
                         result = conn.execute(text("""
                             SELECT id FROM companies
                             WHERE LOWER(company_name) = LOWER(:company_name)
+                            AND tenant_id = :tenant_id
                             LIMIT 1
-                        """), {"company_name": contact_company_name})
+                        """), {"company_name": contact_company_name, "tenant_id": g.tenant_id})
                         row = result.fetchone()
                         if row:
                             final_company_id = row.id
@@ -316,8 +319,9 @@ def add_contact():
                         result = conn.execute(text("""
                             SELECT id FROM companies
                             WHERE LOWER(website_url) LIKE :domain_pattern
+                            AND tenant_id = :tenant_id
                             LIMIT 1
-                        """), {"domain_pattern": domain_pattern})
+                        """), {"domain_pattern": domain_pattern, "tenant_id": g.tenant_id})
                         row = result.fetchone()
                         if row:
                             final_company_id = row.id
@@ -332,16 +336,17 @@ def add_contact():
                         result = conn.execute(text("""
                             INSERT INTO companies (
                                 company_name, website_url, research_status, 
-                                created_at, updated_at
+                                created_at, updated_at, tenant_id
                             )
                             VALUES (
                                 :company_name, :website_url, 'pending',
-                                CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                                CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, :tenant_id
                             )
                             RETURNING id
                         """), {
                             "company_name": fallback_name,
-                            "website_url": website_url
+                            "website_url": website_url,
+                            "tenant_id": g.tenant_id
                         })
                         final_company_id = result.fetchone().id
 
@@ -350,11 +355,11 @@ def add_contact():
                     INSERT INTO contacts (
                         email, first_name, last_name, full_name, job_title, 
                         company_name, company_domain, linkedin_profile, location, 
-                        phone, linkedin_message, company_id, source_files, all_data
+                        phone, linkedin_message, company_id, source_files, all_data, tenant_id
                     ) VALUES (
                         :email, :first_name, :last_name, :full_name, :job_title,
                         :company_name, :company_domain, :linkedin_profile, :location,
-                        :phone, :linkedin_message, :company_id, :source_files, :all_data
+                        :phone, :linkedin_message, :company_id, :source_files, :all_data, :tenant_id
                     )
                 """), {
                     **contact_data,
@@ -364,7 +369,8 @@ def add_contact():
                         'source': 'manual_entry',
                         'created_by': 'user',
                         'entry_date': datetime.now().isoformat()
-                    })
+                    }),
+                    'tenant_id': g.tenant_id
                 })
                 # -------------------------------------------------------------
         

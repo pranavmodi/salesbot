@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import List, Dict, Optional
 from flask import current_app
+from app.tenant import current_tenant_id
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 import os
@@ -76,6 +77,10 @@ class Company:
         engine = cls._get_db_engine()
         if not engine:
             return companies
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in load_all; returning empty list")
+            return companies
             
         try:
             with engine.connect() as conn:
@@ -97,8 +102,9 @@ class Company:
                            COALESCE(created_at, CURRENT_TIMESTAMP) as created_at, 
                            COALESCE(updated_at, CURRENT_TIMESTAMP) as updated_at
                     FROM companies 
+                    WHERE tenant_id = :tenant_id
                     ORDER BY created_at DESC
-                """))
+                """), {"tenant_id": tenant_id})
                 
                 for row in result:
                     company_data = dict(row._mapping)
@@ -126,11 +132,21 @@ class Company:
                 'per_page': per_page,
                 'total_companies': 0
             }
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in get_paginated; returning empty page")
+            return {
+                'companies': [],
+                'current_page': page,
+                'total_pages': 0,
+                'per_page': per_page,
+                'total_companies': 0
+            }
             
         try:
             with engine.connect() as conn:
                 # Get total count
-                count_result = conn.execute(text("SELECT COUNT(*) FROM companies"))
+                count_result = conn.execute(text("SELECT COUNT(*) FROM companies WHERE tenant_id = :tenant_id"), {"tenant_id": tenant_id})
                 total = count_result.scalar()
                 
                 # Get paginated results
@@ -170,9 +186,10 @@ class Company:
                            COALESCE(created_at, CURRENT_TIMESTAMP) as created_at, 
                            COALESCE(updated_at, CURRENT_TIMESTAMP) as updated_at
                     FROM companies 
+                    WHERE tenant_id = :tenant_id
                     ORDER BY created_at DESC
                     LIMIT :limit OFFSET :offset
-                """), {"limit": per_page, "offset": offset})
+                """), {"limit": per_page, "offset": offset, "tenant_id": tenant_id})
                 
                 for row in result:
                     company_data = dict(row._mapping)
@@ -200,6 +217,10 @@ class Company:
         engine = cls._get_db_engine()
         if not engine:
             return companies
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in search; returning empty list")
+            return companies
             
         try:
             with engine.connect() as conn:
@@ -210,11 +231,12 @@ class Company:
                            research_step_3_report, research_started_at, research_completed_at, 
                            research_error, created_at, updated_at
                     FROM companies 
-                    WHERE company_name ILIKE :search OR website_url ILIKE :search 
-                       OR company_research ILIKE :search
+                    WHERE tenant_id = :tenant_id AND (
+                       company_name ILIKE :search OR website_url ILIKE :search 
+                       OR company_research ILIKE :search)
                     ORDER BY created_at DESC
                     LIMIT 50
-                """), {"search": f"%{query}%"})
+                """), {"search": f"%{query}%", "tenant_id": tenant_id})
                 
                 for row in result:
                     company_data = dict(row._mapping)
@@ -233,6 +255,10 @@ class Company:
         engine = cls._get_db_engine()
         if not engine:
             return None
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in get_by_id; returning None")
+            return None
             
         try:
             with engine.connect() as conn:
@@ -250,8 +276,8 @@ class Company:
                            llm_pdf_report_base64, basic_research_pdf_base64,
                            created_at, updated_at
                     FROM companies 
-                    WHERE id = :id
-                """), {"id": company_id})
+                    WHERE id = :id AND tenant_id = :tenant_id
+                """), {"id": company_id, "tenant_id": tenant_id})
                 
                 row = result.fetchone()
                 if row:
@@ -272,6 +298,10 @@ class Company:
         engine = cls._get_db_engine()
         if not engine:
             return companies
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in get_companies_by_name; returning empty list")
+            return companies
             
         try:
             with engine.connect() as conn:
@@ -289,9 +319,9 @@ class Company:
                            llm_pdf_report_base64, basic_research_pdf_base64,
                            created_at, updated_at
                     FROM companies 
-                    WHERE LOWER(company_name) = LOWER(:company_name)
+                    WHERE tenant_id = :tenant_id AND LOWER(company_name) = LOWER(:company_name)
                     ORDER BY created_at DESC
-                """), {"company_name": company_name})
+                """), {"company_name": company_name, "tenant_id": tenant_id})
                 
                 for row in result:
                     company_data = dict(row._mapping)
@@ -311,16 +341,20 @@ class Company:
         engine = cls._get_db_engine()
         if not engine:
             return companies
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in get_companies_with_reports; returning empty list")
+            return companies
             
         try:
             with engine.connect() as conn:
                 result = conn.execute(text("""
                     SELECT id, company_name, website_url, created_at, updated_at
                     FROM companies 
-                    WHERE markdown_report IS NOT NULL 
+                    WHERE tenant_id = :tenant_id AND markdown_report IS NOT NULL 
                       AND markdown_report != ''
                     ORDER BY updated_at DESC
-                """))
+                """), {"tenant_id": tenant_id})
                 
                 for row in result:
                     companies.append({
@@ -345,15 +379,20 @@ class Company:
         if not engine:
             current_app.logger.error("Failed to save company: Database engine not available.")
             return False
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.error("Tenant not resolved in save; aborting")
+            return False
 
         try:
             with engine.connect() as conn:
                 with conn.begin():
                     insert_query = text("""
-                        INSERT INTO companies (company_name, website_url, company_research) 
-                        VALUES (:company_name, :website_url, :company_research)
+                        INSERT INTO companies (tenant_id, company_name, website_url, company_research) 
+                        VALUES (:tenant_id, :company_name, :website_url, :company_research)
                     """)
                     conn.execute(insert_query, {
+                        'tenant_id': tenant_id,
                         'company_name': company_data['company_name'],
                         'website_url': company_data['website_url'],
                         'company_research': company_data['company_research']
@@ -374,6 +413,10 @@ class Company:
         if not engine:
             current_app.logger.error("Failed to update company: Database engine not available.")
             return False
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.error("Tenant not resolved in update; aborting")
+            return False
 
         try:
             with engine.connect() as conn:
@@ -384,10 +427,11 @@ class Company:
                             website_url = :website_url, 
                             company_research = :company_research,
                             updated_at = CURRENT_TIMESTAMP
-                        WHERE id = :id
+                        WHERE id = :id AND tenant_id = :tenant_id
                     """)
                     result = conn.execute(update_query, {
                         'id': company_id,
+                        'tenant_id': tenant_id,
                         'company_name': company_data['company_name'],
                         'website_url': company_data['website_url'],
                         'company_research': company_data['company_research']
@@ -413,12 +457,16 @@ class Company:
         if not engine:
             current_app.logger.error("Failed to delete company: Database engine not available.")
             return False
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.error("Tenant not resolved in delete; aborting")
+            return False
 
         try:
             with engine.connect() as conn:
                 with conn.begin():
-                    delete_query = text("DELETE FROM companies WHERE id = :id")
-                    result = conn.execute(delete_query, {"id": company_id})
+                    delete_query = text("DELETE FROM companies WHERE id = :id AND tenant_id = :tenant_id")
+                    result = conn.execute(delete_query, {"id": company_id, "tenant_id": tenant_id})
                     
                     if result.rowcount == 0:
                         current_app.logger.warning(f"No company found with ID: {company_id}")
@@ -440,13 +488,17 @@ class Company:
         if not engine:
             current_app.logger.error("Failed to reset company research: Database engine not available.")
             return False
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.error("Tenant not resolved in delete_company; aborting")
+            return False
 
         try:
             with engine.connect() as conn:
                 with conn.begin():
                     # First, get company info for logging
-                    select_query = text("SELECT company_name FROM companies WHERE id = :id")
-                    result = conn.execute(select_query, {"id": company_id})
+                    select_query = text("SELECT company_name FROM companies WHERE id = :id AND tenant_id = :tenant_id")
+                    result = conn.execute(select_query, {"id": company_id, "tenant_id": tenant_id})
                     company_row = result.fetchone()
                     
                     if not company_row:
@@ -496,9 +548,9 @@ class Company:
                             
                             -- Update timestamp
                             updated_at = CURRENT_TIMESTAMP
-                        WHERE id = :id
+                        WHERE id = :id AND tenant_id = :tenant_id
                     """)
-                    result = conn.execute(reset_query, {"id": company_id})
+                    result = conn.execute(reset_query, {"id": company_id, "tenant_id": tenant_id})
                     
                     current_app.logger.critical(f"🚨 RESET COMPLETED: Successfully reset all research data for company: {company_name} (ID: {company_id}), rows affected: {result.rowcount}")
                     current_app.logger.info(f"Successfully reset all research data for company: {company_name} (ID: {company_id})")
@@ -523,6 +575,10 @@ class Company:
         if not engine:
             current_app.logger.error("Failed to update research status: Database engine not available.")
             return False
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.error("Tenant not resolved in update_research_status; aborting")
+            return False
 
         try:
             with engine.connect() as conn:
@@ -534,9 +590,9 @@ class Company:
                                 research_started_at = CURRENT_TIMESTAMP,
                                 research_error = NULL,
                                 updated_at = CURRENT_TIMESTAMP
-                            WHERE id = :id
+                            WHERE id = :id AND tenant_id = :tenant_id
                         """)
-                        conn.execute(update_query, {'id': company_id, 'status': status})
+                        conn.execute(update_query, {'id': company_id, 'tenant_id': tenant_id, 'status': status})
                     elif status == 'completed':
                         update_query = text("""
                             UPDATE companies 
@@ -544,26 +600,26 @@ class Company:
                                 research_completed_at = CURRENT_TIMESTAMP,
                                 research_error = NULL,
                                 updated_at = CURRENT_TIMESTAMP
-                            WHERE id = :id
+                            WHERE id = :id AND tenant_id = :tenant_id
                         """)
-                        conn.execute(update_query, {'id': company_id, 'status': status})
+                        conn.execute(update_query, {'id': company_id, 'tenant_id': tenant_id, 'status': status})
                     elif status == 'failed':
                         update_query = text("""
                             UPDATE companies 
                             SET research_status = :status, 
                                 research_error = :error,
                                 updated_at = CURRENT_TIMESTAMP
-                            WHERE id = :id
+                            WHERE id = :id AND tenant_id = :tenant_id
                         """)
-                        conn.execute(update_query, {'id': company_id, 'status': status, 'error': error or ''})
+                        conn.execute(update_query, {'id': company_id, 'tenant_id': tenant_id, 'status': status, 'error': error or ''})
                     else:
                         update_query = text("""
                             UPDATE companies 
                             SET research_status = :status, 
                                 updated_at = CURRENT_TIMESTAMP
-                            WHERE id = :id
+                            WHERE id = :id AND tenant_id = :tenant_id
                         """)
-                        conn.execute(update_query, {'id': company_id, 'status': status})
+                        conn.execute(update_query, {'id': company_id, 'tenant_id': tenant_id, 'status': status})
                         
             current_app.logger.info(f"Successfully updated research status to {status} for company ID: {company_id}")
             return True
@@ -580,6 +636,10 @@ class Company:
         engine = cls._get_db_engine()
         if not engine:
             current_app.logger.error("Failed to update research step: Database engine not available.")
+            return False
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.error("Tenant not resolved in update_research_step; aborting")
             return False
 
         step_column_map = {
@@ -600,9 +660,9 @@ class Company:
                         UPDATE companies 
                         SET {column_name} = :content,
                             updated_at = CURRENT_TIMESTAMP
-                        WHERE id = :id
+                        WHERE id = :id AND tenant_id = :tenant_id
                     """)
-                    result = conn.execute(update_query, {'id': company_id, 'content': content})
+                    result = conn.execute(update_query, {'id': company_id, 'tenant_id': tenant_id, 'content': content})
                     
                     if result.rowcount == 0:
                         current_app.logger.warning(f"No company found with ID: {company_id}")
@@ -624,6 +684,10 @@ class Company:
         if not engine:
             current_app.logger.error("Failed to update AI recommendations: Database engine not available.")
             return False
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.error("Tenant not resolved in update_ai_agent_recommendations; aborting")
+            return False
 
         try:
             import json
@@ -633,10 +697,11 @@ class Company:
                         UPDATE companies 
                         SET ai_agent_recommendations = :recommendations,
                             updated_at = CURRENT_TIMESTAMP
-                        WHERE id = :id
+                        WHERE id = :id AND tenant_id = :tenant_id
                     """)
                     result = conn.execute(update_query, {
                         'id': company_id,
+                        'tenant_id': tenant_id,
                         'recommendations': json.dumps(recommendations)
                     })
                     
@@ -660,6 +725,10 @@ class Company:
         if not engine:
             current_app.logger.error("Failed to update full research: Database engine not available.")
             return False
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.error("Tenant not resolved in update_full_research; aborting")
+            return False
 
         try:
             with engine.connect() as conn:
@@ -675,10 +744,11 @@ class Company:
                             research_completed_at = CURRENT_TIMESTAMP,
                             research_error = NULL,
                             updated_at = CURRENT_TIMESTAMP
-                        WHERE id = :id
+                        WHERE id = :id AND tenant_id = :tenant_id
                     """)
                     result = conn.execute(update_query, {
                         'id': company_id,
+                        'tenant_id': tenant_id,
                         'basic_research': basic_research,
                         'strategic_analysis': strategic_analysis,
                         'markdown_report': markdown_report
@@ -734,6 +804,10 @@ class Company:
         engine = cls._get_db_engine()
         if not engine:
             return []
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in search_by_name; returning empty list")
+            return []
         
         try:
             with engine.connect() as conn:
@@ -742,11 +816,11 @@ class Company:
                            html_report, pdf_report_base64, strategic_imperatives, agent_recommendations,
                            ai_agent_recommendations
                     FROM companies 
-                    WHERE LOWER(company_name) LIKE LOWER(:company_name)
+                    WHERE tenant_id = :tenant_id AND LOWER(company_name) LIKE LOWER(:company_name)
                     ORDER BY company_name
                 """)
                 
-                result = conn.execute(query, {'company_name': f'%{company_name}%'})
+                result = conn.execute(query, {'company_name': f'%{company_name}%','tenant_id': tenant_id})
                 
                 companies = []
                 for row in result:

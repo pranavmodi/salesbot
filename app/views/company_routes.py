@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, g
 import os
 import subprocess
 import threading
@@ -1122,10 +1122,11 @@ def submit_manual_paste_research(company_id):
                         llm_research_provider = 'manual_paste',
                         llm_research_started_at = CURRENT_TIMESTAMP,
                         updated_at = CURRENT_TIMESTAMP
-                    WHERE id = :company_id
+                    WHERE id = :company_id AND tenant_id = :tenant_id
                 """), {
                     'content': formatted_content,
-                    'company_id': company_id
+                    'company_id': company_id,
+                    'tenant_id': g.tenant_id
                 })
         
         current_app.logger.info(f"Successfully stored manual paste research for {company.company_name}")

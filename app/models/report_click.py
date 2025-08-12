@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import List, Dict, Optional
 from flask import current_app
+from app.tenant import current_tenant_id
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 import os
@@ -56,6 +57,10 @@ class ReportClick:
         if not engine:
             current_app.logger.error("Failed to save click: Database engine not available.")
             return None
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.error("Tenant not resolved in ReportClick.save_click; aborting")
+            return None
 
         try:
             with engine.connect() as conn:
@@ -67,13 +72,13 @@ class ReportClick:
                     
                     query = text("""
                         INSERT INTO report_clicks (
-                            company_id, campaign_id, email_history_id, recipient_email, 
+                            tenant_id, company_id, campaign_id, email_history_id, recipient_email, 
                             company_slug, tracking_id, click_timestamp, ip_address, user_agent, 
                             referer, utm_source, utm_medium, utm_campaign, utm_content, utm_term,
                             device_type, browser, operating_system, country, city, session_id, 
                             custom_data, created_at, updated_at
                         ) VALUES (
-                            :company_id, :campaign_id, :email_history_id, :recipient_email,
+                            :tenant_id, :company_id, :campaign_id, :email_history_id, :recipient_email,
                             :company_slug, :tracking_id, :click_timestamp, :ip_address, :user_agent,
                             :referer, :utm_source, :utm_medium, :utm_campaign, :utm_content, :utm_term,
                             :device_type, :browser, :operating_system, :country, :city, :session_id,
@@ -82,6 +87,7 @@ class ReportClick:
                     """)
                     
                     result = conn.execute(query, {
+                        'tenant_id': tenant_id,
                         'company_id': click_data.get('company_id'),
                         'campaign_id': click_data.get('campaign_id'),
                         'email_history_id': click_data.get('email_history_id'),
@@ -126,6 +132,10 @@ class ReportClick:
         engine = cls._get_db_engine()
         if not engine:
             return []
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in ReportClick.get_campaign_clicks; returning empty list")
+            return []
 
         try:
             with engine.connect() as conn:
@@ -134,11 +144,11 @@ class ReportClick:
                     FROM report_clicks rc
                     LEFT JOIN companies c ON rc.company_id = c.id
                     LEFT JOIN email_history eh ON rc.email_history_id = eh.id
-                    WHERE rc.campaign_id = :campaign_id
+                    WHERE rc.campaign_id = :campaign_id AND rc.tenant_id = :tenant_id
                     ORDER BY rc.click_timestamp DESC
                 """)
                 
-                result = conn.execute(query, {'campaign_id': campaign_id})
+                result = conn.execute(query, {'campaign_id': campaign_id, 'tenant_id': tenant_id})
                 
                 clicks = []
                 for row in result:
@@ -165,6 +175,10 @@ class ReportClick:
         engine = cls._get_db_engine()
         if not engine:
             return {}
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in ReportClick.get_click_analytics; returning empty dict")
+            return {}
 
         try:
             with engine.connect() as conn:
@@ -175,6 +189,8 @@ class ReportClick:
                 if campaign_id:
                     where_conditions.append("campaign_id = :campaign_id")
                     params['campaign_id'] = campaign_id
+                where_conditions.append("tenant_id = :tenant_id")
+                params['tenant_id'] = tenant_id
                 
                 if date_range:
                     if date_range.get('start_date'):
@@ -244,6 +260,10 @@ class ReportClick:
         engine = cls._get_db_engine()
         if not engine:
             return {}
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in ReportClick.get_company_click_stats; returning empty dict")
+            return {}
 
         try:
             with engine.connect() as conn:
@@ -256,10 +276,10 @@ class ReportClick:
                         MAX(click_timestamp) as last_click,
                         COUNT(DISTINCT DATE(click_timestamp)) as active_days
                     FROM report_clicks
-                    WHERE company_id = :company_id
+                    WHERE tenant_id = :tenant_id AND company_id = :company_id
                 """)
                 
-                result = conn.execute(query, {'company_id': company_id})
+                result = conn.execute(query, {'company_id': company_id, 'tenant_id': tenant_id})
                 row = result.fetchone()
                 
                 if row:

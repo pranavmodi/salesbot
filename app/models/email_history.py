@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import List, Dict, Optional
 from flask import current_app
+from app.tenant import current_tenant_id
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 import logging
@@ -39,12 +40,17 @@ class EmailHistory:
         engine = cls.get_db_engine()
         if not engine:
             return []
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in EmailHistory.load_all; returning empty list")
+            return []
             
         history = []
         try:
             with engine.connect() as connection:
                 result = connection.execute(
-                    text('SELECT id, date, "to", subject, body, status, campaign_id, sent_via, email_type, error_details FROM email_history ORDER BY date DESC')
+                    text('SELECT id, date, "to", subject, body, status, campaign_id, sent_via, email_type, error_details FROM email_history WHERE tenant_id = :tenant_id ORDER BY date DESC'),
+                    {"tenant_id": tenant_id}
                 )
                 for row in result:
                     history.append(cls(dict(row._mapping)))
@@ -62,6 +68,10 @@ class EmailHistory:
         if not engine:
             current_app.logger.error("Failed to save to history: Database engine not available.")
             return False
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.error("Tenant not resolved in EmailHistory.save; aborting")
+            return False
 
         try:
             # Ensure date is in correct format
@@ -71,10 +81,11 @@ class EmailHistory:
             with engine.connect() as connection:
                 with connection.begin():
                     insert_query = text(
-                        'INSERT INTO email_history (date, "to", subject, body, status, campaign_id, sent_via, email_type, error_details) '
-                        'VALUES (:date, :to, :subject, :body, :status, :campaign_id, :sent_via, :email_type, :error_details)'
+                        'INSERT INTO email_history (tenant_id, date, "to", subject, body, status, campaign_id, sent_via, email_type, error_details) '
+                        'VALUES (:tenant_id, :date, :to, :subject, :body, :status, :campaign_id, :sent_via, :email_type, :error_details)'
                     )
                     connection.execute(insert_query, {
+                        'tenant_id': tenant_id,
                         'date': email_data['date'],
                         'to': email_data['to'],
                         'subject': email_data['subject'],
@@ -107,18 +118,22 @@ class EmailHistory:
         engine = cls.get_db_engine()
         if not engine:
             return []
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in EmailHistory.get_by_campaign_id; returning empty list")
+            return []
             
         history = []
         try:
             with engine.connect() as connection:
                 if limit:
-                    query_str = 'SELECT id, date, "to", subject, body, status, campaign_id, sent_via, email_type, error_details FROM email_history WHERE campaign_id = :campaign_id ORDER BY date DESC LIMIT :limit'
+                    query_str = 'SELECT id, date, "to", subject, body, status, campaign_id, sent_via, email_type, error_details FROM email_history WHERE tenant_id = :tenant_id AND campaign_id = :campaign_id ORDER BY date DESC LIMIT :limit'
                     result = connection.execute(text(query_str),
-                                                {"campaign_id": campaign_id, "limit": limit})
+                                                {"campaign_id": campaign_id, "limit": limit, "tenant_id": tenant_id})
                 else:
-                    query_str = 'SELECT id, date, "to", subject, body, status, campaign_id, sent_via, email_type, error_details FROM email_history WHERE campaign_id = :campaign_id ORDER BY date DESC'
+                    query_str = 'SELECT id, date, "to", subject, body, status, campaign_id, sent_via, email_type, error_details FROM email_history WHERE tenant_id = :tenant_id AND campaign_id = :campaign_id ORDER BY date DESC'
                     result = connection.execute(text(query_str),
-                                                {"campaign_id": campaign_id})
+                                                {"campaign_id": campaign_id, "tenant_id": tenant_id})
                 for row in result:
                     history.append(cls(dict(row._mapping)))
             current_app.logger.info(f"Loaded {len(history)} records for campaign {campaign_id}.")
@@ -183,6 +198,10 @@ class EmailHistory:
         engine = cls.get_db_engine()
         if not engine:
             return None
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in EmailHistory.get_by_recipient_and_campaign; returning None")
+            return None
         
         try:
             with engine.connect() as connection:
@@ -190,11 +209,11 @@ class EmailHistory:
                     text("""
                         SELECT id, date, "to", subject, body, status, campaign_id, sent_via, email_type, error_details 
                         FROM email_history 
-                        WHERE "to" = :recipient_email AND campaign_id = :campaign_id
+                        WHERE tenant_id = :tenant_id AND "to" = :recipient_email AND campaign_id = :campaign_id
                         ORDER BY date DESC
                         LIMIT 1
                     """),
-                    {'recipient_email': recipient_email, 'campaign_id': campaign_id}
+                    {'recipient_email': recipient_email, 'campaign_id': campaign_id, 'tenant_id': tenant_id}
                 )
                 row = result.fetchone()
                 if row:
@@ -210,6 +229,10 @@ class EmailHistory:
         engine = cls.get_db_engine()
         if not engine:
             return {}
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in EmailHistory.get_campaign_stats; returning empty dict")
+            return {}
         
         try:
             with engine.connect() as connection:
@@ -224,9 +247,9 @@ class EmailHistory:
                             MIN(date) as first_sent,
                             MAX(date) as last_sent
                         FROM email_history 
-                        WHERE campaign_id = :campaign_id
+                        WHERE tenant_id = :tenant_id AND campaign_id = :campaign_id
                     """),
-                    {'campaign_id': campaign_id}
+                    {'campaign_id': campaign_id, 'tenant_id': tenant_id}
                 )
                 row = result.fetchone()
                 if row:

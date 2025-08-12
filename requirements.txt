@@ -21,6 +21,9 @@ WeasyPrint==66.0
 # Production WSGI Server
 gunicorn==21.2.0
 
+# Auth
+Authlib==1.3.1
+
 # Note: WeasyPrint requires system dependencies
 # Railway will handle these automatically in production
 # Local development: brew install pango gdk-pixbuzz cairo glib

@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, current_app, Response, jsonify
+from flask import Blueprint, render_template, request, current_app, Response, jsonify, session, redirect, url_for, g
 import os
 import json
 import uuid
@@ -11,10 +11,12 @@ from app.models.company import Company
 from app.services.email_reader_service import email_reader, configure_email_reader
 from app.services.email_service import EmailService
 from app.utils.email_config import email_config
+from app.auth import login_required
 
 bp = Blueprint('main', __name__)
 
 @bp.route('/')
+@login_required
 def index():
     """Main CRM dashboard."""
     # Contacts Pagination
@@ -308,6 +310,15 @@ def config():
     """Email configuration page."""
     return render_template('config.html')
 
+@bp.route('/login')
+def login_page():
+    return render_template('login.html')
+
+@bp.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('main.login_page'))
+
 @bp.route('/api/track/open/<tracking_id>.png')
 def track_email_open(tracking_id):
     """Handle email open tracking pixel requests."""
@@ -323,8 +334,9 @@ def track_email_open(tracking_id):
                     SET opened_at = CURRENT_TIMESTAMP 
                     WHERE tracking_id = :tracking_id 
                     AND opened_at IS NULL
+                    AND tenant_id = :tenant_id
                     RETURNING company_id, recipient_email, campaign_id
-                """), {'tracking_id': tracking_id})
+                """), {'tracking_id': tracking_id, 'tenant_id': g.tenant_id})
                 
                 row = result.fetchone()
                 if row:
@@ -401,11 +413,12 @@ def send_followup():
                         with conn.begin():
                             # Save tracking information
                             conn.execute(text("""
-                                INSERT INTO email_tracking (tracking_id, recipient_email, sent_at)
-                                VALUES (:tracking_id, :recipient_email, CURRENT_TIMESTAMP)
+                                INSERT INTO email_tracking (tracking_id, recipient_email, sent_at, tenant_id)
+                                VALUES (:tracking_id, :recipient_email, CURRENT_TIMESTAMP, :tenant_id)
                             """), {
                                 'tracking_id': tracking_id,
-                                'recipient_email': recipient
+                                'recipient_email': recipient,
+                                'tenant_id': g.tenant_id
                             })
                 except Exception as e:
                     current_app.logger.warning(f"Failed to save tracking data: {e}")

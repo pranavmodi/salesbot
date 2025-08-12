@@ -1,5 +1,6 @@
 from typing import List, Dict, Optional
 from flask import current_app
+from app.tenant import current_tenant_id
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 import os
@@ -64,6 +65,10 @@ class Contact:
         engine = cls._get_db_engine()
         if not engine:
             return contacts
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in Contact.load_all; returning empty list")
+            return contacts
             
         try:
             with engine.connect() as conn:
@@ -72,8 +77,9 @@ class Contact:
                            company_name, company_domain, linkedin_profile, location, 
                            phone, linkedin_message, company_id, created_at, updated_at
                     FROM contacts 
+                    WHERE tenant_id = :tenant_id
                     ORDER BY created_at DESC
-                """))
+                """), {"tenant_id": tenant_id})
                 
                 for row in result:
                     contact_data = dict(row._mapping)
@@ -101,11 +107,21 @@ class Contact:
                 'per_page': per_page,
                 'total_contacts': 0
             }
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in Contact.get_paginated; returning empty page")
+            return {
+                'contacts': [],
+                'current_page': page,
+                'total_pages': 0,
+                'per_page': per_page,
+                'total_contacts': 0
+            }
             
         try:
             with engine.connect() as conn:
                 # Get total count
-                count_result = conn.execute(text("SELECT COUNT(*) FROM contacts"))
+                count_result = conn.execute(text("SELECT COUNT(*) FROM contacts WHERE tenant_id = :tenant_id"), {"tenant_id": tenant_id})
                 total = count_result.scalar()
                 
                 # Get paginated results
@@ -115,9 +131,10 @@ class Contact:
                            company_name, company_domain, linkedin_profile, location, 
                            phone, linkedin_message, company_id, created_at, updated_at
                     FROM contacts 
+                    WHERE tenant_id = :tenant_id
                     ORDER BY created_at DESC
                     LIMIT :limit OFFSET :offset
-                """), {"limit": per_page, "offset": offset})
+                """), {"limit": per_page, "offset": offset, "tenant_id": tenant_id})
                 
                 for row in result:
                     contact_data = dict(row._mapping)
@@ -145,6 +162,10 @@ class Contact:
         engine = cls._get_db_engine()
         if not engine:
             return contacts
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in Contact.search; returning empty list")
+            return contacts
             
         try:
             with engine.connect() as conn:
@@ -153,12 +174,13 @@ class Contact:
                            company_name, company_domain, linkedin_profile, location, 
                            phone, linkedin_message, company_id, created_at, updated_at
                     FROM contacts 
-                    WHERE first_name ILIKE :search OR last_name ILIKE :search 
+                    WHERE tenant_id = :tenant_id AND (
+                       first_name ILIKE :search OR last_name ILIKE :search 
                        OR full_name ILIKE :search OR company_name ILIKE :search 
-                       OR email ILIKE :search OR job_title ILIKE :search
+                       OR email ILIKE :search OR job_title ILIKE :search)
                     ORDER BY created_at DESC
                     LIMIT 50
-                """), {"search": f"%{query}%"})
+                """), {"search": f"%{query}%", "tenant_id": tenant_id})
                 
                 for row in result:
                     contact_data = dict(row._mapping)
@@ -177,6 +199,10 @@ class Contact:
         engine = cls._get_db_engine()
         if not engine:
             return []
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in Contact.get_contact_campaigns; returning empty list")
+            return []
             
         try:
             with engine.connect() as conn:
@@ -184,9 +210,9 @@ class Contact:
                     SELECT c.*, cc.status as contact_status, cc.added_at, cc.updated_at as status_updated_at
                     FROM campaigns c
                     JOIN campaign_contacts cc ON c.id = cc.campaign_id
-                    WHERE cc.contact_email = :contact_email
+                    WHERE cc.contact_email = :contact_email AND c.tenant_id = :tenant_id
                     ORDER BY cc.added_at DESC
-                """), {"contact_email": contact_email})
+                """), {"contact_email": contact_email, "tenant_id": tenant_id})
                 
                 campaigns = []
                 for row in result:
@@ -208,6 +234,10 @@ class Contact:
         engine = cls._get_db_engine()
         if not engine:
             return None
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in Contact.get_by_email; returning None")
+            return None
             
         try:
             with engine.connect() as conn:
@@ -216,9 +246,9 @@ class Contact:
                            company_name, company_domain, linkedin_profile, location, 
                            phone, linkedin_message, company_id, created_at, updated_at
                     FROM contacts 
-                    WHERE LOWER(email) = LOWER(:email)
+                    WHERE tenant_id = :tenant_id AND LOWER(email) = LOWER(:email)
                     LIMIT 1
-                """), {"email": email})
+                """), {"email": email, "tenant_id": tenant_id})
                 
                 row = result.fetchone()
                 if row:
@@ -244,6 +274,10 @@ class Contact:
         engine = cls._get_db_engine()
         if not engine:
             return []
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in Contact.get_contacts_not_in_campaign; returning empty list")
+            return []
             
         try:
             with engine.connect() as conn:
@@ -253,10 +287,10 @@ class Contact:
                            c.phone, c.linkedin_message, c.company_id, c.created_at, c.updated_at
                     FROM contacts c
                     LEFT JOIN campaign_contacts cc ON c.email = cc.contact_email AND cc.campaign_id = :campaign_id
-                    WHERE cc.contact_email IS NULL
+                    WHERE cc.contact_email IS NULL AND c.tenant_id = :tenant_id
                     ORDER BY c.created_at DESC
                     LIMIT :limit
-                """), {"campaign_id": campaign_id, "limit": limit})
+                """), {"campaign_id": campaign_id, "limit": limit, "tenant_id": tenant_id})
                 
                 contacts = []
                 for row in result:

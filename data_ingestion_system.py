@@ -212,8 +212,9 @@ class ContactDataIngester:
                             result = conn.execute(text("""
                                 SELECT id FROM companies 
                                 WHERE LOWER(company_name) = LOWER(:company_name) 
+                                AND tenant_id = :tenant_id
                                 LIMIT 1
-                            """), {"company_name": company_name})
+                            """), {"company_name": company_name, "tenant_id": 1})
                             row = result.fetchone()
                             if row:
                                 company_id = row.id
@@ -224,8 +225,9 @@ class ContactDataIngester:
                             result = conn.execute(text("""
                                 SELECT id FROM companies 
                                 WHERE LOWER(website_url) LIKE :domain_pattern 
+                                AND tenant_id = :tenant_id
                                 LIMIT 1
-                            """), {"domain_pattern": domain_pattern})
+                            """), {"domain_pattern": domain_pattern, "tenant_id": 1})
                             row = result.fetchone()
                             if row:
                                 company_id = row.id
@@ -237,26 +239,28 @@ class ContactDataIngester:
                                 website_url = company_domain if company_domain.startswith(('http://', 'https://')) else f"https://{company_domain}"
                             
                             fallback_name = company_name or company_domain or 'Unknown'
+                            # TODO: Add tenant_id support when used in multi-tenant context
                             result = conn.execute(text("""
                                 INSERT INTO companies (
                                     company_name, website_url, company_research, 
-                                    research_status, created_at, updated_at
+                                    research_status, created_at, updated_at, tenant_id
                                 ) VALUES (
                                     :company_name, :website_url, :company_research,
-                                    'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                                    'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, :tenant_id
                                 ) RETURNING id
                             """), {
                                 "company_name": fallback_name,
                                 "website_url": website_url,
-                                "company_research": f"Company automatically created during contact import from {source_file}. Research pending."
+                                "company_research": f"Company automatically created during contact import from {source_file}. Research pending.",
+                                "tenant_id": 1  # Default tenant for standalone script - TODO: make configurable
                             })
                             company_id = result.fetchone().id
                             logger.info(f"Created new company '{fallback_name}' with ID {company_id}")
                     
                     # Check if contact exists
                     result = conn.execute(
-                        text("SELECT source_files, all_data, company_id FROM contacts WHERE email = :email"),
-                        {"email": email}
+                        text("SELECT source_files, all_data, company_id FROM contacts WHERE email = :email AND tenant_id = :tenant_id"),
+                        {"email": email, "tenant_id": 1}  # Default tenant for standalone script
                     )
                     existing = result.fetchone()
                     
@@ -299,7 +303,8 @@ class ContactDataIngester:
                                 "updated_at": datetime.now()
                             })
                             
-                            query = f"UPDATE contacts SET {', '.join(update_fields)} WHERE email = :email"
+                            update_params["tenant_id"] = 1  # Default tenant for standalone script
+                            query = f"UPDATE contacts SET {', '.join(update_fields)} WHERE email = :email AND tenant_id = :tenant_id"
                             conn.execute(text(query), update_params)
                     else:
                         # Insert new contact with company_id
@@ -317,18 +322,19 @@ class ContactDataIngester:
                             "linkedin_message": contact_data.get('linkedin_message', ''),
                             "company_id": company_id,
                             "source_files": json.dumps([source_file]),
-                            "all_data": json.dumps(all_data)
+                            "all_data": json.dumps(all_data),
+                            "tenant_id": 1  # Default tenant for standalone script - TODO: make configurable
                         }
                         
                         conn.execute(text("""
                             INSERT INTO contacts (
                                 email, first_name, last_name, full_name, job_title, 
                                 company_name, company_domain, linkedin_profile, location, 
-                                phone, linkedin_message, company_id, source_files, all_data
+                                phone, linkedin_message, company_id, source_files, all_data, tenant_id
                             ) VALUES (
                                 :email, :first_name, :last_name, :full_name, :job_title,
                                 :company_name, :company_domain, :linkedin_profile, :location,
-                                :phone, :linkedin_message, :company_id, :source_files, :all_data
+                                :phone, :linkedin_message, :company_id, :source_files, :all_data, :tenant_id
                             )
                         """), insert_params)
                         

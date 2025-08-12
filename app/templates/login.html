@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Login - SalesBot{% endblock %}
+
+{% block content %}
+<div class="container py-5" style="max-width: 480px;">
+  <div class="card shadow-sm">
+    <div class="card-body p-4">
+      <div class="text-center mb-3">
+        <i class="fas fa-robot text-primary" style="font-size: 2rem;"></i>
+        <h4 class="mt-2">Sign in to SalesBot</h4>
+        <p class="text-muted small">AI-powered sales automation</p>
+      </div>
+
+      <div class="d-grid gap-2">
+        <a class="btn btn-outline-dark" href="/auth/google">
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="18" class="me-2"/>
+          Continue with Google
+        </a>
+      </div>
+
+      <hr class="my-4"/>
+
+      <form method="GET" action="/">
+        <div class="mb-3">
+          <label for="tenant" class="form-label">Tenant (optional)</label>
+          <input type="text" class="form-control" id="tenant" name="tenant" placeholder="default" />
+          <div class="form-text">Use your tenant slug if provided</div>
+        </div>
+        <button type="submit" class="btn btn-primary w-100">Continue as Guest</button>
+      </form>
+
+      <div class="text-center mt-3">
+        <a href="/" class="small">Back to Dashboard</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+
+

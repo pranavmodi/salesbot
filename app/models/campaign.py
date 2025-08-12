@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import List, Dict, Optional
 from flask import current_app
+from app.tenant import current_tenant_id
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 import os
@@ -76,6 +77,10 @@ class Campaign:
         if not engine:
             current_app.logger.error("No database engine available")
             return campaigns
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in Campaign.load_all; returning empty list")
+            return campaigns
             
         try:
             with engine.connect() as conn:
@@ -85,8 +90,9 @@ class Campaign:
                            schedule_date, followup_days, selection_criteria, campaign_settings, 
                            status, created_at, updated_at
                     FROM campaigns 
+                    WHERE tenant_id = :tenant_id
                     ORDER BY created_at DESC
-                """))
+                """), {"tenant_id": tenant_id})
                 
                 row_count = 0
                 for row in result:
@@ -111,6 +117,10 @@ class Campaign:
         engine = cls._get_db_engine()
         if not engine:
             return campaigns
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in Campaign.get_active_campaigns; returning empty list")
+            return campaigns
             
         try:
             with engine.connect() as conn:
@@ -119,9 +129,9 @@ class Campaign:
                            schedule_date, followup_days, selection_criteria, campaign_settings, status, 
                            created_at, updated_at
                     FROM campaigns 
-                    WHERE status = 'active'
+                    WHERE tenant_id = :tenant_id AND status = 'active'
                     ORDER BY created_at DESC
-                """))
+                """), {"tenant_id": tenant_id})
                 
                 for row in result:
                     campaign_data = dict(row._mapping)
@@ -140,6 +150,10 @@ class Campaign:
         engine = cls._get_db_engine()
         if not engine:
             return None
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in Campaign.get_by_id; returning None")
+            return None
             
         try:
             with engine.connect() as conn:
@@ -148,8 +162,8 @@ class Campaign:
                            schedule_date, followup_days, selection_criteria, campaign_settings, status, 
                            created_at, updated_at
                     FROM campaigns 
-                    WHERE id = :id
-                """), {"id": campaign_id})
+                    WHERE id = :id AND tenant_id = :tenant_id
+                """), {"id": campaign_id, "tenant_id": tenant_id})
                 
                 row = result.fetchone()
                 if row:
@@ -170,19 +184,24 @@ class Campaign:
         if not engine:
             current_app.logger.error("Failed to save campaign: Database engine not available.")
             return False
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.error("Tenant not resolved in Campaign.save; aborting")
+            return False
 
         try:
             with engine.connect() as conn:
                 with conn.begin():
                     insert_query = text("""
-                        INSERT INTO campaigns (name, type, description, email_template, 
+                        INSERT INTO campaigns (tenant_id, name, type, description, email_template, 
                                              priority, schedule_date, followup_days, 
                                              selection_criteria, status) 
-                        VALUES (:name, :type, :description, :email_template, 
+                        VALUES (:tenant_id, :name, :type, :description, :email_template, 
                                :priority, :schedule_date, :followup_days, 
                                :selection_criteria, :status)
                     """)
                     conn.execute(insert_query, {
+                        'tenant_id': tenant_id,
                         'name': campaign_data['name'],
                         'type': campaign_data.get('type', 'cold_outreach'),
                         'description': campaign_data.get('description', ''),
@@ -209,6 +228,10 @@ class Campaign:
         if not engine:
             current_app.logger.error("Failed to update campaign: Database engine not available.")
             return False
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.error("Tenant not resolved in Campaign.update; aborting")
+            return False
 
         try:
             with engine.connect() as conn:
@@ -225,10 +248,11 @@ class Campaign:
                             selection_criteria = :selection_criteria,
                             status = :status,
                             updated_at = CURRENT_TIMESTAMP
-                        WHERE id = :id
+                        WHERE id = :id AND tenant_id = :tenant_id
                     """)
                     result = conn.execute(update_query, {
                         'id': campaign_id,
+                        'tenant_id': tenant_id,
                         'name': campaign_data['name'],
                         'type': campaign_data.get('type', ''),
                         'description': campaign_data.get('description', ''),
@@ -261,12 +285,16 @@ class Campaign:
         if not engine:
             current_app.logger.error("Failed to delete campaign: Database engine not available.")
             return False
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.error("Tenant not resolved in Campaign.delete; aborting")
+            return False
 
         try:
             with engine.connect() as conn:
                 with conn.begin():
                     # First, log what we're about to delete for audit purposes
-                    campaign_check = conn.execute(text("SELECT name FROM campaigns WHERE id = :id"), {"id": campaign_id})
+                    campaign_check = conn.execute(text("SELECT name FROM campaigns WHERE id = :id AND tenant_id = :tenant_id"), {"id": campaign_id, "tenant_id": tenant_id})
                     campaign_row = campaign_check.fetchone()
                     
                     if not campaign_row:
@@ -279,22 +307,22 @@ class Campaign:
                     # Delete from report_clicks first to avoid foreign key violations
                     report_clicks_result = conn.execute(text("""
                         DELETE FROM report_clicks
-                        WHERE campaign_id = :campaign_id
-                    """), {"campaign_id": campaign_id})
+                        WHERE campaign_id = :campaign_id AND tenant_id = :tenant_id
+                    """), {"campaign_id": campaign_id, "tenant_id": tenant_id})
                     report_clicks_count = report_clicks_result.rowcount
                     
                     # Delete campaign email jobs (pending emails)
                     email_jobs_result = conn.execute(text("""
                         DELETE FROM campaign_email_jobs
-                        WHERE campaign_id = :campaign_id
-                    """), {"campaign_id": campaign_id})
+                        WHERE campaign_id = :campaign_id AND tenant_id = :tenant_id
+                    """), {"campaign_id": campaign_id, "tenant_id": tenant_id})
                     email_jobs_count = email_jobs_result.rowcount
                     
                     # Delete associated email history records
                     email_history_result = conn.execute(text("""
                         DELETE FROM email_history 
-                        WHERE campaign_id = :campaign_id
-                    """), {"campaign_id": campaign_id})
+                        WHERE campaign_id = :campaign_id AND tenant_id = :tenant_id
+                    """), {"campaign_id": campaign_id, "tenant_id": tenant_id})
                     email_history_count = email_history_result.rowcount
                     
                     # Delete campaign contacts associations
@@ -305,7 +333,7 @@ class Campaign:
                     campaign_contacts_count = campaign_contacts_result.rowcount
                     
                     # Finally, delete the campaign itself
-                    campaign_result = conn.execute(text("DELETE FROM campaigns WHERE id = :id"), {"id": campaign_id})
+                    campaign_result = conn.execute(text("DELETE FROM campaigns WHERE id = :id AND tenant_id = :tenant_id"), {"id": campaign_id, "tenant_id": tenant_id})
                     
                     if campaign_result.rowcount > 0:
                         current_app.logger.info(
@@ -331,6 +359,10 @@ class Campaign:
         engine = cls._get_db_engine()
         if not engine:
             return {}
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in Campaign.get_campaign_stats; returning empty dict")
+            return {}
             
         try:
             with engine.connect() as conn:
@@ -344,8 +376,8 @@ class Campaign:
                         MIN(date) as first_email_date,
                         MAX(date) as last_email_date
                     FROM email_history 
-                    WHERE campaign_id = :campaign_id
-                """), {"campaign_id": campaign_id})
+                    WHERE tenant_id = :tenant_id AND campaign_id = :campaign_id
+                """), {"campaign_id": campaign_id, "tenant_id": tenant_id})
                 
                 # Get contact stats
                 contact_result = conn.execute(text("""
@@ -587,6 +619,10 @@ class Campaign:
         if not engine:
             current_app.logger.error("Failed to update campaign status: Database engine not available.")
             return False
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.error("Tenant not resolved in Campaign.update_status; aborting")
+            return False
 
         try:
             with engine.connect() as conn:
@@ -594,10 +630,11 @@ class Campaign:
                     update_query = text("""
                         UPDATE campaigns 
                         SET status = :status, updated_at = CURRENT_TIMESTAMP
-                        WHERE id = :id
+                        WHERE id = :id AND tenant_id = :tenant_id
                     """)
                     result = conn.execute(update_query, {
                         'id': campaign_id,
+                        'tenant_id': tenant_id,
                         'status': status
                     })
                     
@@ -621,6 +658,10 @@ class Campaign:
         engine = cls._get_db_engine()
         if not engine:
             return cls._get_default_settings()
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in Campaign.get_campaign_settings; returning defaults")
+            return cls._get_default_settings()
             
         try:
             with engine.connect() as conn:
@@ -628,8 +669,8 @@ class Campaign:
                 result = conn.execute(text("""
                     SELECT campaign_settings, email_template
                     FROM campaigns 
-                    WHERE id = :campaign_id
-                """), {"campaign_id": campaign_id})
+                    WHERE id = :campaign_id AND tenant_id = :tenant_id
+                """), {"campaign_id": campaign_id, "tenant_id": tenant_id})
                 
                 row = result.fetchone()
                 
@@ -689,21 +730,26 @@ class Campaign:
         if not engine:
             current_app.logger.error("Failed to create campaign: Database engine not available.")
             return None
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.error("Tenant not resolved in Campaign.create_campaign_with_settings; aborting")
+            return None
 
         try:
             with engine.connect() as conn:
                 with conn.begin():
                     # Insert campaign
                     insert_query = text("""
-                        INSERT INTO campaigns (name, type, description, email_template, 
+                        INSERT INTO campaigns (tenant_id, name, type, description, email_template, 
                                              priority, schedule_date, followup_days, 
                                              selection_criteria, status) 
-                        VALUES (:name, :type, :description, :email_template, 
+                        VALUES (:tenant_id, :name, :type, :description, :email_template, 
                                :priority, :schedule_date, :followup_days, 
                                :selection_criteria, :status)
                         RETURNING id
                     """)
                     result = conn.execute(insert_query, {
+                        'tenant_id': tenant_id,
                         'name': campaign_data['name'],
                         'type': campaign_data.get('type', ''),
                         'description': campaign_data.get('description', ''),

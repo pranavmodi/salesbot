@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, g
 from datetime import datetime, timedelta
 import json
 import threading
@@ -488,11 +488,12 @@ def get_campaign_schedule(campaign_id):
                         FROM campaign_email_jobs 
                         WHERE campaign_id = :campaign_id 
                         AND status IN ('pending', 'scheduled')
+                        AND tenant_id = :tenant_id
                         ORDER BY scheduled_time ASC
                         LIMIT 100
                     """)
                     
-                    result = conn.execute(pending_query, {"campaign_id": campaign_id})
+                    result = conn.execute(pending_query, {"campaign_id": campaign_id, "tenant_id": g.tenant_id})
                     pending_rows = result.fetchall()
                     
                     for row in pending_rows:
@@ -858,10 +859,12 @@ def delete_all_campaigns():
                         FROM campaign_email_jobs cej
                         JOIN campaigns c ON cej.campaign_id = c.id
                         WHERE cej.status = 'pending'
+                        AND cej.tenant_id = :tenant_id
+                        AND c.tenant_id = :tenant_id
                         ORDER BY cej.scheduled_time ASC
                     """)
                     
-                    result = conn.execute(pending_jobs_query)
+                    result = conn.execute(pending_jobs_query, {"tenant_id": g.tenant_id})
                     pending_jobs = result.fetchall()
                     
                     if pending_jobs:
@@ -1063,12 +1066,14 @@ def get_campaign_contacts(campaign_id):
                         SELECT sent_at FROM email_history 
                         WHERE campaign_id = :campaign_id 
                         AND recipient_email = :email
+                        AND tenant_id = :tenant_id
                         ORDER BY sent_at DESC 
                         LIMIT 1
                     """)
                     last_email_result = conn.execute(last_email_query, {
                         'campaign_id': campaign_id,
-                        'email': cc.get('email')
+                        'email': cc.get('email'),
+                        'tenant_id': g.tenant_id
                     })
                     last_email_row = last_email_result.fetchone()
                     

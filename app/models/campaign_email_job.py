@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import List, Dict, Optional
 from flask import current_app
+from app.tenant import current_tenant_id
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 import os
@@ -58,6 +59,10 @@ class CampaignEmailJob:
         engine = self._get_db_engine()
         if not engine:
             return False
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.error("Tenant not resolved in CampaignEmailJob.save; aborting")
+            return False
         
         try:
             with engine.connect() as conn:
@@ -71,10 +76,11 @@ class CampaignEmailJob:
                                 last_attempt = :last_attempt,
                                 error_message = :error_message,
                                 updated_at = CURRENT_TIMESTAMP
-                            WHERE id = :id
+                            WHERE id = :id AND tenant_id = :tenant_id
                         """)
                         conn.execute(update_query, {
                             'id': self.id,
+                            'tenant_id': tenant_id,
                             'status': self.status,
                             'attempts': self.attempts,
                             'last_attempt': self.last_attempt,
@@ -84,13 +90,14 @@ class CampaignEmailJob:
                         # Insert new job
                         insert_query = text("""
                             INSERT INTO campaign_email_jobs 
-                            (campaign_id, contact_email, contact_data, campaign_settings, 
+                            (tenant_id, campaign_id, contact_email, contact_data, campaign_settings, 
                              scheduled_time, status, attempts, created_at, updated_at)
-                            VALUES (:campaign_id, :contact_email, :contact_data, :campaign_settings,
+                            VALUES (:tenant_id, :campaign_id, :contact_email, :contact_data, :campaign_settings,
                                    :scheduled_time, :status, :attempts, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                             RETURNING id
                         """)
                         result = conn.execute(insert_query, {
+                            'tenant_id': tenant_id,
                             'campaign_id': self.campaign_id,
                             'contact_email': self.contact_email,
                             'contact_data': self.contact_data,
@@ -116,6 +123,10 @@ class CampaignEmailJob:
         engine = cls._get_db_engine()
         if not engine:
             return False
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in CampaignEmailJob.mark_as_processing; returning False")
+            return False
         
         try:
             with engine.connect() as conn:
@@ -124,9 +135,9 @@ class CampaignEmailJob:
                         UPDATE campaign_email_jobs 
                         SET status = 'processing', 
                             updated_at = CURRENT_TIMESTAMP
-                        WHERE id = :job_id AND status = 'pending'
+                        WHERE id = :job_id AND tenant_id = :tenant_id AND status = 'pending'
                     """)
-                    result = conn.execute(query, {"job_id": job_id})
+                    result = conn.execute(query, {"job_id": job_id, "tenant_id": tenant_id})
                     # rowcount tells us if the update was successful
                     return result.rowcount > 0
                     
@@ -143,6 +154,10 @@ class CampaignEmailJob:
         engine = cls._get_db_engine()
         if not engine:
             return []
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in CampaignEmailJob.get_pending_jobs; returning empty list")
+            return []
         
         try:
             with engine.connect() as conn:
@@ -151,13 +166,13 @@ class CampaignEmailJob:
                            scheduled_time, status, attempts, last_attempt, error_message,
                            created_at, updated_at
                     FROM campaign_email_jobs 
-                    WHERE status = 'pending' 
+                    WHERE tenant_id = :tenant_id AND status = 'pending' 
                     AND scheduled_time <= CURRENT_TIMESTAMP
                     ORDER BY scheduled_time ASC
                     LIMIT :limit
                 """)
                 
-                result = conn.execute(query, {"limit": limit})
+                result = conn.execute(query, {"limit": limit, "tenant_id": tenant_id})
                 jobs = []
                 
                 for row in result:
@@ -179,6 +194,10 @@ class CampaignEmailJob:
         engine = cls._get_db_engine()
         if not engine:
             return False
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in CampaignEmailJob.mark_as_executed; returning False")
+            return False
         
         try:
             with engine.connect() as conn:
@@ -188,9 +207,9 @@ class CampaignEmailJob:
                         SET status = 'executed', 
                             last_attempt = CURRENT_TIMESTAMP,
                             updated_at = CURRENT_TIMESTAMP
-                        WHERE id = :job_id
+                        WHERE id = :job_id AND tenant_id = :tenant_id
                     """)
-                    conn.execute(query, {"job_id": job_id})
+                    conn.execute(query, {"job_id": job_id, "tenant_id": tenant_id})
                     return True
                     
         except SQLAlchemyError as e:
@@ -206,13 +225,17 @@ class CampaignEmailJob:
         engine = cls._get_db_engine()
         if not engine:
             return False
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in CampaignEmailJob.mark_as_failed; returning False")
+            return False
         
         try:
             with engine.connect() as conn:
                 with conn.begin():
                     # First get current attempts
-                    get_query = text("SELECT attempts FROM campaign_email_jobs WHERE id = :job_id")
-                    result = conn.execute(get_query, {"job_id": job_id})
+                    get_query = text("SELECT attempts FROM campaign_email_jobs WHERE id = :job_id AND tenant_id = :tenant_id")
+                    result = conn.execute(get_query, {"job_id": job_id, "tenant_id": tenant_id})
                     row = result.fetchone()
                     
                     if not row:
@@ -228,10 +251,11 @@ class CampaignEmailJob:
                             last_attempt = CURRENT_TIMESTAMP,
                             error_message = :error_message,
                             updated_at = CURRENT_TIMESTAMP
-                        WHERE id = :job_id
+                        WHERE id = :job_id AND tenant_id = :tenant_id
                     """)
                     conn.execute(update_query, {
                         "job_id": job_id,
+                        "tenant_id": tenant_id,
                         "status": new_status,
                         "attempts": new_attempts,
                         "error_message": error_message
@@ -251,16 +275,20 @@ class CampaignEmailJob:
         engine = cls._get_db_engine()
         if not engine:
             return 0
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in CampaignEmailJob.cleanup_old_jobs; returning 0")
+            return 0
         
         try:
             with engine.connect() as conn:
                 with conn.begin():
                     query = text("""
                         DELETE FROM campaign_email_jobs 
-                        WHERE status IN ('executed', 'failed')
+                        WHERE tenant_id = :tenant_id AND status IN ('executed', 'failed')
                         AND updated_at < CURRENT_TIMESTAMP - INTERVAL '%s days'
                     """ % days_old)
-                    result = conn.execute(query)
+                    result = conn.execute(query, {"tenant_id": tenant_id})
                     return result.rowcount
                     
         except SQLAlchemyError as e:
@@ -276,11 +304,15 @@ class CampaignEmailJob:
         engine = cls._get_db_engine()
         if not engine:
             return 0
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in CampaignEmailJob.count_all_pending_jobs; returning 0")
+            return 0
         
         try:
             with engine.connect() as conn:
-                query = text("SELECT COUNT(*) FROM campaign_email_jobs WHERE status = 'pending'")
-                result = conn.execute(query)
+                query = text("SELECT COUNT(*) FROM campaign_email_jobs WHERE tenant_id = :tenant_id AND status = 'pending'")
+                result = conn.execute(query, {"tenant_id": tenant_id})
                 count = result.scalar()
                 return count or 0
         except Exception as e:

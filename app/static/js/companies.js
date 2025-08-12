@@ -292,6 +292,10 @@ function loadCompaniesData(page = 1, perPage = 20) {
 function displayCompaniesTable(companies, pagination) {
     const companiesContainer = document.getElementById('companies-table-container');
     
+    if (!companiesContainer) {
+        return; // Element doesn't exist on this page
+    }
+    
     if (companies.length === 0) {
         companiesContainer.innerHTML = `
             <div class="text-center py-5">
