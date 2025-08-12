@@ -37,6 +37,7 @@ class LLMDeepResearchService:
         load_dotenv()
         self.anthropic_client = None
         self.openai_client = None
+        self.perplexity_client = None
         
         # CRITICAL COST PROTECTION
         self.max_tokens_per_request = 8000  # Hard limit
@@ -49,37 +50,70 @@ class LLMDeepResearchService:
         self._request_timestamps = []       # Track request timing
         self._daily_cost_tracker = 0.0     # Track daily spending
         
-        # Initialize Anthropic client if API key is available
-        anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
-        if anthropic_api_key:
-            self.anthropic_client = anthropic.Anthropic(api_key=anthropic_api_key)
-            logger.info("LLMDeepResearchService initialized with Anthropic client")
-        else:
-            logger.warning("ANTHROPIC_API_KEY not found - Claude research will not be available")
+        # Initialize with environment variables as fallback
+        # Tenant-specific API keys will be loaded dynamically when needed
+        self.fallback_anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+        self.fallback_openai_key = os.getenv("OPENAI_API_KEY") 
+        self.fallback_perplexity_key = os.getenv("PERPLEXITY_API_KEY")
         
-        # Initialize OpenAI client if API key is available
-        openai_api_key = os.getenv("OPENAI_API_KEY")
-        if openai_api_key:
-            from openai import OpenAI
-            self.openai_client = OpenAI(
-                api_key=openai_api_key,
-                timeout=600.0  # 10 minute timeout - longer since we have streaming progress updates
-            )
-            logger.info("LLMDeepResearchService initialized with OpenAI client (600s timeout)")
-        else:
-            logger.warning("OPENAI_API_KEY not found - OpenAI research will not be available")
-        
-        # Initialize Perplexity client if API key is available
-        self.perplexity_client = None
-        self.perplexity_api_key = os.getenv("PERPLEXITY_API_KEY")
-        if self.perplexity_api_key:
-            # Store API key for direct HTTP requests since OpenAI client doesn't support Perplexity-specific parameters
-            logger.info("LLMDeepResearchService initialized with Perplexity API key")
-        else:
-            logger.warning("PERPLEXITY_API_KEY not found - Perplexity Sonar research will not be available")
+        # Log initialization status
+        logger.info("LLMDeepResearchService initialized - will use tenant-specific API keys when available")
         
         # Mark as initialized to prevent repeated initialization
         self._initialized = True
+
+    def _get_tenant_api_key(self, key_name: str) -> Optional[str]:
+        """Get tenant-specific API key or fallback to environment variable."""
+        try:
+            from app.tenant import current_tenant_id
+            from app.models.tenant_settings import TenantSettings
+            
+            tenant_id = current_tenant_id()
+            if tenant_id:
+                tenant_key = TenantSettings.get_api_key(tenant_id, key_name)
+                if tenant_key:
+                    return tenant_key
+                else:
+                    logger.debug(f"No tenant-specific {key_name} found for tenant {tenant_id}, using fallback")
+            else:
+                logger.debug(f"No tenant context available, using fallback {key_name}")
+        except Exception as e:
+            logger.debug(f"Error getting tenant API key {key_name}: {e}, using fallback")
+        
+        # Fallback to environment variables
+        fallback_keys = {
+            'openai_api_key': self.fallback_openai_key,
+            'anthropic_api_key': self.fallback_anthropic_key,
+            'perplexity_api_key': self.fallback_perplexity_key
+        }
+        return fallback_keys.get(key_name)
+
+    def _get_openai_client(self):
+        """Get tenant-specific OpenAI client or create one with fallback key."""
+        api_key = self._get_tenant_api_key('openai_api_key')
+        if not api_key:
+            logger.warning("No OpenAI API key available (tenant or fallback)")
+            return None
+            
+        from openai import OpenAI
+        return OpenAI(
+            api_key=api_key,
+            timeout=600.0  # 10 minute timeout
+        )
+
+    def _get_anthropic_client(self):
+        """Get tenant-specific Anthropic client or create one with fallback key."""
+        api_key = self._get_tenant_api_key('anthropic_api_key')
+        if not api_key:
+            logger.warning("No Anthropic API key available (tenant or fallback)")
+            return None
+            
+        import anthropic
+        return anthropic.Anthropic(api_key=api_key)
+
+    def _get_perplexity_api_key(self) -> Optional[str]:
+        """Get tenant-specific Perplexity API key or fallback."""
+        return self._get_tenant_api_key('perplexity_api_key')
 
     def research_company_deep(self, company_name: str, company_domain: str = "", provider: str = "claude", company_id: int = None, from_step_researcher: bool = False) -> Optional[str]:
         """
@@ -154,12 +188,24 @@ class LLMDeepResearchService:
         
         try:
             result = None
-            if provider.lower() == "claude" and self.anthropic_client:
-                result = self._execute_claude_research(research_prompt, company_name)
-            elif provider.lower() == "openai" and self.openai_client:
-                result = self._execute_openai_research(research_prompt, company_name, company_id)
-            elif provider.lower() == "perplexity" and self.perplexity_api_key:
-                result = self._execute_perplexity_research(research_prompt, company_name, company_id)
+            if provider.lower() == "claude":
+                anthropic_client = self._get_anthropic_client()
+                if anthropic_client:
+                    result = self._execute_claude_research(research_prompt, company_name, anthropic_client)
+                else:
+                    logger.error("No Anthropic API key available for Claude research")
+            elif provider.lower() == "openai":
+                openai_client = self._get_openai_client()
+                if openai_client:
+                    result = self._execute_openai_research(research_prompt, company_name, company_id, openai_client)
+                else:
+                    logger.error("No OpenAI API key available for OpenAI research")
+            elif provider.lower() == "perplexity":
+                perplexity_key = self._get_perplexity_api_key()
+                if perplexity_key:
+                    result = self._execute_perplexity_research(research_prompt, company_name, company_id, perplexity_key)
+                else:
+                    logger.error("No Perplexity API key available for Perplexity research")
             else:
                 logger.error(f"Provider {provider} not available or not configured")
                 result = None
@@ -205,14 +251,14 @@ class LLMDeepResearchService:
                 logger.error(f"Error executing {provider} deep research for {company_name}: {e}")
             return None
 
-    def _execute_claude_research(self, research_prompt: str, company_name: str) -> Optional[str]:
+    def _execute_claude_research(self, research_prompt: str, company_name: str, anthropic_client) -> Optional[str]:
         """Execute research using Claude with web search capabilities."""
         logger.critical(f"🚨 CLAUDE API DEEP RESEARCH CALL MADE: company={company_name}, model=claude-3-5-sonnet-20241022")
         logger.info(f"Executing Claude web search research for {company_name}")
         
         try:
             # Use Claude's message API with web search tool
-            response = self.anthropic_client.messages.create(
+            response = anthropic_client.messages.create(
                 model="claude-3-5-sonnet-20241022",
                 max_tokens=4000,
                 temperature=0.3,
@@ -255,7 +301,7 @@ Provide detailed citations and sources for all information found."""
             logger.critical(f"🚨 NO FALLBACK: Claude research failed for {company_name}, no standard Claude API fallback will be attempted")
             return None
 
-    def _execute_perplexity_research(self, research_prompt: str, company_name: str, company_id: int = None) -> Optional[str]:
+    def _execute_perplexity_research(self, research_prompt: str, company_name: str, company_id: int = None, perplexity_key: str = None) -> Optional[str]:
         """Execute research using Perplexity Sonar Deep Research API."""
         logger.critical(f"🚨 PERPLEXITY API DEEP RESEARCH CALL MADE: company={company_name}, model=sonar-deep-research")
         logger.info(f"Executing Perplexity Sonar deep research for {company_name}")
@@ -302,7 +348,7 @@ Company to research: {company_name}"""
             }
             
             headers = {
-                "Authorization": f"Bearer {self.perplexity_api_key}",
+                "Authorization": f"Bearer {perplexity_key}",
                 "Content-Type": "application/json"
             }
             
@@ -418,13 +464,18 @@ Company to research: {company_name}"""
             logger.error(f"Perplexity API unknown error for {company_name}: {e}")
             return None
 
-    def _execute_openai_research(self, research_prompt: str, company_name: str, company_id: int = None) -> Optional[str]:
+    def _execute_openai_research(self, research_prompt: str, company_name: str, company_id: int = None, openai_client=None) -> Optional[str]:
         """Execute research using OpenAI o4-mini Deep Research API in background mode."""
         logger.info(f"Starting OpenAI o4-mini deep research for {company_name} in background mode")
         
         try:
+            # Use the provided client instead of self.openai_client
+            if not openai_client:
+                logger.error("No OpenAI client provided")
+                return None
+                
             # Validate OpenAI client supports responses endpoint
-            if not hasattr(self.openai_client, 'responses'):
+            if not hasattr(openai_client, 'responses'):
                 error_msg = "OpenAI client does not have 'responses' attribute. Deep Research API not available with current client version."
                 logger.error(error_msg)
                 if company_id:
@@ -446,7 +497,7 @@ Company to research: {company_name}"""
                 
                 # OpenAI Deep Research API call with proper background mode (per official docs)
                 logger.info(f"Attempting OpenAI Deep Research API with background mode for {company_name}")
-                response = self.openai_client.responses.create(
+                response = openai_client.responses.create(
                     model="o4-mini-deep-research-2025-06-26",
                     input=[
                         {
@@ -1082,13 +1133,17 @@ Use your deep research capabilities to gather comprehensive, current information
             logger.error(f"Failed to get stored response ID for company {company_id}: {e}")
             return None
     
-    def _check_background_job_status(self, response_id: str, company_name: str, company_id: int) -> Optional[str]:
+    def _check_background_job_status(self, response_id: str, company_name: str, company_id: int, openai_client=None) -> Optional[str]:
         """Check status of existing background job and return results if completed."""
         try:
             logger.info(f"Checking background job status for {response_id} ({company_name})")
             
             # Use OpenAI's GET /responses/{response_id} endpoint to check status
-            status_response = self.openai_client.responses.retrieve(response_id)
+            client = openai_client or self._get_openai_client()
+            if not client:
+                logger.error("No OpenAI client available for background job status check")
+                return None
+            status_response = client.responses.retrieve(response_id)
             
             status = status_response.status  # 'queued', 'in_progress', 'completed', 'failed'
             
@@ -1307,7 +1362,8 @@ Use your deep research capabilities to gather comprehensive, current information
             
             # Use the workflow orchestrator to handle step 1 completion and progression
             from deepresearch.llm_workflow_orchestrator import LLMWorkflowOrchestrator
-            orchestrator = LLMWorkflowOrchestrator(self.openai_client)
+            openai_client = self._get_openai_client()
+            orchestrator = LLMWorkflowOrchestrator(openai_client)
             orchestrator.process_step_1_completion_and_start_step_2(company_id, company_name, website_url, results)
             
         except Exception as e:
@@ -1389,12 +1445,18 @@ Use your deep research capabilities to gather comprehensive, current information
         logger.info(f"Starting regular {provider} completion for {company_name}")
         
         try:
-            if provider.lower() == "claude" and self.anthropic_client:
-                return self._execute_claude_completion(prompt, company_name)
-            elif provider.lower() == "openai" and self.openai_client:
-                return self._execute_openai_completion(prompt, company_name)
-            elif provider.lower() == "perplexity" and self.perplexity_api_key:
-                return self._execute_perplexity_completion(prompt, company_name)
+            if provider.lower() == "claude":
+                anthropic_client = self._get_anthropic_client()
+                if anthropic_client:
+                    return self._execute_claude_completion(prompt, company_name, anthropic_client)
+            elif provider.lower() == "openai":
+                openai_client = self._get_openai_client()
+                if openai_client:
+                    return self._execute_openai_completion(prompt, company_name, openai_client)
+            elif provider.lower() == "perplexity":
+                perplexity_key = self._get_perplexity_api_key()
+                if perplexity_key:
+                    return self._execute_perplexity_completion(prompt, company_name, perplexity_key)
             else:
                 logger.error(f"Provider {provider} not available or not configured for regular completion")
                 return None
@@ -1403,12 +1465,12 @@ Use your deep research capabilities to gather comprehensive, current information
             logger.error(f"Error executing {provider} regular completion for {company_name}: {e}")
             return None
     
-    def _execute_claude_completion(self, prompt: str, company_name: str) -> Optional[str]:
+    def _execute_claude_completion(self, prompt: str, company_name: str, anthropic_client) -> Optional[str]:
         """Execute regular Claude completion without web search."""
         logger.info(f"Starting Claude regular completion for {company_name}")
         
         try:
-            response = self.anthropic_client.messages.create(
+            response = anthropic_client.messages.create(
                 model="claude-3-5-sonnet-20241022",
                 max_tokens=4000,
                 temperature=0.1,
@@ -1426,7 +1488,7 @@ Use your deep research capabilities to gather comprehensive, current information
             logger.error(f"Claude regular completion error for {company_name}: {e}")
             return None
     
-    def _execute_openai_completion(self, prompt: str, company_name: str) -> Optional[str]:
+    def _execute_openai_completion(self, prompt: str, company_name: str, openai_client) -> Optional[str]:
         """Execute regular OpenAI completion without deep research."""
         logger.info(f"Starting OpenAI regular completion for {company_name}")
         
@@ -1454,7 +1516,7 @@ Use your deep research capabilities to gather comprehensive, current information
                 completion_params["temperature"] = 0.1
                 completion_params["max_tokens"] = 4000
             
-            response = self.openai_client.chat.completions.create(**completion_params)
+            response = openai_client.chat.completions.create(**completion_params)
             
             result = response.choices[0].message.content
             logger.info(f"OpenAI regular completion completed for {company_name} using {model}: {len(result)} characters")
@@ -1464,7 +1526,7 @@ Use your deep research capabilities to gather comprehensive, current information
             logger.error(f"OpenAI regular completion error for {company_name}: {e}")
             return None
     
-    def _execute_perplexity_completion(self, prompt: str, company_name: str) -> Optional[str]:
+    def _execute_perplexity_completion(self, prompt: str, company_name: str, perplexity_key: str) -> Optional[str]:
         """Execute regular Perplexity completion without web search."""
         logger.info(f"Starting Perplexity regular completion for {company_name}")
         
@@ -1486,7 +1548,7 @@ Use your deep research capabilities to gather comprehensive, current information
             }
             
             headers = {
-                "Authorization": f"Bearer {self.perplexity_api_key}",
+                "Authorization": f"Bearer {perplexity_key}",
                 "Content-Type": "application/json"
             }
             

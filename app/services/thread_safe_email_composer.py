@@ -43,21 +43,55 @@ class ThreadSafeEmailComposer:
         
         cleanup()
     
+    def _get_tenant_api_key(self, key_name: str):
+        """Get tenant-specific API key or fallback to environment variable."""
+        try:
+            from app.tenant import current_tenant_id
+            from app.models.tenant_settings import TenantSettings
+            
+            tenant_id = current_tenant_id()
+            if tenant_id:
+                tenant_key = TenantSettings.get_api_key(tenant_id, key_name)
+                if tenant_key:
+                    return tenant_key
+                else:
+                    logger.debug(f"No tenant-specific {key_name} found for tenant {tenant_id}, using fallback")
+            else:
+                logger.debug(f"No tenant context available, using fallback {key_name}")
+        except Exception as e:
+            logger.debug(f"Error getting tenant API key {key_name}: {e}, using fallback")
+        
+        # Fallback to environment variables
+        import os
+        fallback_keys = {
+            'openai_api_key': os.getenv("OPENAI_API_KEY"),
+            'anthropic_api_key': os.getenv("ANTHROPIC_API_KEY"),
+            'perplexity_api_key': os.getenv("PERPLEXITY_API_KEY")
+        }
+        return fallback_keys.get(key_name)
+    
     @contextmanager
     def _get_safe_openai_client(self):
-        """Get thread-local OpenAI client with proper cleanup."""
+        """Get thread-local OpenAI client with tenant-specific API key and proper cleanup."""
         import os
         from openai import OpenAI
         
-        if not hasattr(self._local, 'openai_client'):
-            self._local.openai_client = OpenAI(
-                api_key=os.getenv("OPENAI_API_KEY"),
-                timeout=30.0,
-                max_retries=2
-            )
+        # Get tenant-specific API key
+        openai_api_key = self._get_tenant_api_key('openai_api_key')
+        if not openai_api_key:
+            logger.error("No OpenAI API key available (tenant-specific or fallback)")
+            yield None
+            return
+        
+        # Create client with tenant-specific key (don't cache since tenant context may change)
+        client = OpenAI(
+            api_key=openai_api_key,
+            timeout=30.0,
+            max_retries=2
+        )
         
         try:
-            yield self._local.openai_client
+            yield client
         finally:
             # Don't close client - reuse it for this thread
             pass
@@ -176,7 +210,11 @@ class ThreadSafeEmailComposer:
             try:
                 # Replace with thread-safe versions
                 with self._get_safe_openai_client() as safe_client:
-                    composer.client = safe_client
+                    if safe_client:
+                        composer.client = safe_client
+                    else:
+                        logger.error("No OpenAI client available for email composition")
+                        return None
                     
                     # Patch the HTTP request method
                     def safe_publish_report(company, recipient_email, campaign_id=None):
