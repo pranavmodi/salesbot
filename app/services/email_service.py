@@ -6,9 +6,8 @@ import time # Import the time module
 
 from app.models.contact import Contact
 from app.models.email_history import EmailHistory
-from app.utils.email_config import email_config, EmailAccount
+from app.utils.tenant_email_config import TenantEmailConfigManager, EmailAccount
 from email_composers.composer_instance import composer
-from send_emails import send_email
 # Using only deep research composer now
 from email_composers.email_composer_deep_research import DeepResearchEmailComposer
 
@@ -18,7 +17,8 @@ class EmailService:
     @staticmethod
     def get_available_accounts() -> List[Dict]:
         """Get all available email accounts."""
-        accounts = email_config.get_all_accounts()
+        email_manager = TenantEmailConfigManager()
+        accounts = email_manager.get_accounts()
         return [
             {
                 'name': account.name,
@@ -45,16 +45,21 @@ class EmailService:
         """
         try:
             # Get the account to use
+            email_manager = TenantEmailConfigManager()
             if account_name:
-                account = email_config.get_account_by_name(account_name)
+                account = None
+                for acc in email_manager.get_accounts():
+                    if acc.name == account_name:
+                        account = acc
+                        break
                 if not account:
                     current_app.logger.warning(f"Account '{account_name}' not found, falling back to default account")
-                    account = email_config.get_default_account()
+                    account = email_manager.get_default_account()
             else:
-                account = email_config.get_default_account()
+                account = email_manager.get_default_account()
 
             if not account:
-                current_app.logger.error("No default account available")
+                current_app.logger.error("No default account available for tenant")
                 return False
 
             # Send using the specific account
@@ -251,9 +256,14 @@ class EmailService:
             True if email was sent successfully, False otherwise
         """
         try:
-            # Send the email using the global send_email function from send_emails.py
-            from send_emails import send_email as global_send_email
-            success = global_send_email(recipient_email, subject, body)
+            # Get the account and send using tenant-specific configuration
+            email_manager = TenantEmailConfigManager()
+            account = email_manager.get_default_account()
+            if not account:
+                current_app.logger.error("No email account available for tenant")
+                return False
+            
+            success = EmailService._send_with_account(account, recipient_email, subject, body)
             
             # Save to history with standardized status
             email_data = {
@@ -404,10 +414,14 @@ class EmailService:
         for i, email_address in enumerate(recipient_emails):
             current_app.logger.info(f"Processing test email {i+1} of {total_emails} to: {email_address}")
             try:
-                # We can reuse the existing send_email from send_emails.py for the actual sending
-                # Assuming a generic name for the recipient for test emails
-                from send_emails import send_email as global_send_email
-                success = global_send_email(recipient_email=email_address, subject=subject, body_markdown=body)
+                # Use tenant-specific email configuration
+                email_manager = TenantEmailConfigManager()
+                account = email_manager.get_default_account()
+                if not account:
+                    current_app.logger.error("No email account available for tenant")
+                    success = False
+                else:
+                    success = EmailService._send_with_account(account, email_address, subject, body)
                 
                 # Save to history with standardized status
                 email_data = {

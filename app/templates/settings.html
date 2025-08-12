@@ -1,0 +1,437 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - SalesBot{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="mb-4">
+                <i class="fas fa-cog me-2"></i>
+                Tenant Settings
+            </h2>
+        </div>
+    </div>
+
+    <!-- API Keys Section -->
+    <div class="row mb-5">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-key me-2"></i>
+                        API Keys
+                    </h5>
+                    <small class="text-muted">Configure your AI service API keys</small>
+                </div>
+                <div class="card-body">
+                    <form id="apiKeysForm">
+                        <div class="mb-3">
+                            <label for="openaiKey" class="form-label">OpenAI API Key</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="openaiKey" name="openai_api_key" 
+                                       placeholder="sk-..." value="{{ settings.openai_api_key or '' }}">
+                                <button type="button" class="btn btn-outline-secondary toggle-password" data-target="openaiKey">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <small class="form-text text-muted">Required for GPT-4o deep research and email generation</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="anthropicKey" class="form-label">Anthropic API Key</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="anthropicKey" name="anthropic_api_key" 
+                                       placeholder="sk-ant-..." value="{{ settings.anthropic_api_key or '' }}">
+                                <button type="button" class="btn btn-outline-secondary toggle-password" data-target="anthropicKey">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <small class="form-text text-muted">Required for Claude-based research</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="perplexityKey" class="form-label">Perplexity API Key</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="perplexityKey" name="perplexity_api_key" 
+                                       placeholder="pplx-..." value="{{ settings.perplexity_api_key or '' }}">
+                                <button type="button" class="btn btn-outline-secondary toggle-password" data-target="perplexityKey">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <small class="form-text text-muted">Required for Sonar-based research</small>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>
+                            Save API Keys
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Email Accounts Section -->
+    <div class="row mb-5">
+        <div class="col-lg-10">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">
+                            <i class="fas fa-envelope me-2"></i>
+                            Email Accounts
+                        </h5>
+                        <small class="text-muted">Configure email accounts for sending campaigns</small>
+                    </div>
+                    <button type="button" class="btn btn-success btn-sm" id="addEmailAccount">
+                        <i class="fas fa-plus me-2"></i>
+                        Add Account
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="emailAccountsContainer">
+                        {% if email_accounts %}
+                            {% for account in email_accounts %}
+                            <div class="email-account-form border p-3 mb-3 rounded">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Account Name</label>
+                                            <input type="text" class="form-control" name="name" value="{{ account.name }}" placeholder="Primary Account">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Email Address</label>
+                                            <input type="email" class="form-control" name="email" value="{{ account.email }}" placeholder="user@domain.com" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Password</label>
+                                            <div class="input-group">
+                                                <input type="password" class="form-control" name="password" value="{{ account.password }}" required>
+                                                <button type="button" class="btn btn-outline-secondary toggle-password-email">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="row">
+                                            <div class="col-md-8">
+                                                <div class="mb-3">
+                                                    <label class="form-label">SMTP Host</label>
+                                                    <input type="text" class="form-control" name="smtp_host" value="{{ account.smtp_host }}" placeholder="smtp.gmail.com" required>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="mb-3">
+                                                    <label class="form-label">SMTP Port</label>
+                                                    <input type="number" class="form-control" name="smtp_port" value="{{ account.smtp_port or 465 }}" required>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-8">
+                                                <div class="mb-3">
+                                                    <label class="form-label">IMAP Host</label>
+                                                    <input type="text" class="form-control" name="imap_host" value="{{ account.imap_host }}" placeholder="imap.gmail.com" required>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="mb-3">
+                                                    <label class="form-label">IMAP Port</label>
+                                                    <input type="number" class="form-control" name="imap_port" value="{{ account.imap_port or 993 }}" required>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input" name="is_default" {{ 'checked' if account.is_default }}>
+                                            <label class="form-check-label">Default Account</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row mt-3">
+                                    <div class="col-12 d-flex justify-content-between">
+                                        <button type="button" class="btn btn-outline-info btn-sm test-email-account">
+                                            <i class="fas fa-check-circle me-2"></i>
+                                            Test Connection
+                                        </button>
+                                        <button type="button" class="btn btn-outline-danger btn-sm remove-email-account">
+                                            <i class="fas fa-trash me-2"></i>
+                                            Remove
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                        <div class="text-center py-4 text-muted">
+                            <i class="fas fa-envelope-open-text fa-3x mb-3"></i>
+                            <p>No email accounts configured yet</p>
+                            <p>Click "Add Account" to get started</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mt-3">
+                        <button type="button" class="btn btn-primary" id="saveEmailAccounts">
+                            <i class="fas fa-save me-2"></i>
+                            Save Email Accounts
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Email Account Template (Hidden) -->
+<div id="emailAccountTemplate" style="display: none;">
+    <div class="email-account-form border p-3 mb-3 rounded">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label class="form-label">Account Name</label>
+                    <input type="text" class="form-control" name="name" placeholder="Primary Account">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Email Address</label>
+                    <input type="email" class="form-control" name="email" placeholder="user@domain.com" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Password</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" name="password" required>
+                        <button type="button" class="btn btn-outline-secondary toggle-password-email">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="mb-3">
+                            <label class="form-label">SMTP Host</label>
+                            <input type="text" class="form-control" name="smtp_host" placeholder="smtp.gmail.com" required>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label">SMTP Port</label>
+                            <input type="number" class="form-control" name="smtp_port" value="465" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="mb-3">
+                            <label class="form-label">IMAP Host</label>
+                            <input type="text" class="form-control" name="imap_host" placeholder="imap.gmail.com" required>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label">IMAP Port</label>
+                            <input type="number" class="form-control" name="imap_port" value="993" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" name="is_default">
+                    <label class="form-check-label">Default Account</label>
+                </div>
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-12 d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-info btn-sm test-email-account">
+                    <i class="fas fa-check-circle me-2"></i>
+                    Test Connection
+                </button>
+                <button type="button" class="btn btn-outline-danger btn-sm remove-email-account">
+                    <i class="fas fa-trash me-2"></i>
+                    Remove
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Settings page JavaScript
+document.addEventListener('DOMContentLoaded', function() {
+    // API Keys form
+    document.getElementById('apiKeysForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const data = Object.fromEntries(formData);
+        
+        fetch('/settings/api-keys', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.message) {
+                showToast('successToast', data.message);
+            } else if (data.error) {
+                showToast('errorToast', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('errorToast', 'Failed to save API keys');
+        });
+    });
+    
+    // Password visibility toggles
+    document.querySelectorAll('.toggle-password').forEach(button => {
+        button.addEventListener('click', function() {
+            const targetId = this.getAttribute('data-target');
+            const input = document.getElementById(targetId);
+            const icon = this.querySelector('i');
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        });
+    });
+    
+    // Email account functionality
+    document.getElementById('addEmailAccount').addEventListener('click', function() {
+        const template = document.getElementById('emailAccountTemplate');
+        const container = document.getElementById('emailAccountsContainer');
+        const newAccount = template.innerHTML;
+        container.insertAdjacentHTML('beforeend', newAccount);
+        
+        // Remove empty state if it exists
+        const emptyState = container.querySelector('.text-center.py-4');
+        if (emptyState) {
+            emptyState.remove();
+        }
+        
+        attachEmailAccountEvents();
+    });
+    
+    function attachEmailAccountEvents() {
+        // Remove account buttons
+        document.querySelectorAll('.remove-email-account').forEach(button => {
+            button.addEventListener('click', function() {
+                this.closest('.email-account-form').remove();
+            });
+        });
+        
+        // Password visibility toggles for email forms
+        document.querySelectorAll('.toggle-password-email').forEach(button => {
+            button.addEventListener('click', function() {
+                const input = this.previousElementSibling;
+                const icon = this.querySelector('i');
+                
+                if (input.type === 'password') {
+                    input.type = 'text';
+                    icon.classList.remove('fa-eye');
+                    icon.classList.add('fa-eye-slash');
+                } else {
+                    input.type = 'password';
+                    icon.classList.remove('fa-eye-slash');
+                    icon.classList.add('fa-eye');
+                }
+            });
+        });
+        
+        // Test email account buttons
+        document.querySelectorAll('.test-email-account').forEach(button => {
+            button.addEventListener('click', function() {
+                const form = this.closest('.email-account-form');
+                const formData = getEmailAccountData(form);
+                
+                fetch('/settings/test-email-account', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        showToast('successToast', data.message);
+                    } else if (data.error) {
+                        showToast('errorToast', data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showToast('errorToast', 'Failed to test email account');
+                });
+            });
+        });
+    }
+    
+    function getEmailAccountData(form) {
+        const inputs = form.querySelectorAll('input');
+        const data = {};
+        
+        inputs.forEach(input => {
+            if (input.type === 'checkbox') {
+                data[input.name] = input.checked;
+            } else if (input.type === 'number') {
+                data[input.name] = parseInt(input.value) || 0;
+            } else {
+                data[input.name] = input.value;
+            }
+        });
+        
+        return data;
+    }
+    
+    // Save email accounts
+    document.getElementById('saveEmailAccounts').addEventListener('click', function() {
+        const accountForms = document.querySelectorAll('.email-account-form');
+        const accounts = [];
+        
+        accountForms.forEach(form => {
+            accounts.push(getEmailAccountData(form));
+        });
+        
+        fetch('/settings/email-accounts', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ accounts: accounts })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.message) {
+                showToast('successToast', data.message);
+            } else if (data.error) {
+                showToast('errorToast', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('errorToast', 'Failed to save email accounts');
+        });
+    });
+    
+    // Initialize existing event handlers
+    attachEmailAccountEvents();
+});
+
+function showToast(type, message) {
+    // Implement your toast notification system here
+    alert(message); // Temporary fallback
+}
+</script>
+{% endblock %}

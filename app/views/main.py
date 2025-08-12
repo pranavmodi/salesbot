@@ -10,7 +10,7 @@ from app.models.email_history import EmailHistory
 from app.models.company import Company
 from app.services.email_reader_service import email_reader, configure_email_reader
 from app.services.email_service import EmailService
-from app.utils.email_config import email_config
+from app.utils.tenant_email_config import TenantEmailConfigManager
 from app.auth import login_required
 
 bp = Blueprint('main', __name__)
@@ -102,11 +102,12 @@ def index():
     )
 
 def _configure_email_reader_from_accounts():
-    """Configure email reader using JSON email accounts."""
+    """Configure email reader using tenant email accounts."""
     try:
-        accounts = email_config.get_all_accounts()
+        email_manager = TenantEmailConfigManager()
+        accounts = email_manager.get_accounts()
         if not accounts:
-            current_app.logger.warning("No email accounts found in JSON config")
+            current_app.logger.warning("No email accounts configured for tenant")
             return False
         
         # Use the first account for inbox reading
@@ -170,10 +171,10 @@ def get_inbox_threads():
 
 def _organize_threads_by_folder(threads):
     """Organize email threads into Sent and Inbox sections."""
-    from app.utils.email_config import email_config
+    email_manager = TenantEmailConfigManager()
     
     # Get our email addresses to identify sent vs received
-    our_emails = {acc.email.lower() for acc in email_config.get_all_accounts()}
+    our_emails = {acc.email.lower() for acc in email_manager.get_accounts()}
     
     organized = {
         'sent': [],      # Threads where we sent the latest message
@@ -203,16 +204,16 @@ def _organize_threads_by_folder(threads):
 def _send_threaded_followup_email(recipient: str, subject: str, body: str, original_message_id: str = None) -> bool:
     """Send a threaded follow-up email that appears as a reply in email clients."""
     try:
-        from app.utils.email_config import email_config
         from email.message import EmailMessage
         from email.utils import make_msgid
         import smtplib
         import ssl
         
         # Get default account
-        account = email_config.get_default_account()
+        email_manager = TenantEmailConfigManager()
+        account = email_manager.get_default_account()
         if not account:
-            current_app.logger.error("No default email account available")
+            current_app.logger.error("No default email account available for tenant")
             return False
         
         # Create email message
@@ -304,11 +305,6 @@ def _send_threaded_followup_email(recipient: str, subject: str, body: str, origi
 def import_contacts():
     """CSV import page."""
     return render_template('import.html')
-
-@bp.route('/config')
-def config():
-    """Email configuration page."""
-    return render_template('config.html')
 
 @bp.route('/login')
 def login_page():

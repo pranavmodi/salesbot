@@ -19,12 +19,14 @@ def create_app():
     from app.views.email_routes import email_bp
     from app.views.campaign_routes import campaign_bp
     from app.views.api import api_bp
+    from app.views.settings_routes import settings_bp
 
     app.register_blueprint(contact_bp)
     app.register_blueprint(company_bp)
     app.register_blueprint(email_bp)
     app.register_blueprint(campaign_bp)
     app.register_blueprint(api_bp)
+    app.register_blueprint(settings_bp)
 
     # Google OAuth setup
     from authlib.integrations.flask_client import OAuth
@@ -48,7 +50,7 @@ def create_app():
             return redirect(url_for('main.login_page'))
             
         redirect_uri = url_for('auth_google_callback', _external=True)
-        return google.authorize_redirect(redirect_uri)
+        return google.authorize_redirect(redirect_uri, prompt='select_account')
     
     @app.route('/auth/google/callback')
     def auth_google_callback():
@@ -78,13 +80,23 @@ def create_app():
                             user_id = user_row.id
                             tenant_id = user_row.tenant_id
                         else:
-                            # Get default tenant ID
-                            tenant_result = conn.execute(text("""
-                                SELECT id FROM tenants WHERE name = 'Default Tenant' LIMIT 1
-                            """))
-                            default_tenant_id = tenant_result.fetchone().id
+                            # Create new tenant for this user
+                            import uuid
+                            tenant_name = f"{user_info['name']} ({user_info['email']})"
+                            tenant_slug = user_info['email'].split('@')[0].lower().replace('.', '-')
                             
-                            # Create new user with default tenant
+                            tenant_result = conn.execute(text("""
+                                INSERT INTO tenants (id, name, slug, created_at)
+                                VALUES (:id, :name, :slug, CURRENT_TIMESTAMP)
+                                RETURNING id
+                            """), {
+                                'id': str(uuid.uuid4()),
+                                'name': tenant_name,
+                                'slug': tenant_slug
+                            })
+                            tenant_id = tenant_result.fetchone().id
+                            
+                            # Create new user with their own tenant
                             result = conn.execute(text("""
                                 INSERT INTO users (email, name, google_id, tenant_id, created_at)
                                 VALUES (:email, :name, :google_id, :tenant_id, CURRENT_TIMESTAMP)
@@ -93,10 +105,9 @@ def create_app():
                                 'email': user_info['email'],
                                 'name': user_info['name'],
                                 'google_id': user_info['sub'],
-                                'tenant_id': default_tenant_id
+                                'tenant_id': tenant_id
                             })
                             user_id = result.fetchone().id
-                            tenant_id = default_tenant_id
                 
                 # Store user session data
                 session['user'] = {

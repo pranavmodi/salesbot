@@ -7,7 +7,7 @@ import json
 
 from app.services.email_service import EmailService
 from app.services.email_reader_service import email_reader, configure_email_reader, EmailReaderService
-from app.utils.email_config import email_config, EmailAccount
+from app.utils.tenant_email_config import TenantEmailConfigManager, EmailAccount
 # Using only deep research composer now
 from email_composers.email_composer_deep_research import DeepResearchEmailComposer
 
@@ -140,11 +140,11 @@ def send_email():
 def get_email_accounts():
     """Get all configured email accounts."""
     try:
-        # Force reload of email configuration
-        email_config.load_accounts()
+        # Get tenant-specific email configuration
+        email_manager = TenantEmailConfigManager()
         
         # Get full account details for config page
-        all_accounts = email_config.get_all_accounts()
+        all_accounts = email_manager.get_accounts()
         accounts = [account.to_dict() for account in all_accounts]
         
         # Debug logging
@@ -152,8 +152,8 @@ def get_email_accounts():
         for account in accounts:
             current_app.logger.info(f"Account: {account['name']}, IMAP: {account['imap_host']}")
         
-        # Check which config storage is being used
-        config_file_path = email_config.config_file_path
+        # For tenant-based config, show tenant-specific info
+        config_file_path = "tenant_settings (database)"
         env_file_info = {
             'env_exists': os.path.exists('.env'),
             'env2_exists': os.path.exists('.env2'),
@@ -265,80 +265,6 @@ def test_email_account(account_name):
             'details': {'error': str(e)}
         }), 500
 
-@email_bp.route('/email/config/save', methods=['POST'])
-def save_email_configuration():
-    """Save email configuration to JSON file."""
-    try:
-        data = request.get_json()
-        current_app.logger.info(f"Saving email configuration with {len(data.get('accounts', []))} accounts")
-        
-        if not data or 'accounts' not in data:
-            return jsonify({
-                'success': False,
-                'message': 'Invalid configuration data'
-            }), 400
-        
-        accounts = data['accounts']
-        if not accounts:
-            return jsonify({
-                'success': False,
-                'message': 'At least one account must be configured'
-            }), 400
-        
-        # Validate accounts
-        for i, account in enumerate(accounts):
-            required_fields = ['name', 'email', 'password']
-            for field in required_fields:
-                if not account.get(field):
-                    return jsonify({
-                        'success': False,
-                        'message': f'Account {i+1}: {field} is required'
-                    }), 400
-        
-        # Use the new JSON-based saving mechanism
-        success = email_config.update_accounts(accounts)
-        
-        if success:
-            current_app.logger.info(f"Successfully saved {len(accounts)} email accounts to JSON config")
-            
-            # Verify the save worked by reloading
-            try:
-                email_config.load_accounts()
-                reloaded_accounts = email_config.get_all_accounts()
-                current_app.logger.info(f"Verification: Reloaded {len(reloaded_accounts)} accounts from JSON file")
-                
-                for account in reloaded_accounts:
-                    current_app.logger.info(f"Verified account: {account.name} ({account.email})")
-                
-                return jsonify({
-                    'success': True,
-                    'message': 'Configuration saved successfully to JSON file and applied immediately!',
-                    'accounts_count': len(accounts),
-                    'config_reloaded': True,
-                    'storage_type': 'JSON file'
-                })
-                
-            except Exception as e:
-                current_app.logger.warning(f"Failed to verify saved config: {e}")
-                return jsonify({
-                    'success': True,
-                    'message': 'Configuration saved to JSON file but verification failed',
-                    'accounts_count': len(accounts),
-                    'config_reloaded': False,
-                    'storage_type': 'JSON file'
-                })
-        else:
-            return jsonify({
-                'success': False,
-                'message': 'Failed to save configuration to JSON file'
-            }), 500
-        
-    except Exception as e:
-        current_app.logger.error(f"Error saving email configuration: {str(e)}")
-        return jsonify({
-            'success': False,
-            'message': f'Failed to save configuration: {str(e)}'
-        }), 500
 
 @email_bp.route('/send_bulk_emails', methods=['POST'])
 def send_bulk_emails():
@@ -702,69 +628,6 @@ def get_all_emails():
         current_app.logger.error(f"Error fetching all emails: {str(e)}")
         return jsonify({'error': 'Failed to fetch emails', 'success': False}), 500
 
-@email_bp.route('/email/config/debug', methods=['GET'])
-def debug_email_configuration():
-    """Debug endpoint to show current email configuration state."""
-    try:
-        config_file_path = email_config.config_file_path
-        
-        debug_info = {
-            'storage_mechanism': 'JSON file' if os.path.exists(config_file_path) else 'Environment variable',
-            'json_config_file': config_file_path,
-            'json_config_exists': os.path.exists(config_file_path),
-            'env_file_exists': os.path.exists('.env'),
-            'env2_file_exists': os.path.exists('.env2'),
-            'email_accounts_env_var': os.getenv('EMAIL_ACCOUNTS', 'NOT_SET'),
-            'loaded_accounts': [],
-            'config_manager_status': 'unknown'
-        }
-        
-        # Try to reload and get accounts
-        try:
-            email_config.load_accounts()
-            all_accounts = email_config.get_all_accounts()
-            debug_info['loaded_accounts'] = [account.to_dict() for account in all_accounts]
-            debug_info['config_manager_status'] = 'working'
-            debug_info['accounts_count'] = len(all_accounts)
-        except Exception as e:
-            debug_info['config_manager_status'] = f'error: {str(e)}'
-            debug_info['accounts_count'] = 0
-        
-        # Read JSON config file if it exists
-        if os.path.exists(config_file_path):
-            try:
-                with open(config_file_path, 'r') as f:
-                    json_content = json.load(f)
-                    debug_info['json_config_content'] = json_content
-                    debug_info['json_accounts_count'] = len(json_content) if isinstance(json_content, list) else 0
-            except Exception as e:
-                debug_info['json_config_error'] = str(e)
-        
-        # Read .env file content for EMAIL_ACCOUNTS line (for fallback info)
-        try:
-            with open('.env', 'r') as f:
-                lines = f.readlines()
-                for i, line in enumerate(lines):
-                    if line.startswith('EMAIL_ACCOUNTS='):
-                        debug_info['env_file_line'] = line.strip()
-                        debug_info['env_file_line_number'] = i + 1
-                        break
-                else:
-                    debug_info['env_file_line'] = 'NOT_FOUND'
-        except Exception as e:
-            debug_info['env_file_error'] = str(e)
-        
-        return jsonify({
-            'success': True,
-            'debug_info': debug_info
-        })
-        
-    except Exception as e:
-        current_app.logger.error(f"Error in debug endpoint: {str(e)}")
-        return jsonify({
-            'success': False,
-            'message': f'Debug failed: {str(e)}'
-        }), 500
 
 @email_bp.route('/contacts-with-research-status', methods=['GET'])
 def get_contacts_with_research_status():

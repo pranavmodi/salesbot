@@ -31,27 +31,9 @@
             <!-- Quick Actions in Header -->
             <div class="d-flex align-items-center me-auto ms-4">
                 <div class="d-flex gap-2 me-4">
-                    <a href="/config" class="btn btn-outline-light btn-sm">
-                        <i class="fas fa-cog me-1"></i> Email Config
+                    <a href="/settings" class="btn btn-outline-light btn-sm">
+                        <i class="fas fa-cog me-1"></i> Settings
                     </a>
-                    <a href="/import" class="btn btn-outline-light btn-sm">
-                        <i class="fas fa-file-upload me-1"></i> Import Contacts
-                    </a>
-                </div>
-                
-                <!-- Active Email Account in Header -->
-                <div class="d-flex align-items-center border-start border-light border-opacity-25 ps-4">
-                    <div class="me-3">
-                        <i class="fas fa-envelope text-white me-2"></i>
-                        <label class="form-label mb-0 fw-semibold text-white me-2">Active Email Account</label>
-                        <select class="form-select form-select-sm d-inline-block" id="globalAccountSelector" style="width: auto; min-width: 200px;">
-                            <option value="">Loading accounts...</option>
-                        </select>
-                    </div>
-                    <button class="btn btn-outline-light btn-sm me-3" id="testGlobalAccount" title="Test Connection" onclick="testGlobalAccountConnection()">
-                        <i class="fas fa-plug"></i>
-                    </button>
-
                 </div>
             </div>
             
@@ -77,6 +59,10 @@
                         {{ session.user.name }}
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="/settings">
+                            <i class="fas fa-cog me-2"></i>Settings
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="/logout">
                             <i class="fas fa-sign-out-alt me-2"></i>Logout
                         </a></li>
