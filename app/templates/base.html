@@ -38,16 +38,7 @@
             </div>
             
             <div class="navbar-nav d-flex flex-row align-items-center">
-                <!-- Tenant Switcher -->
                 {% if session.user %}
-                <div class="me-3 d-flex align-items-center border-end border-light border-opacity-25 pe-3">
-                    <i class="fas fa-building text-white me-2"></i>
-                    <label class="form-label mb-0 fw-semibold text-white me-2">Tenant</label>
-                    <select class="form-select form-select-sm" id="tenantSelector" style="width: auto; min-width: 120px;" onchange="switchTenant()">
-                        <option value="1">Default</option>
-                    </select>
-                </div>
-                
                 <!-- User Info -->
                 <div class="dropdown">
                     <a class="nav-link dropdown-toggle text-white d-flex align-items-center" href="#" role="button" data-bs-toggle="dropdown">
@@ -99,27 +90,7 @@
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
     
     <script>
-        // Tenant switching functionality
-        function switchTenant() {
-            const tenantSelector = document.getElementById('tenantSelector');
-            if (tenantSelector && tenantSelector.value) {
-                // Reload page with tenant parameter
-                const url = new URL(window.location);
-                url.searchParams.set('tenant', tenantSelector.value);
-                window.location = url.toString();
-            }
-        }
-        
-        // Load available tenants on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            const tenantSelector = document.getElementById('tenantSelector');
-            if (tenantSelector) {
-                // For now, just show default tenant
-                // TODO: Load actual tenants from API
-                const currentTenant = new URLSearchParams(window.location.search).get('tenant') || '1';
-                tenantSelector.value = currentTenant;
-            }
-        });
+
     </script>
     
     {% block extra_js %}{% endblock %}
