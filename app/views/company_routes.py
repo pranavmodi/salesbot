@@ -1140,35 +1140,35 @@ def submit_manual_paste_research(company_id):
         current_app.logger.info(f"Successfully stored manual paste research for {company.company_name}")
         
         # Automatically trigger Step 2 and Step 3 after manual paste
-        current_app.logger.info(f"Auto-triggering Step 2 and Step 3 for {company.company_name} after manual paste")
+        # current_app.logger.info(f"Auto-triggering Step 2 and Step 3 for {company.company_name} after manual paste")
         
-        try:
-            from deepresearch.llm_step_by_step_researcher import LLMStepByStepResearcher
+        # try:
+        #     from deepresearch.llm_step_by_step_researcher import LLMStepByStepResearcher
             
-            # Initialize the step researcher
-            step_researcher = LLMStepByStepResearcher()
+        #     # Initialize the step researcher
+        #     step_researcher = LLMStepByStepResearcher()
             
-            # Trigger Step 2 (will automatically continue to Step 3) using selected provider
-            auto_result = step_researcher.start_llm_step_research(
-                company_id=company_id,
-                provider=selected_provider,  # Use the provider selected in the modal
-                force_refresh=False  # Don't overwrite the manual paste
-            )
+        #     # Trigger Step 2 (will automatically continue to Step 3) using selected provider
+        #     auto_result = step_researcher.start_llm_step_research(
+        #         company_id=company_id,
+        #         provider=selected_provider,  # Use the provider selected in the modal
+        #         force_refresh=False  # Don't overwrite the manual paste
+        #     )
             
-            if auto_result.get('success'):
-                current_app.logger.info(f"✅ Auto-progression initiated successfully for {company.company_name}: {auto_result.get('message', '')}")
-                auto_status = 'auto_progression_started'
-            else:
-                current_app.logger.warning(f"⚠️ Auto-progression failed for {company.company_name}: {auto_result.get('error', '')}")
-                auto_status = 'auto_progression_failed'
+        #     if auto_result.get('success'):
+        #         current_app.logger.info(f"✅ Auto-progression initiated successfully for {company.company_name}: {auto_result.get('message', '')}")
+        #         auto_status = 'auto_progression_started'
+        #     else:
+        #         current_app.logger.warning(f"⚠️ Auto-progression failed for {company.company_name}: {auto_result.get('error', '')}")
+        #         auto_status = 'auto_progression_failed'
                 
-        except Exception as e:
-            current_app.logger.error(f"❌ Error during auto-progression for {company.company_name}: {str(e)}")
-            auto_status = 'auto_progression_error'
+        # except Exception as e:
+        #     current_app.logger.error(f"❌ Error during auto-progression for {company.company_name}: {str(e)}")
+        #     auto_status = 'auto_progression_error'
         
         return jsonify({
             'success': True,
-            'message': f'Manual research content stored successfully for {company.company_name}. Steps 2 and 3 have been automatically triggered.',
+            'message': f'Manual research content stored successfully for {company.company_name}. You can now manually trigger Step 2.',
             'company_name': company.company_name,
             'step': step,
             'content_length': len(content),
@@ -1176,7 +1176,7 @@ def submit_manual_paste_research(company_id):
             'word_count': len(content.split()),
             'manual_paste': True,
             'status': 'step_1_completed_manual',
-            'auto_progression': auto_status
+            'auto_progression': 'disabled'
         })
         
     except Exception as e:
