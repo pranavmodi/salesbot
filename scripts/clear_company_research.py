@@ -47,35 +47,57 @@ class CompanyResearchCleaner:
         )
         logger.info("CompanyResearchCleaner initialized")
 
-    def get_companies_with_research_count(self) -> int:
-        """Get count of companies that have research data."""
-        logger.info("Checking companies with research data...")
+    def get_companies_with_research_count(self, tenant_id: str = None) -> int:
+        """Get count of companies that have research data.
+        
+        Args:
+            tenant_id: If provided, only count companies belonging to this tenant.
+                      If None, counts all companies across all tenants.
+        """
+        if tenant_id:
+            logger.info(f"Checking companies with research data for tenant {tenant_id}...")
+        else:
+            logger.info("Checking companies with research data across all tenants...")
         
         try:
             with self.engine.connect() as conn:
-                result = conn.execute(text("""
+                # Build the WHERE clause
+                where_conditions = [
+                    "company_research IS NOT NULL",
+                    "company_research != ''",
+                    "markdown_report IS NOT NULL",
+                    "strategic_imperatives IS NOT NULL",
+                    "agent_recommendations IS NOT NULL",
+                    "research_step_1_basic IS NOT NULL",
+                    "research_step_2_strategic IS NOT NULL",
+                    "research_step_3_report IS NOT NULL",
+                    "llm_research_prompt IS NOT NULL",
+                    "llm_research_results IS NOT NULL",
+                    "llm_research_status IS NOT NULL",
+                    "llm_research_step_1_basic IS NOT NULL",
+                    "llm_research_step_2_strategic IS NOT NULL",
+                    "llm_research_step_3_report IS NOT NULL",
+                    "llm_markdown_report IS NOT NULL",
+                    "llm_html_report IS NOT NULL",
+                    "llm_research_step_status IS NOT NULL"
+                ]
+                
+                where_clause = f"({' OR '.join(where_conditions)})"
+                
+                # Add tenant filtering if tenant_id is provided
+                if tenant_id:
+                    where_clause += " AND tenant_id = :tenant_id"
+                    params = {"tenant_id": tenant_id}
+                else:
+                    params = {}
+                
+                query = f"""
                     SELECT COUNT(*) as count
                     FROM companies 
-                    WHERE company_research IS NOT NULL 
-                      AND company_research != ''
-                      OR markdown_report IS NOT NULL
-                      OR strategic_imperatives IS NOT NULL  
-                      OR agent_recommendations IS NOT NULL
-                      OR research_step_1_basic IS NOT NULL
-                      OR research_step_2_strategic IS NOT NULL
-                      OR research_step_3_report IS NOT NULL
-                      -- LLM research fields (from first migration)
-                      OR llm_research_prompt IS NOT NULL
-                      OR llm_research_results IS NOT NULL
-                      OR llm_research_status IS NOT NULL
-                      -- LLM step-by-step research fields (from second migration)
-                      OR llm_research_step_1_basic IS NOT NULL
-                      OR llm_research_step_2_strategic IS NOT NULL
-                      OR llm_research_step_3_report IS NOT NULL
-                      OR llm_markdown_report IS NOT NULL
-                      OR llm_html_report IS NOT NULL
-                      OR llm_research_step_status IS NOT NULL
-                """))
+                    WHERE {where_clause}
+                """
+                
+                result = conn.execute(text(query), params)
                 
                 count = result.fetchone().count
                 logger.info(f"Found {count} companies with research data")
@@ -88,15 +110,55 @@ class CompanyResearchCleaner:
             logger.error(f"Unexpected error checking companies with research: {e}")
             return 0
 
-    def clear_all_research(self) -> bool:
-        """Clear ALL company research data including LLM fields for all companies."""
-        logger.info("🚨 CLEARING ALL COMPANY RESEARCH DATA (including LLM fields)...")
+    def clear_all_research(self, tenant_id: str = None) -> bool:
+        """Clear company research data including LLM fields for companies.
+        
+        Args:
+            tenant_id: If provided, only clear research for companies belonging to this tenant.
+                      If None, clears research for ALL companies across ALL tenants (admin use).
+        """
+        if tenant_id:
+            logger.info(f"🚨 CLEARING RESEARCH DATA for tenant {tenant_id}...")
+        else:
+            logger.info("🚨 CLEARING ALL COMPANY RESEARCH DATA (including LLM fields)...")
+            logger.info("⚠️  WARNING: This affects ALL companies across ALL tenants!")
         logger.info("Fields to be cleared: old research, LLM research, step-by-step research, OpenAI tracking")
         
         try:
             with self.engine.connect() as conn:
                 with conn.begin():
-                    result = conn.execute(text("""
+                    # Build the WHERE clause based on tenant filtering
+                    where_conditions = [
+                        "company_research IS NOT NULL",
+                        "company_research != ''",
+                        "markdown_report IS NOT NULL",
+                        "strategic_imperatives IS NOT NULL",
+                        "agent_recommendations IS NOT NULL", 
+                        "research_step_1_basic IS NOT NULL",
+                        "research_step_2_strategic IS NOT NULL",
+                        "research_step_3_report IS NOT NULL",
+                        "llm_research_prompt IS NOT NULL",
+                        "llm_research_results IS NOT NULL",
+                        "llm_research_status IS NOT NULL",
+                        "llm_research_step_1_basic IS NOT NULL",
+                        "llm_research_step_2_strategic IS NOT NULL",
+                        "llm_research_step_3_report IS NOT NULL",
+                        "llm_markdown_report IS NOT NULL",
+                        "llm_html_report IS NOT NULL",
+                        "llm_research_step_status IS NOT NULL",
+                        "openai_response_id IS NOT NULL"
+                    ]
+                    
+                    where_clause = f"({' OR '.join(where_conditions)})"
+                    
+                    # Add tenant filtering if tenant_id is provided
+                    if tenant_id:
+                        where_clause += " AND tenant_id = :tenant_id"
+                        params = {"tenant_id": tenant_id}
+                    else:
+                        params = {}
+                    
+                    query = f"""
                         UPDATE companies 
                         SET 
                             -- Old research fields
@@ -137,27 +199,17 @@ class CompanyResearchCleaner:
                             -- OpenAI background job tracking (if exists)
                             openai_response_id = NULL,
                             
+                            -- PDF reports
+                            pdf_report_base64 = NULL,
+                            llm_pdf_report_base64 = NULL,
+                            basic_research_pdf_base64 = NULL,
+                            
                             -- Update timestamp
                             updated_at = CURRENT_TIMESTAMP
-                        WHERE company_research IS NOT NULL 
-                           OR company_research != ''
-                           OR markdown_report IS NOT NULL
-                           OR strategic_imperatives IS NOT NULL  
-                           OR agent_recommendations IS NOT NULL
-                           OR research_step_1_basic IS NOT NULL
-                           OR research_step_2_strategic IS NOT NULL
-                           OR research_step_3_report IS NOT NULL
-                           OR llm_research_prompt IS NOT NULL
-                           OR llm_research_results IS NOT NULL
-                           OR llm_research_status IS NOT NULL
-                           OR llm_research_step_1_basic IS NOT NULL
-                           OR llm_research_step_2_strategic IS NOT NULL
-                           OR llm_research_step_3_report IS NOT NULL
-                           OR llm_markdown_report IS NOT NULL
-                           OR llm_html_report IS NOT NULL
-                           OR llm_research_step_status IS NOT NULL
-                           OR openai_response_id IS NOT NULL
-                    """))
+                        WHERE {where_clause}
+                    """
+                    
+                    result = conn.execute(text(query), params)
                     
                     rows_affected = result.rowcount
                     logger.info(f"✅ Successfully cleared ALL research data (including LLM fields) from {rows_affected} companies")

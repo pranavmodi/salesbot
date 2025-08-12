@@ -268,7 +268,8 @@ class ContactDatabase:
                 """))
                 stats['unique_companies'] = result.scalar()
                 
-                # Source file breakdown
+                # Source file breakdown - GLOBAL across all tenants
+                # TODO: Make this tenant-aware if needed for per-tenant stats
                 result = conn.execute(text("""
                     SELECT filename, successful_inserts, total_rows, errors, processed_at
                     FROM file_metadata 

@@ -327,9 +327,13 @@ class Campaign:
                     
                     # Delete campaign contacts associations
                     campaign_contacts_result = conn.execute(text("""
-                        DELETE FROM campaign_contacts
-                        WHERE campaign_id = :campaign_id
-                    """), {"campaign_id": campaign_id})
+                        DELETE FROM campaign_contacts cc
+                        WHERE cc.campaign_id = :campaign_id 
+                        AND EXISTS (
+                            SELECT 1 FROM campaigns c 
+                            WHERE c.id = cc.campaign_id AND c.tenant_id = :tenant_id
+                        )
+                    """), {"campaign_id": campaign_id, "tenant_id": tenant_id})
                     campaign_contacts_count = campaign_contacts_result.rowcount
                     
                     # Finally, delete the campaign itself
@@ -386,9 +390,10 @@ class Campaign:
                         COUNT(CASE WHEN status = 'active' THEN 1 END) as active_contacts,
                         COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_contacts,
                         COUNT(CASE WHEN status = 'paused' THEN 1 END) as paused_contacts
-                    FROM campaign_contacts 
-                    WHERE campaign_id = :campaign_id
-                """), {"campaign_id": campaign_id})
+                    FROM campaign_contacts cc
+                    JOIN campaigns c ON cc.campaign_id = c.id
+                    WHERE cc.campaign_id = :campaign_id AND c.tenant_id = :tenant_id
+                """), {"campaign_id": campaign_id, "tenant_id": tenant_id})
                 
                 email_row = email_result.fetchone()
                 contact_row = contact_result.fetchone()
@@ -428,19 +433,24 @@ class Campaign:
         if not engine:
             current_app.logger.error("Failed to add contact to campaign: Database engine not available.")
             return False
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in add_contact_to_campaign")
+            return False
 
         try:
             with engine.connect() as conn:
                 with conn.begin():
                     insert_query = text("""
-                        INSERT INTO campaign_contacts (campaign_id, contact_email, status) 
-                        VALUES (:campaign_id, :contact_email, :status)
-                        ON CONFLICT (campaign_id, contact_email) 
+                        INSERT INTO campaign_contacts (tenant_id, campaign_id, contact_email, status) 
+                        VALUES (:tenant_id, :campaign_id, :contact_email, :status)
+                        ON CONFLICT (tenant_id, campaign_id, contact_email) 
                         DO UPDATE SET 
                             status = :status,
                             updated_at = CURRENT_TIMESTAMP
                     """)
                     conn.execute(insert_query, {
+                        'tenant_id': tenant_id,
                         'campaign_id': campaign_id,
                         'contact_email': contact_email,
                         'status': status
@@ -466,12 +476,17 @@ class Campaign:
             with engine.connect() as conn:
                 with conn.begin():
                     delete_query = text("""
-                        DELETE FROM campaign_contacts 
-                        WHERE campaign_id = :campaign_id AND contact_email = :contact_email
+                        DELETE FROM campaign_contacts cc
+                        WHERE cc.campaign_id = :campaign_id AND cc.contact_email = :contact_email
+                        AND EXISTS (
+                            SELECT 1 FROM campaigns c 
+                            WHERE c.id = cc.campaign_id AND c.tenant_id = :tenant_id
+                        )
                     """)
                     result = conn.execute(delete_query, {
                         'campaign_id': campaign_id,
-                        'contact_email': contact_email
+                        'contact_email': contact_email,
+                        'tenant_id': current_tenant_id()
                     })
                     
                     if result.rowcount > 0:
@@ -571,6 +586,10 @@ class Campaign:
         if not engine:
             current_app.logger.error("Failed to bulk add contacts: Database engine not available.")
             return {'success': 0, 'failed': 0, 'errors': []}
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in bulk_add_contacts_to_campaign")
+            return {'success': 0, 'failed': 0, 'errors': ['Tenant not resolved']}
 
         success_count = 0
         failed_count = 0
@@ -582,14 +601,15 @@ class Campaign:
                     for contact_email in contact_emails:
                         try:
                             insert_query = text("""
-                                INSERT INTO campaign_contacts (campaign_id, contact_email, status) 
-                                VALUES (:campaign_id, :contact_email, :status)
-                                ON CONFLICT (campaign_id, contact_email) 
+                                INSERT INTO campaign_contacts (tenant_id, campaign_id, contact_email, status) 
+                                VALUES (:tenant_id, :campaign_id, :contact_email, :status)
+                                ON CONFLICT (tenant_id, campaign_id, contact_email) 
                                 DO UPDATE SET 
                                     status = :status,
                                     updated_at = CURRENT_TIMESTAMP
                             """)
                             conn.execute(insert_query, {
+                                'tenant_id': tenant_id,
                                 'campaign_id': campaign_id,
                                 'contact_email': contact_email,
                                 'status': status
@@ -767,14 +787,15 @@ class Campaign:
                     if contacts:
                         for contact_email in contacts:
                             contact_query = text("""
-                                INSERT INTO campaign_contacts (campaign_id, contact_email, status) 
-                                VALUES (:campaign_id, :contact_email, :status)
-                                ON CONFLICT (campaign_id, contact_email) 
+                                INSERT INTO campaign_contacts (tenant_id, campaign_id, contact_email, status) 
+                                VALUES (:tenant_id, :campaign_id, :contact_email, :status)
+                                ON CONFLICT (tenant_id, campaign_id, contact_email) 
                                 DO UPDATE SET 
                                     status = :status,
                                     updated_at = CURRENT_TIMESTAMP
                             """)
                             conn.execute(contact_query, {
+                                'tenant_id': tenant_id,
                                 'campaign_id': campaign_id,
                                 'contact_email': contact_email,
                                 'status': 'active'
@@ -936,7 +957,7 @@ class Campaign:
 
     @classmethod
     def delete_all_campaigns(cls) -> Dict[str, int]:
-        """Delete all campaigns and their associated data (campaign_contacts and email_history).
+        """Delete all campaigns for current tenant and their associated data.
         
         Returns:
             Dict with counts of deleted records: {'campaigns': X, 'campaign_contacts': Y, 'email_history': Z}
@@ -944,6 +965,10 @@ class Campaign:
         engine = cls._get_db_engine()
         if not engine:
             current_app.logger.error("Failed to delete all campaigns: Database engine not available.")
+            return {'campaigns': 0, 'campaign_contacts': 0, 'email_history': 0}
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.warning("Tenant not resolved in delete_all_campaigns")
             return {'campaigns': 0, 'campaign_contacts': 0, 'email_history': 0}
 
         try:
@@ -964,16 +989,20 @@ class Campaign:
                     """))
                     email_history_count = email_history_result.rowcount
                     
-                    # Delete campaign_contacts records
+                    # Delete campaign_contacts records for this tenant
                     campaign_contacts_result = conn.execute(text("""
-                        DELETE FROM campaign_contacts
-                    """))
+                        DELETE FROM campaign_contacts cc
+                        WHERE EXISTS (
+                            SELECT 1 FROM campaigns c 
+                            WHERE c.id = cc.campaign_id AND c.tenant_id = :tenant_id
+                        )
+                    """), {"tenant_id": tenant_id})
                     campaign_contacts_count = campaign_contacts_result.rowcount
                     
-                    # Finally, delete campaigns
+                    # Finally, delete campaigns for this tenant
                     campaigns_result = conn.execute(text("""
-                        DELETE FROM campaigns
-                    """))
+                        DELETE FROM campaigns WHERE tenant_id = :tenant_id
+                    """), {"tenant_id": tenant_id})
                     campaigns_count = campaigns_result.rowcount
                     
                     current_app.logger.info(

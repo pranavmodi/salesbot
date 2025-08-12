@@ -350,11 +350,21 @@ class ContactDataIngester:
         try:
             with self.engine.connect() as conn:
                 with conn.begin():
+                    # Get default tenant ID for file ingestion
+                    tenant_result = conn.execute(text("""
+                        SELECT id FROM tenants WHERE slug = 'default' LIMIT 1
+                    """))
+                    tenant_row = tenant_result.fetchone()
+                    if not tenant_row:
+                        logger.error("No default tenant found - cannot save file metadata")
+                        return
+                    default_tenant_id = tenant_row.id
+                    
                     conn.execute(text("""
                         INSERT INTO file_metadata 
-                        (filename, file_path, total_rows, successful_inserts, errors, column_mapping)
-                        VALUES (:filename, :file_path, :total_rows, :successful_inserts, :errors, :column_mapping)
-                        ON CONFLICT (filename) DO UPDATE SET
+                        (tenant_id, filename, file_path, total_rows, successful_inserts, errors, column_mapping)
+                        VALUES (:tenant_id, :filename, :file_path, :total_rows, :successful_inserts, :errors, :column_mapping)
+                        ON CONFLICT (tenant_id, filename) DO UPDATE SET
                             file_path = EXCLUDED.file_path,
                             processed_at = CURRENT_TIMESTAMP,
                             total_rows = EXCLUDED.total_rows,
@@ -362,6 +372,7 @@ class ContactDataIngester:
                             errors = EXCLUDED.errors,
                             column_mapping = EXCLUDED.column_mapping
                     """), {
+                        "tenant_id": default_tenant_id,
                         "filename": filename,
                         "file_path": file_path,
                         "total_rows": total_rows,
@@ -431,7 +442,8 @@ class ContactDataIngester:
                 result = conn.execute(text("SELECT COUNT(*) FROM contacts"))
                 stats['total_contacts'] = result.scalar()
                 
-                # Contacts by source file
+                # Contacts by source file - GLOBAL across all tenants
+                # TODO: Make this tenant-aware if needed for per-tenant stats
                 result = conn.execute(text("""
                     SELECT filename, successful_inserts, total_rows, errors 
                     FROM file_metadata 

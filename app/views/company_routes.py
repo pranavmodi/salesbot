@@ -141,9 +141,17 @@ def search_companies():
 
 @company_bp.route('/companies/clean-all-research', methods=['POST'])
 def clean_all_research():
-    """Clean all research data from all companies."""
+    """Clean all research data from companies belonging to current tenant."""
     try:
-        current_app.logger.info("Starting to clean all research data from companies")
+        from flask import g
+        tenant_id = getattr(g, 'tenant_id', None)
+        if not tenant_id:
+            return jsonify({
+                'success': False,
+                'message': 'No tenant context available. Please login again.'
+            }), 400
+            
+        current_app.logger.info(f"Starting to clean all research data for tenant {tenant_id}")
         
         # Import and use the cleaner directly instead of running the script
         import sys
@@ -158,9 +166,9 @@ def clean_all_research():
         
         cleaner = CompanyResearchCleaner()
         
-        # Get count before clearing
-        count_before = cleaner.get_companies_with_research_count()
-        current_app.logger.info(f"Found {count_before} companies with research data")
+        # Get count before clearing for this tenant only
+        count_before = cleaner.get_companies_with_research_count(tenant_id=tenant_id)
+        current_app.logger.info(f"Found {count_before} companies with research data for tenant {tenant_id}")
         
         if count_before == 0:
             return jsonify({
@@ -169,8 +177,8 @@ def clean_all_research():
                 'companies_affected': 0
             })
         
-        # Perform the clearing
-        success = cleaner.clear_all_research()
+        # Perform the clearing for this tenant only
+        success = cleaner.clear_all_research(tenant_id=tenant_id)
         
         if success:
             current_app.logger.info(f"Successfully cleaned research data from {count_before} companies")
