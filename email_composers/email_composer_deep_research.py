@@ -47,32 +47,6 @@ class DeepResearchEmailComposer:
             raise ValueError("No OpenAI API key available (tenant-specific or fallback)")
         self.client         = OpenAI(api_key=openai_api_key)
         self.proof_points   = self._load_text(PROOF_POINTS_PATH).splitlines()
-    
-    def _get_tenant_api_key(self, key_name: str):
-        """Get tenant-specific API key or fallback to environment variable."""
-        try:
-            from app.tenant import current_tenant_id
-            from app.models.tenant_settings import TenantSettings
-            
-            tenant_id = current_tenant_id()
-            if tenant_id:
-                tenant_key = TenantSettings.get_api_key(tenant_id, key_name)
-                if tenant_key:
-                    return tenant_key
-                else:
-                    print(f"No tenant-specific {key_name} found for tenant {tenant_id}, using fallback")
-            else:
-                print(f"No tenant context available, using fallback {key_name}")
-        except Exception as e:
-            print(f"Error getting tenant API key {key_name}: {e}, using fallback")
-        
-        # Fallback to environment variables
-        fallback_keys = {
-            'openai_api_key': os.getenv("OPENAI_API_KEY"),
-            'anthropic_api_key': os.getenv("ANTHROPIC_API_KEY"),
-            'perplexity_api_key': os.getenv("PERPLEXITY_API_KEY")
-        }
-        return fallback_keys.get(key_name)
 
         self.system_prompt = textwrap.dedent("""
             You're an expert sales strategist writing research-backed, highly personalized cold emails.
@@ -110,6 +84,32 @@ class DeepResearchEmailComposer:
 
             Here is context about the sender and their product:
             """ + SENDER_INFO)
+    
+    def _get_tenant_api_key(self, key_name: str):
+        """Get tenant-specific API key or fallback to environment variable."""
+        try:
+            from app.tenant import current_tenant_id
+            from app.models.tenant_settings import TenantSettings
+            
+            tenant_id = current_tenant_id()
+            if tenant_id:
+                tenant_key = TenantSettings.get_api_key(tenant_id, key_name)
+                if tenant_key:
+                    return tenant_key
+                else:
+                    print(f"No tenant-specific {key_name} found for tenant {tenant_id}, using fallback")
+            else:
+                print(f"No tenant context available, using fallback {key_name}")
+        except Exception as e:
+            print(f"Error getting tenant API key {key_name}: {e}, using fallback")
+        
+        # Fallback to environment variables
+        fallback_keys = {
+            'openai_api_key': os.getenv("OPENAI_API_KEY"),
+            'anthropic_api_key': os.getenv("ANTHROPIC_API_KEY"),
+            'perplexity_api_key': os.getenv("PERPLEXITY_API_KEY")
+        }
+        return fallback_keys.get(key_name)
 
     def compose_email(self, lead: Dict[str, str], calendar_url: str = DEFAULT_CALENDAR, extra_context: str | None = None, auto_research: bool = None, campaign_id: int = None, include_tracking: bool = True) -> Dict[str, str] | None:
 
