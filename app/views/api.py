@@ -391,17 +391,26 @@ def not_found(error):
 
 @api_bp.route('/clean-database', methods=['POST'])
 def clean_database():
-    """Execute the database cleaning operation."""
+    """Execute the database cleaning operation for current tenant only."""
     try:
         from app.services.database_cleaner import DatabaseCleanerService
+        from flask import g
         
-        logger.info("Starting database cleaning via API")
+        # Get the current tenant ID
+        tenant_id = getattr(g, 'tenant_id', None)
+        if not tenant_id:
+            return jsonify({
+                'success': False, 
+                'error': 'No tenant context available. Please login again.'
+            }), 400
+        
+        logger.info(f"Starting database cleaning for tenant {tenant_id} via API")
         
         # Initialize the database cleaner service
         cleaner = DatabaseCleanerService()
         
-        # Execute the complete cleaning operation
-        result = cleaner.execute_complete_clean()
+        # Execute the tenant-specific cleaning operation
+        result = cleaner.execute_complete_clean(tenant_id=tenant_id)
         
         if result['success']:
             logger.info(f"Database cleaning completed: {result['message']}")

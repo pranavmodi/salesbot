@@ -89,18 +89,31 @@ class DatabaseCleanerService:
             logger.warning(f"Could not verify table '{table_name}' exists: {e}")
             return False
 
-    def clean_table(self, table_name: str) -> int:
-        """Clean all records from a specific table."""
+    def clean_table(self, table_name: str, tenant_id: str = None) -> int:
+        """Clean records from a specific table, optionally filtered by tenant."""
         if not self.verify_table_exists(table_name):
             logger.warning(f"Table '{table_name}' does not exist, skipping...")
             return 0
-            
-        logger.info(f"Cleaning table '{table_name}'...")
+        
+        # Check if table has tenant_id column for filtering
+        has_tenant_column = self._table_has_tenant_column(table_name)
+        
+        if tenant_id and has_tenant_column:
+            logger.info(f"Cleaning table '{table_name}' for tenant {tenant_id}...")
+            query = f"DELETE FROM {table_name} WHERE tenant_id = :tenant_id"
+            params = {"tenant_id": tenant_id}
+        elif tenant_id and not has_tenant_column:
+            logger.warning(f"Table '{table_name}' has no tenant_id column - skipping for safety")
+            return 0
+        else:
+            logger.warning(f"Cleaning ALL records from table '{table_name}' (no tenant filter)")
+            query = f"DELETE FROM {table_name}"
+            params = {}
         
         try:
             with self.engine.connect() as conn:
                 with conn.begin():
-                    result = conn.execute(text(f"DELETE FROM {table_name}"))
+                    result = conn.execute(text(query), params)
                     rows_affected = result.rowcount
                     logger.info(f"Successfully deleted {rows_affected} records from '{table_name}'")
                     return rows_affected
@@ -112,20 +125,42 @@ class DatabaseCleanerService:
             logger.error(f"Unexpected error cleaning table '{table_name}': {e}")
             return 0
 
-    def clean_all_tables(self) -> Dict[str, int]:
-        """Clean all records from all tables in the correct order."""
-        logger.info("Starting complete database cleaning...")
+    def _table_has_tenant_column(self, table_name: str) -> bool:
+        """Check if a table has a tenant_id column."""
+        try:
+            with self.engine.connect() as conn:
+                result = conn.execute(text("""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.columns 
+                        WHERE table_name = :table_name 
+                        AND column_name = 'tenant_id'
+                    )
+                """), {"table_name": table_name})
+                return result.fetchone()[0]
+        except Exception as e:
+            logger.warning(f"Could not check tenant_id column for table '{table_name}': {e}")
+            return False
+
+    def clean_all_tables(self, tenant_id: str = None) -> Dict[str, int]:
+        """Clean all records from all tables in the correct order, optionally filtered by tenant."""
+        if tenant_id:
+            logger.info(f"Starting database cleaning for tenant {tenant_id}...")
+        else:
+            logger.info("Starting complete database cleaning...")
         
         results = {}
         total_deleted = 0
         
         # Delete in the specified order to handle foreign key constraints
         for table_name in self.TABLE_ORDER:
-            deleted_count = self.clean_table(table_name)
+            deleted_count = self.clean_table(table_name, tenant_id)
             results[table_name] = deleted_count
             total_deleted += deleted_count
         
-        logger.info(f"✅ Database cleaning completed. Total records deleted: {total_deleted}")
+        if tenant_id:
+            logger.info(f"✅ Database cleaning completed for tenant {tenant_id}. Total records deleted: {total_deleted}")
+        else:
+            logger.info(f"✅ Database cleaning completed. Total records deleted: {total_deleted}")
         return results
 
     def reset_sequences(self) -> bool:
@@ -206,23 +241,28 @@ class DatabaseCleanerService:
             logger.error(f"Unexpected error getting summary: {e}")
             return {}
 
-    def execute_complete_clean(self) -> dict:
+    def execute_complete_clean(self, tenant_id: str = None) -> dict:
         """Execute complete database cleaning and return results."""
         try:
             # Get initial counts for reporting
             initial_counts = self.get_table_counts()
             initial_total = sum(initial_counts.values())
             
-            logger.info(f"Starting database cleaning - {initial_total} total records to delete")
+            if tenant_id:
+                logger.info(f"Starting database cleaning for tenant {tenant_id} - checking {initial_total} total records")
+            else:
+                logger.info(f"Starting database cleaning - {initial_total} total records to delete")
             
             # Clean all tables
-            results = self.clean_all_tables()
+            results = self.clean_all_tables(tenant_id)
             
             if results:
                 total_deleted = sum(results.values())
                 
-                # Reset sequences
-                sequences_reset = self.reset_sequences()
+                # Reset sequences only if cleaning entire database (no tenant filter)
+                sequences_reset = False
+                if not tenant_id:
+                    sequences_reset = self.reset_sequences()
                 
                 logger.info("✅ Database cleaning completed successfully!")
                 logger.info("📊 Deletion Summary:")
@@ -231,13 +271,19 @@ class DatabaseCleanerService:
                         logger.info(f"   - {table_name}: {count} records deleted")
                 logger.info(f"   Total records deleted: {total_deleted}")
                 
+                if tenant_id:
+                    message = f'Database cleaned successfully for tenant {tenant_id}. {total_deleted} records deleted.'
+                else:
+                    message = f'Database cleaned successfully. {total_deleted} records deleted.'
+                
                 return {
                     'success': True,
-                    'message': f'Database cleaned successfully. {total_deleted} records deleted.',
+                    'message': message,
                     'details': {
                         'total_deleted': total_deleted,
                         'tables_cleaned': results,
-                        'sequences_reset': sequences_reset
+                        'sequences_reset': sequences_reset,
+                        'tenant_id': tenant_id
                     }
                 }
             else:
