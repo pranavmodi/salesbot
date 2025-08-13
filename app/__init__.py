@@ -93,51 +93,51 @@ def create_app():
                     app.logger.info("✅ Database engine obtained")
                     with engine.connect() as conn:
                         with conn.begin():
-                        # Check if user exists
-                        result = conn.execute(text("""
+                            # Check if user exists
+                            result = conn.execute(text("""
                             SELECT id, tenant_id FROM users 
                             WHERE email = :email OR google_id = :google_id
-                        """), {
-                            'email': user_info['email'],
-                            'google_id': user_info['sub']
-                        })
-                        user_row = result.fetchone()
-                        
-                        if user_row:
-                            user_id = user_row.id
-                            tenant_id = user_row.tenant_id
-                            app.logger.info(f"👤 Existing user found: {user_id}")
-                        else:
-                            app.logger.info("👤 Creating new user and tenant...")
-                            # Create new tenant for this user
-                            import uuid
-                            tenant_name = f"{user_info['name']} ({user_info['email']})"
-                            tenant_slug = user_info['email'].split('@')[0].lower().replace('.', '-')
-                            
-                            tenant_result = conn.execute(text("""
-                                INSERT INTO tenants (id, name, slug, created_at)
-                                VALUES (:id, :name, :slug, CURRENT_TIMESTAMP)
-                                RETURNING id
-                            """), {
-                                'id': str(uuid.uuid4()),
-                                'name': tenant_name,
-                                'slug': tenant_slug
-                            })
-                            tenant_id = tenant_result.fetchone().id
-                            
-                            # Create new user with their own tenant
-                            result = conn.execute(text("""
-                                INSERT INTO users (email, name, google_id, tenant_id, created_at)
-                                VALUES (:email, :name, :google_id, :tenant_id, CURRENT_TIMESTAMP)
-                                RETURNING id
                             """), {
                                 'email': user_info['email'],
-                                'name': user_info['name'],
-                                'google_id': user_info['sub'],
-                                'tenant_id': tenant_id
+                                'google_id': user_info['sub']
                             })
-                            user_id = result.fetchone().id
-                            app.logger.info(f"✅ Created new user: {user_id}")
+                            user_row = result.fetchone()
+                            
+                            if user_row:
+                                user_id = user_row.id
+                                tenant_id = user_row.tenant_id
+                                app.logger.info(f"👤 Existing user found: {user_id}")
+                            else:
+                                app.logger.info("👤 Creating new user and tenant...")
+                                # Create new tenant for this user
+                                import uuid
+                                tenant_name = f"{user_info['name']} ({user_info['email']})"
+                                tenant_slug = user_info['email'].split('@')[0].lower().replace('.', '-')
+                                
+                                tenant_result = conn.execute(text("""
+                                    INSERT INTO tenants (id, name, slug, created_at)
+                                    VALUES (:id, :name, :slug, CURRENT_TIMESTAMP)
+                                    RETURNING id
+                                """), {
+                                    'id': str(uuid.uuid4()),
+                                    'name': tenant_name,
+                                    'slug': tenant_slug
+                                })
+                                tenant_id = tenant_result.fetchone().id
+                                
+                                # Create new user with their own tenant
+                                result = conn.execute(text("""
+                                    INSERT INTO users (email, name, google_id, tenant_id, created_at)
+                                    VALUES (:email, :name, :google_id, :tenant_id, CURRENT_TIMESTAMP)
+                                    RETURNING id
+                                """), {
+                                    'email': user_info['email'],
+                                    'name': user_info['name'],
+                                    'google_id': user_info['sub'],
+                                    'tenant_id': tenant_id
+                                })
+                                user_id = result.fetchone().id
+                                app.logger.info(f"✅ Created new user: {user_id}")
                 
                 except Exception as db_error:
                     app.logger.error(f"❌ Database error during OAuth: {db_error}")
