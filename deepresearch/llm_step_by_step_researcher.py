@@ -511,12 +511,12 @@ class LLMStepByStepResearcher:
             from sqlalchemy import text
             db_service = DatabaseService()
             
+            # Save step 3 results to database (don't update status yet - wait for final report generation)
             with db_service.engine.connect() as conn:
                 with conn.begin():
                     conn.execute(text("""
                         UPDATE companies 
                         SET llm_research_step_3_report = :results,
-                            llm_research_step_status = 'step_3_completed',
                             updated_at = CURRENT_TIMESTAMP
                         WHERE id = :company_id
                     """), {
@@ -529,18 +529,23 @@ class LLMStepByStepResearcher:
             report_generator = LLMReportGenerator()
             report_result = report_generator.finalize_step_3_report(company.id, report_results, 'openai')
             
+            # Always mark as completed regardless of report generation success
+            # This ensures consistent status for all companies
+            final_status = 'completed'
+            
             if not report_result['success']:
-                logger.error(f"Failed to generate final reports for company {company.id}: {report_result.get('error', 'Unknown error')}")
+                logger.warning(f"Final report generation failed for company {company.id}, but marking as completed: {report_result.get('error', 'Unknown error')}")
             
             # Mark as completed
             with db_service.engine.connect() as conn:
                 with conn.begin():
                     conn.execute(text("""
                         UPDATE companies 
-                        SET llm_research_step_status = 'completed',
+                        SET llm_research_step_status = :status,
                             llm_research_completed_at = CURRENT_TIMESTAMP
                         WHERE id = :company_id
                     """), {
+                        'status': final_status,
                         'company_id': company.id
                     })
             

@@ -183,7 +183,7 @@ class LLMWorkflowOrchestrator:
             with conn.begin():
                 conn.execute(text("""
                     UPDATE companies 
-                    SET llm_research_step_status = 'step_3_completed',
+                    SET llm_research_step_status = 'completed',
                         llm_research_completed_at = CURRENT_TIMESTAMP,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = :company_id

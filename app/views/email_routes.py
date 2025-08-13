@@ -660,7 +660,9 @@ def get_contacts_with_research_status():
                     has_html_report = (hasattr(company, 'html_report') and company.html_report) or (hasattr(company, 'llm_html_report') and company.llm_html_report)
                     current_status = getattr(company, 'llm_research_step_status', 'not_started')
                     
-                    research_status['has_completed_research'] = has_html_report and current_status == 'step_3_completed'
+                    # Accept multiple completion status values
+                    is_completed = current_status in ['step_3_completed', 'completed'] and has_html_report
+                    research_status['has_completed_research'] = is_completed
                     research_status['research_status'] = current_status
             
             # Only include contacts with completed research
