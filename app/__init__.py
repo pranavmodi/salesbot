@@ -125,7 +125,7 @@ def create_app():
                                 if is_first_login:
                                     conn.execute(text("""
                                         UPDATE users 
-                                        SET is_first_login = false, updated_at = CURRENT_TIMESTAMP
+                                        SET is_first_login = false
                                         WHERE id = :user_id
                                     """), {'user_id': user_id})
                                     app.logger.info(f"🔄 Marked user {user_id} as no longer first login")

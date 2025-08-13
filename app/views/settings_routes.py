@@ -243,7 +243,7 @@ def complete_onboarding():
             with conn.begin():
                 conn.execute(text("""
                     UPDATE users 
-                    SET is_first_login = false, updated_at = CURRENT_TIMESTAMP
+                    SET is_first_login = false
                     WHERE id = :user_id
                 """), {'user_id': user['id']})
         
