@@ -49,7 +49,12 @@ def create_app():
             app.logger.warning('Google OAuth credentials not configured')
             return redirect(url_for('main.login_page'))
             
-        redirect_uri = url_for('auth_google_callback', _external=True)
+        # Use custom callback URL if provided, otherwise use Flask's url_for
+        callback_url = os.getenv('GOOGLE_OAUTH_CALLBACK_URL')
+        if callback_url:
+            redirect_uri = callback_url
+        else:
+            redirect_uri = url_for('auth_google_callback', _external=True)
         return google.authorize_redirect(redirect_uri, prompt='select_account')
     
     @app.route('/auth/google/callback')
