@@ -1,0 +1,364 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - SalesBot{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h3 text-primary">
+                <i class="fas fa-crown me-2"></i>Admin Dashboard
+            </h1>
+            <p class="text-muted">Platform usage statistics and insights</p>
+        </div>
+    </div>
+
+    <!-- Loading State -->
+    <div id="loadingState" class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="text-muted mt-3">Loading admin statistics...</p>
+    </div>
+
+    <!-- Main Dashboard Content -->
+    <div id="dashboardContent" style="display: none;">
+        <!-- Quick Stats Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3 mb-3">
+                <div class="card border-0 bg-primary text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-subtitle mb-2 opacity-75">Total Users</h6>
+                                <h2 class="card-title mb-0" id="totalUsers">-</h2>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-users fa-2x opacity-75"></i>
+                            </div>
+                        </div>
+                        <small class="opacity-75">+<span id="newUsers7d">0</span> in last 7 days</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card border-0 bg-success text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-subtitle mb-2 opacity-75">Total Companies</h6>
+                                <h2 class="card-title mb-0" id="totalCompanies">-</h2>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-building fa-2x opacity-75"></i>
+                            </div>
+                        </div>
+                        <small class="opacity-75">+<span id="newCompanies7d">0</span> in last 7 days</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card border-0 bg-info text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-subtitle mb-2 opacity-75">Research Completed</h6>
+                                <h2 class="card-title mb-0" id="completedResearch">-</h2>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-chart-line fa-2x opacity-75"></i>
+                            </div>
+                        </div>
+                        <small class="opacity-75">+<span id="researchCompleted7d">0</span> in last 7 days</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card border-0 bg-warning text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-subtitle mb-2 opacity-75">Emails Sent</h6>
+                                <h2 class="card-title mb-0" id="totalEmails">-</h2>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-envelope fa-2x opacity-75"></i>
+                            </div>
+                        </div>
+                        <small class="opacity-75">+<span id="emailsSent7d">0</span> in last 7 days</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Secondary Stats -->
+        <div class="row mb-4">
+            <div class="col-md-4 mb-3">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Active Tenants</h5>
+                        <h3 class="text-primary" id="totalTenants">-</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Total Contacts</h5>
+                        <h3 class="text-success" id="totalContacts">-</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Research In Progress</h5>
+                        <h3 class="text-info" id="researchInProgress">-</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts and Tables Row -->
+        <div class="row">
+            <!-- Research Status Breakdown -->
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-chart-pie me-2"></i>Research Status Breakdown
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="researchStatusChart">
+                            <div class="text-center py-3">
+                                <div class="spinner-border spinner-border-sm" role="status"></div>
+                                <p class="small text-muted mt-2">Loading chart...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Tenants -->
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-trophy me-2"></i>Top Tenants by Activity
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Tenant</th>
+                                        <th>Users</th>
+                                        <th>Companies</th>
+                                        <th>Contacts</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="topTenantsTable">
+                                    <tr>
+                                        <td colspan="4" class="text-center py-3">
+                                            <div class="spinner-border spinner-border-sm" role="status"></div>
+                                            <p class="small text-muted mt-2">Loading...</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-clock me-2"></i>Recent Activity
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="recentActivityList">
+                            <div class="text-center py-3">
+                                <div class="spinner-border spinner-border-sm" role="status"></div>
+                                <p class="small text-muted mt-2">Loading recent activity...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadAdminStats();
+    loadRecentActivity();
+});
+
+async function loadAdminStats() {
+    try {
+        console.log('Loading admin stats...');
+        const response = await fetch('/admin/api/stats');
+        console.log('Response status:', response.status);
+        
+        const data = await response.json();
+        console.log('Response data:', data);
+        
+        if (data.success) {
+            const stats = data.stats;
+            
+            // Update main stats
+            document.getElementById('totalUsers').textContent = stats.total_users || 0;
+            document.getElementById('totalCompanies').textContent = stats.total_companies || 0;
+            document.getElementById('completedResearch').textContent = stats.completed_research || 0;
+            document.getElementById('totalEmails').textContent = stats.total_emails_sent || 0;
+            
+            // Update 7-day stats
+            document.getElementById('newUsers7d').textContent = stats.new_users_7d || 0;
+            document.getElementById('newCompanies7d').textContent = stats.new_companies_7d || 0;
+            document.getElementById('researchCompleted7d').textContent = stats.research_completed_7d || 0;
+            document.getElementById('emailsSent7d').textContent = stats.emails_sent_7d || 0;
+            
+            // Update secondary stats
+            document.getElementById('totalTenants').textContent = stats.total_tenants || 0;
+            document.getElementById('totalContacts').textContent = stats.total_contacts || 0;
+            document.getElementById('researchInProgress').textContent = stats.research_in_progress || 0;
+            
+            // Update research status chart
+            updateResearchStatusChart(stats.research_status_breakdown);
+            
+            // Update top tenants table
+            updateTopTenantsTable(stats.top_tenants);
+            
+            // Show dashboard content
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('dashboardContent').style.display = 'block';
+        } else {
+            showError('Failed to load admin statistics');
+        }
+    } catch (error) {
+        console.error('Error loading admin stats:', error);
+        showError('Error loading admin statistics');
+    }
+}
+
+function updateResearchStatusChart(statusData) {
+    const chartContainer = document.getElementById('researchStatusChart');
+    
+    if (!statusData || statusData.length === 0) {
+        chartContainer.innerHTML = '<p class="text-muted text-center py-3">No research data available</p>';
+        return;
+    }
+    
+    let html = '';
+    statusData.forEach(item => {
+        const percentage = Math.round((item.count / statusData.reduce((sum, s) => sum + s.count, 0)) * 100);
+        html += `
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small">${item.status || 'Unknown'}</span>
+                <div class="d-flex align-items-center">
+                    <div class="progress me-2" style="width: 100px; height: 8px;">
+                        <div class="progress-bar" role="progressbar" style="width: ${percentage}%"></div>
+                    </div>
+                    <span class="small fw-bold">${item.count}</span>
+                </div>
+            </div>
+        `;
+    });
+    
+    chartContainer.innerHTML = html;
+}
+
+function updateTopTenantsTable(tenants) {
+    const tableBody = document.getElementById('topTenantsTable');
+    
+    if (!tenants || tenants.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="4" class="text-center py-3 text-muted">No tenant data available</td></tr>';
+        return;
+    }
+    
+    let html = '';
+    tenants.forEach(tenant => {
+        html += `
+            <tr>
+                <td>
+                    <strong>${tenant.name || 'Unknown'}</strong><br>
+                    <small class="text-muted">${tenant.slug || ''}</small>
+                </td>
+                <td><span class="badge bg-primary">${tenant.user_count || 0}</span></td>
+                <td><span class="badge bg-success">${tenant.company_count || 0}</span></td>
+                <td><span class="badge bg-info">${tenant.contact_count || 0}</span></td>
+            </tr>
+        `;
+    });
+    
+    tableBody.innerHTML = html;
+}
+
+async function loadRecentActivity() {
+    try {
+        const response = await fetch('/admin/api/recent-activity');
+        const data = await response.json();
+        
+        if (data.success) {
+            updateRecentActivityList(data.activities);
+        }
+    } catch (error) {
+        console.error('Error loading recent activity:', error);
+        document.getElementById('recentActivityList').innerHTML = 
+            '<p class="text-muted text-center py-3">Error loading recent activity</p>';
+    }
+}
+
+function updateRecentActivityList(activities) {
+    const container = document.getElementById('recentActivityList');
+    
+    if (!activities || activities.length === 0) {
+        container.innerHTML = '<p class="text-muted text-center py-3">No recent activity</p>';
+        return;
+    }
+    
+    let html = '';
+    activities.forEach(activity => {
+        const timestamp = activity.timestamp ? new Date(activity.timestamp).toLocaleString() : 'Unknown time';
+        const icon = activity.type === 'user_created' ? 'fa-user-plus' : 'fa-chart-line';
+        const color = activity.type === 'user_created' ? 'text-primary' : 'text-success';
+        
+        html += `
+            <div class="d-flex align-items-start mb-3">
+                <div class="me-3">
+                    <i class="fas ${icon} ${color}"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <div class="fw-medium">${activity.description}</div>
+                    <small class="text-muted">
+                        ${timestamp} • ${activity.tenant || 'Unknown tenant'}
+                    </small>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+function showError(message) {
+    document.getElementById('loadingState').innerHTML = `
+        <div class="text-center py-5">
+            <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+            <h5 class="text-danger">${message}</h5>
+            <button class="btn btn-outline-primary" onclick="location.reload()">Retry</button>
+        </div>
+    `;
+}
+</script>
+{% endblock %}

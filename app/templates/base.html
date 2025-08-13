@@ -53,6 +53,11 @@
                         <li><a class="dropdown-item" href="/settings">
                             <i class="fas fa-cog me-2"></i>Settings
                         </a></li>
+                        {% if session.user and session.user.email == 'pranav.modi@gmail.com' %}
+                        <li><a class="dropdown-item" href="/admin">
+                            <i class="fas fa-crown me-2"></i>Admin Dashboard
+                        </a></li>
+                        {% endif %}
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="/logout">
                             <i class="fas fa-sign-out-alt me-2"></i>Logout
