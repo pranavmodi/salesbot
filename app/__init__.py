@@ -63,8 +63,18 @@ def create_app():
             redirect_uri = callback_url
             app.logger.info(f"🔗 Using custom callback URL: {redirect_uri}")
         else:
-            redirect_uri = url_for('auth_google_callback', _external=True)
-            app.logger.info(f"🔗 Using Flask-generated callback URL: {redirect_uri}")
+            # Force Railway production URL to match Google Console config
+            if 'railway.app' in request.host:
+                redirect_uri = 'https://salesbot-production-370d.up.railway.app/auth/google/callback'
+                app.logger.info(f"🔗 Using forced Railway callback URL: {redirect_uri}")
+            else:
+                redirect_uri = url_for('auth_google_callback', _external=True)
+                app.logger.info(f"🔗 Using Flask-generated callback URL: {redirect_uri}")
+            
+        # Log request details for debugging
+        app.logger.info(f"🌐 Request host: {request.host}")
+        app.logger.info(f"🔒 Request scheme: {request.scheme}")
+        app.logger.info(f"🎯 Expected callback should be: {request.scheme}://{request.host}/auth/google/callback")
             
         app.logger.info("🚀 Redirecting to Google OAuth...")
         return google.authorize_redirect(redirect_uri, prompt='select_account')
