@@ -98,7 +98,9 @@ def index():
         inbox_current_page=inbox_current_page,
         inbox_per_page=inbox_per_page,
         inbox_total_pages=inbox_total_pages,
-        netlify_publish_url=os.getenv("NETLIFY_PUBLISH_URL", "https://possibleminds.in/.netlify/functions/publish-report-persistent")
+        netlify_publish_url=os.getenv("NETLIFY_PUBLISH_URL", "https://possibleminds.in/.netlify/functions/publish-report-persistent"),
+        # Feature flags
+        enable_gtm_campaign_tab=os.getenv("ENABLE_GTM_CAMPAIGN_TAB", "false").lower() == "true"
     )
 
 def _configure_tenant_email_reader(email_reader_instance):

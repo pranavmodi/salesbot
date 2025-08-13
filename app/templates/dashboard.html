@@ -62,11 +62,13 @@
             <i class="fas fa-edit me-1"></i> Compose
         </button>
     </li>
+    {% if enable_gtm_campaign_tab %}
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="gtm-campaign-tab" data-bs-toggle="tab" data-bs-target="#gtm-campaign-tab-pane" type="button" role="tab" aria-controls="gtm-campaign-tab-pane" aria-selected="false">
             <i class="fas fa-bullhorn me-1"></i> GTM Campaign
         </button>
     </li>
+    {% endif %}
     <li class="nav-item dropdown ms-auto" role="presentation">
         <button class="nav-link dropdown-toggle text-danger" id="adminDropdown" data-bs-toggle="dropdown" aria-expanded="false" style="border: none; background: none;">
             <i class="fas fa-cog me-1"></i> Admin
@@ -163,9 +165,11 @@
     </div>
 
     <!-- GTM Campaign Tab -->
+    {% if enable_gtm_campaign_tab %}
     <div class="tab-pane fade" id="gtm-campaign-tab-pane" role="tabpanel" aria-labelledby="gtm-campaign-tab">
         {% include 'components/gtm_campaign_pane.html' %}
     </div>
+    {% endif %}
 </div>
 
 <!-- Modals -->
