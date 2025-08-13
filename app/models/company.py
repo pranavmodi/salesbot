@@ -98,7 +98,26 @@ class Company:
                            COALESCE(research_step_2_strategic, '') as research_step_2_strategic, 
                            COALESCE(research_step_3_report, '') as research_step_3_report, 
                            research_started_at, research_completed_at, 
-                           COALESCE(research_error, '') as research_error, 
+                           COALESCE(research_error, '') as research_error,
+                           COALESCE(llm_research_prompt, '') as llm_research_prompt,
+                           COALESCE(llm_research_results, '') as llm_research_results,
+                           COALESCE(llm_research_status, 'not_started') as llm_research_status,
+                           COALESCE(llm_research_method, '') as llm_research_method,
+                           COALESCE(llm_research_word_count, 0) as llm_research_word_count,
+                           COALESCE(llm_research_character_count, 0) as llm_research_character_count,
+                           COALESCE(llm_research_quality_score, 0) as llm_research_quality_score,
+                           llm_research_updated_at,
+                           COALESCE(llm_research_step_1_basic, '') as llm_research_step_1_basic,
+                           COALESCE(llm_research_step_2_strategic, '') as llm_research_step_2_strategic,
+                           COALESCE(llm_research_step_3_report, '') as llm_research_step_3_report,
+                           COALESCE(llm_markdown_report, '') as llm_markdown_report,
+                           COALESCE(llm_html_report, '') as llm_html_report,
+                           COALESCE(llm_pdf_report_base64, '') as llm_pdf_report_base64,
+                           COALESCE(basic_research_pdf_base64, '') as basic_research_pdf_base64,
+                           COALESCE(llm_research_step_status, 'not_started') as llm_research_step_status,
+                           COALESCE(llm_research_provider, '') as llm_research_provider,
+                           llm_research_started_at,
+                           llm_research_completed_at,
                            COALESCE(created_at, CURRENT_TIMESTAMP) as created_at, 
                            COALESCE(updated_at, CURRENT_TIMESTAMP) as updated_at
                     FROM companies 
@@ -179,6 +198,8 @@ class Company:
                            COALESCE(llm_research_step_3_report, '') as llm_research_step_3_report,
                            COALESCE(llm_markdown_report, '') as llm_markdown_report,
                            COALESCE(llm_html_report, '') as llm_html_report,
+                           COALESCE(llm_pdf_report_base64, '') as llm_pdf_report_base64,
+                           COALESCE(basic_research_pdf_base64, '') as basic_research_pdf_base64,
                            COALESCE(llm_research_step_status, 'not_started') as llm_research_step_status,
                            COALESCE(llm_research_provider, '') as llm_research_provider,
                            llm_research_started_at,
@@ -229,7 +250,14 @@ class Company:
                            html_report, pdf_report_base64, strategic_imperatives, agent_recommendations,
                            ai_agent_recommendations, research_status, research_step_1_basic, research_step_2_strategic, 
                            research_step_3_report, research_started_at, research_completed_at, 
-                           research_error, created_at, updated_at
+                           research_error, llm_research_prompt, llm_research_results, llm_research_status,
+                           llm_research_method, llm_research_word_count, llm_research_character_count,
+                           llm_research_quality_score, llm_research_updated_at,
+                           llm_research_step_1_basic, llm_research_step_2_strategic, llm_research_step_3_report,
+                           llm_markdown_report, llm_html_report, llm_research_step_status, llm_research_provider,
+                           llm_research_started_at, llm_research_completed_at,
+                           llm_pdf_report_base64, basic_research_pdf_base64,
+                           created_at, updated_at
                     FROM companies 
                     WHERE tenant_id = :tenant_id AND (
                        company_name ILIKE :search OR website_url ILIKE :search 

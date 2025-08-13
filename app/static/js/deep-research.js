@@ -494,6 +494,8 @@
                 cardClass = 'border-light';
             }
             
+            const hasStepResults = step.has_results || (stepNum === 3 && data.research_status === 'completed');
+
             stepsHtml += `
                 <div class="col-md-4">
                     <div class="card ${cardClass} h-100">
@@ -507,7 +509,7 @@
                                 <i class="${statusIcon} me-1"></i>
                                 <small class="fw-bold">${statusText}</small>
                             </div>
-                            ${step.has_results ? `
+                            ${hasStepResults ? `
                                 <button class="btn btn-sm btn-outline-primary mt-2" onclick="viewStepResults(${stepNum})">
                                     <i class="fas fa-eye me-1"></i>View Results
                                 </button>

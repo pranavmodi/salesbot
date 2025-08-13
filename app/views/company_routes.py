@@ -1001,7 +1001,18 @@ def manual_trigger_step_2(company_id):
         
         if result['success']:
             current_app.logger.info(f"Step 2 manually triggered for company {company_id}: {result['message']}")
-            return jsonify(result)
+            
+            # Add additional information about automatic progression
+            enhanced_result = {
+                'success': True,
+                'message': f"{result['message']} Step 3 will automatically start after step 2 completes.",
+                'company_name': result.get('company_name', ''),
+                'auto_progression': 'enabled',
+                'step_2_status': 'triggered',
+                'note': 'Step 2 and 3 will run automatically. Monitor progress in the research panel.'
+            }
+            
+            return jsonify(enhanced_result)
         else:
             current_app.logger.warning(f"Failed to trigger step 2 for company {company_id}: {result['error']}")
             return jsonify(result), 400
@@ -1139,6 +1150,103 @@ def submit_manual_paste_research(company_id):
         
         current_app.logger.info(f"Successfully stored manual paste research for {company.company_name}")
         
+        # Automatically generate basic research PDF for manual paste
+        try:
+            from deepresearch.llm_report_generator import LLMReportGenerator
+            from deepresearch.report_renderer import ReportRenderer
+            import markdown
+            
+            # Generate basic research PDF from the manually pasted content
+            basic_research_pdf_base64 = ''
+            try:
+                # Convert basic research (likely markdown/text) to simple styled HTML
+                try:
+                    md = markdown.Markdown(extensions=['tables', 'toc', 'codehilite'])
+                    basic_html = md.convert(content)  # Use original content, not formatted_content
+                except Exception:
+                    basic_html = f"<pre style='white-space: pre-wrap; line-height: 1.6;'>{content}</pre>"
+
+                basic_html_wrapped = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Basic Research: {company.company_name}</title>
+<style>
+body {{ 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    line-height: 1.6; 
+    color: #333; 
+    padding: 32px; 
+    max-width: 800px;
+    margin: 0 auto;
+}} 
+h1 {{ 
+    color: #0066cc; 
+    font-weight: 500; 
+    border-bottom: 2px solid #0066cc;
+    padding-bottom: 10px;
+}} 
+.content {{ 
+    margin-top: 16px; 
+    background: #f9f9f9;
+    padding: 20px;
+    border-radius: 8px;
+    border-left: 4px solid #0066cc;
+}}
+.manual-paste-note {{
+    background: #e3f2fd;
+    border: 1px solid #2196f3;
+    border-radius: 4px;
+    padding: 10px;
+    margin-bottom: 20px;
+    color: #1976d2;
+    font-style: italic;
+}}
+</style>
+</head>
+<body>
+<h1>Basic Research: <span class="company-name">{company.company_name}</span></h1>
+<div class="manual-paste-note">
+    📝 This research was manually pasted by the user
+</div>
+<div class="content">{basic_html}</div>
+</body>
+</html>"""
+
+                # Use ReportRenderer to produce PDF bytes
+                renderer = ReportRenderer()
+                pdf_bytes = renderer._generate_pdf_from_html(basic_html_wrapped)
+                if pdf_bytes:
+                    basic_research_pdf_base64 = renderer.get_pdf_base64(pdf_bytes)
+                    
+                    # Store the generated PDF in the database
+                    with db_service.engine.connect() as conn:
+                        with conn.begin():
+                            conn.execute(text("""
+                                UPDATE companies 
+                                SET basic_research_pdf_base64 = :pdf_data,
+                                    updated_at = CURRENT_TIMESTAMP
+                                WHERE id = :company_id AND tenant_id = :tenant_id
+                            """), {
+                                'pdf_data': basic_research_pdf_base64,
+                                'company_id': company_id,
+                                'tenant_id': g.tenant_id
+                            })
+                    
+                    current_app.logger.info(f"✅ Successfully generated and stored basic research PDF for {company.company_name}")
+                else:
+                    current_app.logger.warning(f"⚠️ Failed to generate PDF bytes for {company.company_name}")
+                    
+            except Exception as e:
+                current_app.logger.error(f"❌ Error generating basic research PDF for {company.company_name}: {e}")
+                basic_research_pdf_base64 = ''
+                
+        except Exception as e:
+            current_app.logger.error(f"❌ Error in PDF generation process for {company.company_name}: {e}")
+            basic_research_pdf_base64 = ''
+        
         # Automatically trigger Step 2 and Step 3 after manual paste
         # current_app.logger.info(f"Auto-triggering Step 2 and Step 3 for {company.company_name} after manual paste")
         
@@ -1168,7 +1276,7 @@ def submit_manual_paste_research(company_id):
         
         return jsonify({
             'success': True,
-            'message': f'Manual research content stored successfully for {company.company_name}. You can now manually trigger Step 2.',
+            'message': f'Manual research content stored successfully for {company.company_name}. Basic research PDF has been generated and is now available for download.',
             'company_name': company.company_name,
             'step': step,
             'content_length': len(content),
@@ -1176,7 +1284,9 @@ def submit_manual_paste_research(company_id):
             'word_count': len(content.split()),
             'manual_paste': True,
             'status': 'step_1_completed_manual',
-            'auto_progression': 'disabled'
+            'auto_progression': 'disabled',
+            'basic_research_pdf_generated': bool(basic_research_pdf_base64),
+            'pdf_available': bool(basic_research_pdf_base64)
         })
         
     except Exception as e:
