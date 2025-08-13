@@ -23,11 +23,14 @@ class DatabaseCleanerService:
         'report_clicks',           # Has foreign keys to companies, campaigns, email_history
         'campaign_email_jobs',     # Has foreign key to campaigns
         'email_history',           # Has foreign key to campaigns
+        'email_tracking',          # Email tracking data
         'campaign_contacts',       # Junction table between campaigns and contacts
         'scheduler_jobs',          # Independent table (if exists)
         'campaigns',               # Has no foreign key dependencies after above are deleted
         'contacts',                # Has foreign key to companies
-        'companies'                # Base table with no dependencies after contacts are deleted
+        'companies',               # Base table with no dependencies after contacts are deleted
+        'tenant_settings',         # Contains API keys, email configurations, and other tenant settings
+        'file_metadata'            # File upload metadata (if exists)
     ]
     
     def __init__(self):

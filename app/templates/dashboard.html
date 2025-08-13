@@ -100,8 +100,8 @@
                 <button class="dropdown-item text-danger d-flex align-items-center" id="cleanDatabaseBtn">
                     <i class="fas fa-trash me-2"></i>
                     <div>
-                        <div class="fw-bold">Clean Database</div>
-                        <small class="text-muted">Remove all data from all tables</small>
+                        <div class="fw-bold">Clear My Data</div>
+                        <small class="text-muted">Remove all your contacts, companies, and campaigns</small>
                     </div>
                 </button>
             </li>
@@ -227,7 +227,7 @@
 <script src="{{ url_for('static', filename='js/campaigns.js') }}"></script>
 <script src="{{ url_for('static', filename='js/companies.js') }}"></script>
 
-<!-- Clean Database functionality -->
+<!-- Clear User Data functionality -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const cleanDatabaseBtn = document.getElementById('cleanDatabaseBtn');
@@ -255,7 +255,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="modal-header bg-danger text-white">
                             <h5 class="modal-title" id="cleanDatabaseModalLabel">
                                 <i class="fas fa-exclamation-triangle me-2"></i>
-                                Confirm Database Cleaning
+                                Clear Your Data
                             </h5>
                             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
@@ -263,16 +263,21 @@ document.addEventListener('DOMContentLoaded', function() {
                             <div class="alert alert-danger d-flex align-items-center" role="alert">
                                 <i class="fas fa-exclamation-triangle me-2"></i>
                                 <div>
-                                    <strong>Warning:</strong> This action will permanently delete ALL data from the database.
+                                    <strong>Warning:</strong> This will permanently delete YOUR data only.
                                 </div>
                             </div>
-                            <p class="mb-3">This will remove:</p>
+                            <p class="mb-3">This will remove from your account:</p>
                             <ul class="mb-3">
-                                <li>All contacts and companies</li>
-                                <li>All campaigns and email history</li>
-                                <li>All research data and reports</li>
-                                <li>All system data</li>
+                                <li>Your contacts and companies</li>
+                                <li>Your campaigns and email history</li>
+                                <li>Your research data and reports</li>
+                                <li>Your API keys and email configurations</li>
+                                <li>Your settings and preferences</li>
                             </ul>
+                            <div class="alert alert-info small mb-3">
+                                <i class="fas fa-info-circle me-1"></i> 
+                                <strong>Note:</strong> Other users' data will not be affected.
+                            </div>
                             <p class="text-muted"><strong>This action cannot be undone.</strong></p>
                         </div>
                         <div class="modal-footer">
@@ -280,7 +285,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <i class="fas fa-times me-1"></i> Cancel
                             </button>
                             <button type="button" class="btn btn-danger" id="confirmCleanDatabase">
-                                <i class="fas fa-trash me-1"></i> Yes, Clean Database
+                                <i class="fas fa-trash me-1"></i> Yes, Clear My Data
                             </button>
                         </div>
                     </div>
@@ -318,16 +323,16 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showToast('Database cleaned successfully! Refreshing dashboard...', 'success');
+                showToast('Your data has been cleared successfully! Refreshing dashboard...', 'success');
                 // Refresh the page to update stats
                 setTimeout(() => location.reload(), 2000);
             } else {
-                showToast('Failed to clean database: ' + (data.error || 'Unknown error'), 'error');
+                showToast('Failed to clear your data: ' + (data.error || 'Unknown error'), 'error');
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            showToast('Error cleaning database: ' + error.message, 'error');
+            showToast('Error clearing your data: ' + error.message, 'error');
         })
         .finally(() => {
             // Restore button state
