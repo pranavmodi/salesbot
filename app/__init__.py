@@ -107,7 +107,7 @@ def create_app():
                         with conn.begin():
                             # Check if user exists
                             result = conn.execute(text("""
-                            SELECT id, tenant_id FROM users 
+                            SELECT id, tenant_id, is_first_login FROM users 
                             WHERE email = :email OR google_id = :google_id
                             """), {
                                 'email': user_info['email'],
@@ -118,7 +118,17 @@ def create_app():
                             if user_row:
                                 user_id = user_row.id
                                 tenant_id = user_row.tenant_id
-                                app.logger.info(f"👤 Existing user found: {user_id}")
+                                is_first_login = user_row.is_first_login or False
+                                app.logger.info(f"👤 Existing user found: {user_id}, first_login: {is_first_login}")
+                                
+                                # If this is a returning user with is_first_login=True, mark as false
+                                if is_first_login:
+                                    conn.execute(text("""
+                                        UPDATE users 
+                                        SET is_first_login = false, updated_at = CURRENT_TIMESTAMP
+                                        WHERE id = :user_id
+                                    """), {'user_id': user_id})
+                                    app.logger.info(f"🔄 Marked user {user_id} as no longer first login")
                             else:
                                 app.logger.info("👤 Creating new user and tenant...")
                                 # Create new tenant for this user
@@ -137,18 +147,20 @@ def create_app():
                                 })
                                 tenant_id = tenant_result.fetchone().id
                                 
-                                # Create new user with their own tenant
+                                # Create new user with their own tenant (mark as first login)
                                 result = conn.execute(text("""
-                                    INSERT INTO users (email, name, google_id, tenant_id, created_at)
-                                    VALUES (:email, :name, :google_id, :tenant_id, CURRENT_TIMESTAMP)
+                                    INSERT INTO users (email, name, google_id, tenant_id, is_first_login, created_at)
+                                    VALUES (:email, :name, :google_id, :tenant_id, :is_first_login, CURRENT_TIMESTAMP)
                                     RETURNING id
                                 """), {
                                     'email': user_info['email'],
                                     'name': user_info['name'],
                                     'google_id': user_info['sub'],
-                                    'tenant_id': tenant_id
+                                    'tenant_id': tenant_id,
+                                    'is_first_login': True
                                 })
                                 user_id = result.fetchone().id
+                                is_first_login = True  # New users are always first login
                                 app.logger.info(f"✅ Created new user: {user_id}")
                 
                 except Exception as db_error:
@@ -163,7 +175,8 @@ def create_app():
                     'name': user_info['name'],
                     'picture': user_info.get('picture'),
                     'google_id': user_info['sub'],
-                    'tenant_id': tenant_id
+                    'tenant_id': tenant_id,
+                    'is_first_login': is_first_login
                 }
                 
                 # Redirect to originally requested page or dashboard

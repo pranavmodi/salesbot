@@ -9,6 +9,21 @@
 {% endblock %}
 
 {% block content %}
+
+<!-- First-Time User Welcome Banner -->
+{% if session.user and session.user.is_first_login %}
+<div class="alert alert-info alert-dismissible fade show mb-4" role="alert">
+    <div class="d-flex align-items-center">
+        <i class="fas fa-rocket fa-2x me-3 text-primary"></i>
+        <div>
+            <h5 class="alert-heading mb-1">Welcome to SalesBot, {{ session.user.name }}! 🚀</h5>
+            <p class="mb-0">Ready to supercharge your sales outreach? <a href="/settings?tab=api-keys" class="alert-link">Configure your API keys</a> and <a href="/settings?tab=email" class="alert-link">email settings</a> to get started.</p>
+        </div>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+
 <!-- Stats Overview -->
 <div class="row mb-4">
     <div class="col-lg-3 col-md-6 mb-3">
@@ -514,4 +529,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+
+<!-- Include Onboarding Modal for First-Time Users -->
+{% if session.user and session.user.is_first_login %}
+{% include 'onboarding_modal.html' %}
+{% endif %}
+
 {% endblock %} 

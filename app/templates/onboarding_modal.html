@@ -1,0 +1,144 @@
+<!-- First Time User Onboarding Modal -->
+<div class="modal fade" id="onboardingModal" tabindex="-1" aria-labelledby="onboardingModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="onboardingModalLabel">
+                    <i class="fas fa-rocket me-2"></i>Welcome to SalesBot!
+                </h5>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-8 mx-auto">
+                        <div class="text-center mb-4">
+                            <i class="fas fa-robot fa-4x text-primary mb-3"></i>
+                            <h4 class="text-primary">Let's get you set up!</h4>
+                            <p class="text-muted">To get the most out of SalesBot, you'll need to configure a few things first.</p>
+                        </div>
+                        
+                        <div class="setup-checklist">
+                            <div class="setup-item border rounded p-3 mb-3">
+                                <div class="d-flex align-items-start">
+                                    <div class="me-3">
+                                        <i class="fas fa-key fa-2x text-warning"></i>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <h5 class="mb-2">1. Configure API Keys</h5>
+                                        <p class="text-muted mb-2">Add your OpenAI API key to enable AI-powered research and email composition.</p>
+                                        <ul class="list-unstyled small text-muted">
+                                            <li><i class="fas fa-check-circle text-success me-1"></i> Deep company research</li>
+                                            <li><i class="fas fa-check-circle text-success me-1"></i> Personalized email generation</li>
+                                            <li><i class="fas fa-check-circle text-success me-1"></i> Strategic insights and reports</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="setup-item border rounded p-3 mb-3">
+                                <div class="d-flex align-items-start">
+                                    <div class="me-3">
+                                        <i class="fas fa-envelope fa-2x text-info"></i>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <h5 class="mb-2">2. Set Up Email Configuration</h5>
+                                        <p class="text-muted mb-2">Configure your email account to send personalized outreach campaigns.</p>
+                                        <ul class="list-unstyled small text-muted">
+                                            <li><i class="fas fa-check-circle text-success me-1"></i> Connect Gmail or custom SMTP</li>
+                                            <li><i class="fas fa-check-circle text-success me-1"></i> Send tracked email campaigns</li>
+                                            <li><i class="fas fa-check-circle text-success me-1"></i> Monitor engagement and responses</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="setup-item border rounded p-3 mb-4">
+                                <div class="d-flex align-items-start">
+                                    <div class="me-3">
+                                        <i class="fas fa-upload fa-2x text-success"></i>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <h5 class="mb-2">3. Import Your Contacts</h5>
+                                        <p class="text-muted mb-2">Upload your contact lists to start your outreach campaigns.</p>
+                                        <ul class="list-unstyled small text-muted">
+                                            <li><i class="fas fa-check-circle text-success me-1"></i> CSV file import</li>
+                                            <li><i class="fas fa-check-circle text-success me-1"></i> Contact management and organization</li>
+                                            <li><i class="fas fa-check-circle text-success me-1"></i> Company research automation</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <i class="fas fa-lightbulb me-2"></i>
+                            <strong>Pro Tip:</strong> Complete the setup in order for the best experience. You can always update these settings later in the Settings page.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="d-flex justify-content-between w-100">
+                    <button type="button" class="btn btn-outline-secondary" onclick="skipOnboarding()">
+                        <i class="fas fa-forward me-1"></i>Skip for now
+                    </button>
+                    <button type="button" class="btn btn-primary" onclick="startSetup()">
+                        <i class="fas fa-cog me-1"></i>Let's Get Started
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function startSetup() {
+    // Hide modal and navigate to settings
+    const modal = bootstrap.Modal.getInstance(document.getElementById('onboardingModal'));
+    modal.hide();
+    
+    // Navigate to settings page
+    window.location.href = '/settings?tab=api-keys';
+}
+
+function skipOnboarding() {
+    // Mark onboarding as complete
+    fetch('/settings/complete-onboarding', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Close the modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('onboardingModal'));
+            modal.hide();
+            
+            // Show a small toast about settings
+            if (typeof showToast === 'function') {
+                showToast('infoToast', 'You can configure API keys and email settings anytime in the Settings page.');
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error completing onboarding:', error);
+        // Still close the modal even if API call fails
+        const modal = bootstrap.Modal.getInstance(document.getElementById('onboardingModal'));
+        modal.hide();
+    });
+}
+
+// Auto-show modal if user is first time
+document.addEventListener('DOMContentLoaded', function() {
+    const isFirstLogin = {{ 'true' if session.user and session.user.is_first_login else 'false' }};
+    
+    if (isFirstLogin) {
+        // Small delay to ensure page is fully loaded
+        setTimeout(() => {
+            const onboardingModal = new bootstrap.Modal(document.getElementById('onboardingModal'));
+            onboardingModal.show();
+        }, 1000);
+    }
+});
+</script>

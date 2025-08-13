@@ -1,8 +1,10 @@
-from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
+from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, session
 from app.auth import login_required
 from app.models.tenant_settings import TenantSettings
 from app.tenant import current_tenant_id
 from app.utils.tenant_email_config import TenantEmailConfigManager
+from app.database import get_shared_engine
+from sqlalchemy import text
 import logging
 import smtplib
 import imaplib
@@ -22,6 +24,9 @@ def settings_page():
         flash('No tenant context available', 'error')
         return redirect(url_for('main.index'))
     
+    # Get active tab from query parameter (for onboarding flow)
+    active_tab = request.args.get('tab', 'general')
+    
     try:
         tenant_settings = TenantSettings()
         settings = tenant_settings.get_tenant_settings(tenant_id)
@@ -32,6 +37,7 @@ def settings_page():
         
         return render_template('settings.html', 
                              settings=settings,
+                             active_tab=active_tab,
                              email_accounts=email_accounts)
     
     except Exception as e:
@@ -221,3 +227,31 @@ def _test_email_connections(config):
         results['success'] = False
     
     return results
+
+@settings_bp.route('/complete-onboarding', methods=['POST'])
+@login_required
+def complete_onboarding():
+    """Mark user's onboarding as complete."""
+    try:
+        user = session.get('user')
+        if not user:
+            return jsonify({'success': False, 'error': 'User not found in session'}), 400
+            
+        # Update user in database
+        engine = get_shared_engine()
+        with engine.connect() as conn:
+            with conn.begin():
+                conn.execute(text("""
+                    UPDATE users 
+                    SET is_first_login = false, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = :user_id
+                """), {'user_id': user['id']})
+        
+        # Update session
+        session['user']['is_first_login'] = False
+        
+        return jsonify({'success': True, 'message': 'Onboarding completed successfully'})
+        
+    except Exception as e:
+        logger.error(f"Error completing onboarding: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
