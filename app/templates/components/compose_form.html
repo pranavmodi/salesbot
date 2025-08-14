@@ -82,10 +82,56 @@
                         </label>
                         <select class="form-select" id="composerType">
                             <option value="deep_research">🔬 Deep Research + Published Report</option>
+                            <option value="content_based">📄 Content-Based Marketing</option>
                         </select>
                         <div id="deepResearchInfo" class="alert alert-info mt-2" style="display: none;">
                             <i class="fas fa-info-circle me-2"></i>
                             <strong>Deep Research Available:</strong> This contact's company has completed deep research. The email will include personalized insights and a link to the strategic analysis report.
+                        </div>
+                        <div id="contentBasedInfo" class="alert alert-info mt-2" style="display: none;">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Content-Based Marketing:</strong> Share valuable content with personalized messaging based on company research insights.
+                        </div>
+                    </div>
+
+                    <!-- Content-Based Marketing Fields (hidden by default) -->
+                    <div id="contentBasedFields" class="content-based-fields" style="display: none;">
+                        <div class="mb-3">
+                            <label for="contentUrl" class="form-label">
+                                <i class="fas fa-link me-1"></i>Content URL *
+                            </label>
+                            <input type="url" class="form-control" id="contentUrl" placeholder="https://blog.company.com/article-title">
+                            <div class="form-text">Link to the blog post, whitepaper, case study, or other content you want to share</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="contentDescription" class="form-label">
+                                <i class="fas fa-align-left me-1"></i>Content Description *
+                            </label>
+                            <textarea class="form-control" id="contentDescription" rows="3" placeholder="Brief description of the content's key points and value..."></textarea>
+                            <div class="form-text">Describe what the content covers and why it's valuable (2-3 sentences)</div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="contentType" class="form-label">Content Type</label>
+                                <select class="form-select" id="contentType">
+                                    <option value="blog_post">📝 Blog Post</option>
+                                    <option value="whitepaper">📄 Whitepaper</option>
+                                    <option value="case_study">📊 Case Study</option>
+                                    <option value="webinar">🎥 Webinar</option>
+                                    <option value="product_update">🚀 Product Update</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="callToAction" class="form-label">Call to Action</label>
+                                <select class="form-select" id="callToAction">
+                                    <option value="learn_more">💡 Learn More</option>
+                                    <option value="schedule_demo">📅 Schedule Demo</option>
+                                    <option value="download_resource">⬇️ Download Resource</option>
+                                    <option value="register_event">🎟️ Register for Event</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                     <div class="mb-3">

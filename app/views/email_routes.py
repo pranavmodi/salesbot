@@ -8,8 +8,9 @@ import json
 from app.services.email_service import EmailService
 from app.services.email_reader_service import email_reader, configure_email_reader, EmailReaderService
 from app.utils.tenant_email_config import TenantEmailConfigManager, EmailAccount
-# Using only deep research composer now
+# Import available composers
 from email_composers.email_composer_deep_research import DeepResearchEmailComposer
+from email_composers.email_composer_content_based import ContentBasedEmailComposer
 
 email_bp = Blueprint('email_api', __name__, url_prefix='/api')
 
@@ -41,34 +42,74 @@ def preview_email():
         # Handle old format (contact_data) for backward compatibility
         contact_data = data.get('contact_data')
         if contact_data:
-            # For the old format, we need to create a temporary contact or use the composer directly
-            # Import the composers directly
-            # Use deep research composer for all types now
-            composer = DeepResearchEmailComposer()
+            # Initialize the appropriate composer based on type
+            if composer_type == "content_based":
+                composer = ContentBasedEmailComposer()
+            else:
+                composer = DeepResearchEmailComposer()
             
             # Use the composer directly with the contact data
             lead_data = {
                 "name": contact_data.get('name', ''),
                 "email": contact_data.get('email', ''),
-                "company": contact_data.get('company', ''),
+                "company_name": contact_data.get('company', ''),
                 "position": contact_data.get('position', ''),
                 "website": contact_data.get('website', ''),
                 "notes": contact_data.get('notes', ''),
             }
             
-            calendar_url = data.get('calendar_url') or os.getenv("CALENDAR_URL", "https://calendly.com/pranav-modi/15-minute-meeting")
+            # For content-based composer, try to fetch company research data
+            if composer_type == "content_based":
+                try:
+                    from app.models.company import Company
+                    company_name = contact_data.get('company', '')
+                    if company_name:
+                        companies = Company.get_companies_by_name(company_name)
+                        if companies:
+                            company = companies[0]
+                            # Add research fields to lead_data
+                            lead_data.update({
+                                'company_research': getattr(company, 'company_research', ''),
+                                'llm_research_step_1_basic': getattr(company, 'llm_research_step_1_basic', ''),
+                                'llm_research_step_2_strategic': getattr(company, 'llm_research_step_2_strategic', ''),
+                                'llm_research_step_3_report': getattr(company, 'llm_research_step_3_report', ''),
+                                'llm_research_step_status': getattr(company, 'llm_research_step_status', 'not_started')
+                            })
+                except Exception as e:
+                    current_app.logger.warning(f"Could not fetch company research for {company_name}: {e}")
             
-            # For deep research composer, pass tracking preference
-            if composer_type == "deep_research":
-                include_tracking = data.get('include_tracking', True)  # Default to True
+            calendar_url = data.get('calendar_url') or os.getenv("CALENDAR_URL", "https://calendly.com/pranav-modi/15-minute-meeting")
+            include_tracking = data.get('include_tracking', True)  # Default to True
+            
+            # Handle different composer types
+            if composer_type == "content_based":
+                # Content-based composer requires additional parameters
+                content_url = data.get('content_url', '')
+                content_description = data.get('content_description', '')
+                content_type = data.get('content_type', 'blog_post')
+                call_to_action = data.get('call_to_action', 'learn_more')
+                
+                if not content_url or not content_description:
+                    return jsonify({"error": "Content URL and description are required for content-based emails"}), 400
+                
+                email_content = composer.compose_email(
+                    lead=lead_data,
+                    content_url=content_url,
+                    content_description=content_description,
+                    content_type=content_type,
+                    call_to_action=call_to_action,
+                    calendar_url=calendar_url,
+                    extra_context=data.get('extra_context'),
+                    include_tracking=include_tracking
+                )
+            else:
+                # Deep research composer
                 email_content = composer.compose_email(
                     lead=lead_data, 
                     calendar_url=calendar_url, 
                     extra_context=data.get('extra_context'),
                     include_tracking=include_tracking
                 )
-            else:
-                email_content = composer.compose_email(lead=lead_data, calendar_url=calendar_url, extra_context=data.get('extra_context'))
             
             if email_content and 'subject' in email_content and 'body' in email_content:
                 return jsonify({

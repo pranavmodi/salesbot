@@ -210,6 +210,33 @@ function generateEmailPreview() {
         include_tracking: includeTracking
     };
     
+    // Add content-based fields if that composer is selected
+    if (composerType.value === 'content_based') {
+        const contentUrl = document.getElementById('contentUrl');
+        const contentDescription = document.getElementById('contentDescription');
+        const contentType = document.getElementById('contentType');
+        const callToAction = document.getElementById('callToAction');
+        
+        if (!contentUrl || !contentUrl.value.trim()) {
+            showToast('errorToast', 'Content URL is required for content-based emails');
+            generateBtn.innerHTML = originalText;
+            generateBtn.disabled = false;
+            return;
+        }
+        
+        if (!contentDescription || !contentDescription.value.trim()) {
+            showToast('errorToast', 'Content description is required for content-based emails');
+            generateBtn.innerHTML = originalText;
+            generateBtn.disabled = false;
+            return;
+        }
+        
+        requestData.content_url = contentUrl.value.trim();
+        requestData.content_description = contentDescription.value.trim();
+        requestData.content_type = contentType ? contentType.value : 'blog_post';
+        requestData.call_to_action = callToAction ? callToAction.value : 'learn_more';
+    }
+    
     console.log('🎯 Generating email preview with data:', requestData);
     
     fetch('/api/preview_email', {

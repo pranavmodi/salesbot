@@ -712,6 +712,22 @@ function setupComposeFormEnhancements() {
         updateDeepResearchValidation();
     });
     
+    // Add event listeners for content-based fields
+    const contentUrl = document.getElementById('contentUrl');
+    const contentDescription = document.getElementById('contentDescription');
+    
+    if (contentUrl) {
+        contentUrl.addEventListener('input', function() {
+            updateDeepResearchValidation();
+        });
+    }
+    
+    if (contentDescription) {
+        contentDescription.addEventListener('input', function() {
+            updateDeepResearchValidation();
+        });
+    }
+    
     function loadContactsForSelection() {
         console.log('🔄 Loading contacts for selection...');
         contactSelect.innerHTML = '<option value="">Loading contacts...</option>';
@@ -829,29 +845,60 @@ function setupComposeFormEnhancements() {
     function updateDeepResearchValidation() {
         const currentComposerType = composerType.value;
         const deepResearchInfo = document.getElementById('deepResearchInfo');
+        const contentBasedInfo = document.getElementById('contentBasedInfo');
+        const contentBasedFields = document.getElementById('contentBasedFields');
         const generateBtn = document.getElementById('generatePreview');
         
-        // Hide alert initially
+        // Hide all composer-specific info initially
         if (deepResearchInfo) {
             deepResearchInfo.style.display = 'none';
         }
+        if (contentBasedInfo) {
+            contentBasedInfo.style.display = 'none';
+        }
+        if (contentBasedFields) {
+            contentBasedFields.style.display = 'none';
+        }
         
+        // Show appropriate info and fields based on composer type
         if (currentComposerType === 'deep_research' && selectedContact) {
-            // All contacts in dropdown have completed research, so always show success
             if (deepResearchInfo) {
                 deepResearchInfo.style.display = 'block';
             }
+        } else if (currentComposerType === 'content_based') {
+            if (contentBasedInfo) {
+                contentBasedInfo.style.display = 'block';
+            }
+            if (contentBasedFields) {
+                contentBasedFields.style.display = 'block';
+            }
         }
         
-        // Enable/disable generate button based on contact selection
+        // Enable/disable generate button based on contact selection and composer requirements
         if (generateBtn) {
+            let canGenerate = false;
+            let buttonText = '<i class="fas fa-user me-2"></i>Select Contact First';
+            
             if (selectedContact) {
-                generateBtn.disabled = false;
-                generateBtn.innerHTML = '<i class="fas fa-magic me-2"></i>Generate Preview';
-            } else {
-                generateBtn.disabled = true;
-                generateBtn.innerHTML = '<i class="fas fa-user me-2"></i>Select Contact First';
+                if (currentComposerType === 'content_based') {
+                    // For content-based, also check if required fields are filled
+                    const contentUrl = document.getElementById('contentUrl');
+                    const contentDescription = document.getElementById('contentDescription');
+                    
+                    if (contentUrl && contentDescription && contentUrl.value.trim() && contentDescription.value.trim()) {
+                        canGenerate = true;
+                        buttonText = '<i class="fas fa-magic me-2"></i>Generate Preview';
+                    } else {
+                        buttonText = '<i class="fas fa-link me-2"></i>Enter Content Details';
+                    }
+                } else {
+                    canGenerate = true;
+                    buttonText = '<i class="fas fa-magic me-2"></i>Generate Preview';
+                }
             }
+            
+            generateBtn.disabled = !canGenerate;
+            generateBtn.innerHTML = buttonText;
         }
     }
 }

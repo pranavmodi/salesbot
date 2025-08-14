@@ -204,6 +204,7 @@ function getEmailTemplateDisplayName(template) {
         'introduction': 'Introduction',
         'meeting_request': 'Meeting Request',
         'deep_research': '🔬 Deep Research',
+        'content_based': '📄 Content-Based Marketing',
         'possible_minds': '🏢 Possible Minds Template',
         'custom': 'Custom Template'
     };
