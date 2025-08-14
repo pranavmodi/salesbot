@@ -203,8 +203,6 @@ function getEmailTemplateDisplayName(template) {
         'follow_up': 'Follow Up',
         'introduction': 'Introduction',
         'meeting_request': 'Meeting Request',
-        'warm': '🤝 Warm Outreach',
-        'alt_subject': '📧 Alternative Subject',
         'deep_research': '🔬 Deep Research',
         'possible_minds': '🏢 Possible Minds Template',
         'custom': 'Custom Template'

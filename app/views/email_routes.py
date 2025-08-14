@@ -22,7 +22,7 @@ def preview_email():
     """Generate email preview for a contact."""
     try:
         data = request.get_json()
-        composer_type = data.get('composer_type', 'warm')
+        composer_type = data.get('composer_type', 'deep_research')
         
         # Handle new format (contact_id)
         contact_id = data.get('contact_id')
@@ -272,7 +272,7 @@ def send_bulk_emails():
     try:
         data = request.get_json()
         recipients_data = data.get('recipients_data')
-        composer_type = data.get('composer_type', 'warm')
+        composer_type = data.get('composer_type', 'deep_research')
         calendar_url = data.get('calendar_url')
         extra_context = data.get('extra_context')
         account_name = data.get('account_name')  # New account selection parameter

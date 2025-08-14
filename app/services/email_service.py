@@ -287,13 +287,13 @@ class EmailService:
             return False
 
     @staticmethod
-    def send_bulk_emails(recipients_data: List[Dict], composer_type: str = "warm", calendar_url: str = None, extra_context: str = None, account_name: str = None) -> Dict[str, List[str]]:
+    def send_bulk_emails(recipients_data: List[Dict], composer_type: str = "deep_research", calendar_url: str = None, extra_context: str = None, account_name: str = None) -> Dict[str, List[str]]:
         """
         Send emails to a list of recipients.
         Composes email for each using the specified composer_type.
         Args:
             recipients_data: List of dictionaries, each with contact_id and optionally other email parameters.
-            composer_type: Identifier for the email composer to use (e.g., 'warm', 'alt_subject').
+            composer_type: Identifier for the email composer to use (default: 'deep_research').
             calendar_url: Optional calendar URL to use for all emails.
             extra_context: Optional extra context for all emails.
             account_name: Optional account name to use for sending all emails.
