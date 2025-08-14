@@ -21,6 +21,7 @@ def create_app():
     from app.views.api import api_bp
     from app.views.settings_routes import settings_bp
     from app.views.admin_routes import admin_bp
+    from app.views.tracking_routes import tracking_bp
 
     app.register_blueprint(contact_bp)
     app.register_blueprint(company_bp)
@@ -29,6 +30,7 @@ def create_app():
     app.register_blueprint(api_bp)
     app.register_blueprint(settings_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(tracking_bp)
 
     # Google OAuth setup
     from authlib.integrations.flask_client import OAuth

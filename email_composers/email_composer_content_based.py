@@ -16,10 +16,14 @@ from datetime import datetime
 try:
     from app.models.tenant_settings import TenantSettings
     from app.tenant import current_tenant_id
+    from app.services.link_tracking_service import LinkTrackingService
+    from app.models.company import Company
 except ImportError:
     # Handle case where app context is not available
     TenantSettings = None
     current_tenant_id = None
+    LinkTrackingService = None
+    Company = None
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +77,7 @@ class ContentBasedEmailComposer:
     def compose_email(self, lead: Dict, content_url: str, content_description: str, 
                      content_type: str = "blog_post", call_to_action: str = "learn_more",
                      calendar_url: str = None, extra_context: str = None, 
-                     include_tracking: bool = True) -> Dict:
+                     include_tracking: bool = True, campaign_id: int = None) -> Dict:
         """
         Compose a content-based marketing email using company research insights.
         
@@ -128,6 +132,27 @@ class ContentBasedEmailComposer:
             else:
                 subject = email_content.get('subject', f"Valuable insights for {company_name}")
                 body = email_content.get('body', f"Hi {contact_first_name},\n\nI thought you might find this relevant: {content_url}")
+            
+            # Add link tracking if available
+            try:
+                if LinkTrackingService and campaign_id:
+                    # Get company_id for tracking
+                    company_id = None
+                    if Company and lead.get('company_name'):
+                        companies = Company.get_companies_by_name(lead.get('company_name'))
+                        if companies:
+                            company_id = companies[0].id
+                    
+                    # Wrap links with tracking URLs
+                    body, tracking_ids = LinkTrackingService.wrap_links_in_email(
+                        email_body=body,
+                        campaign_id=campaign_id,
+                        company_id=company_id,
+                        contact_email=lead.get('email')
+                    )
+                    logger.info(f"Wrapped {len(tracking_ids)} links for tracking in content-based email")
+            except Exception as e:
+                logger.warning(f"Failed to wrap links for tracking: {e}")
             
             # Add tracking if requested
             if include_tracking:

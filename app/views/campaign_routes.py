@@ -147,36 +147,51 @@ def create_campaign():
                     'message': f'Error applying contact filters: {filter_error}'
                 }), 500
 
-        # Create the campaign in the database
-        new_campaign = Campaign(
-            name=campaign_name,
-            type=campaign_type,
-            email_template=email_template,
-            schedule_date=schedule_date,
-            followup_days=followup_days,
-            selection_criteria=json.dumps(selection_criteria), # Store as JSON string
-            campaign_settings=json.dumps(campaign_settings) # Store settings as JSON string
+        # Create the campaign using unified method
+        campaign_data = {
+            'name': campaign_name,
+            'type': campaign_type,
+            'description': data.get('description', ''),
+            'email_template': email_template,
+            'schedule_date': schedule_date,
+            'followup_days': followup_days,
+            'selection_criteria': json.dumps(selection_criteria),
+            'status': 'draft'
+        }
+        
+        # Extract contact emails from target_contacts
+        contact_emails = [c.get('email') for c in target_contacts if c.get('email')]
+        
+        # Create campaign with contacts and settings
+        current_app.logger.info("About to call Campaign.create()")
+        new_campaign = Campaign.create(
+            campaign_data=campaign_data,
+            contacts=contact_emails,
+            settings=campaign_settings
         )
+        current_app.logger.info(f"Campaign.create() returned: {new_campaign}")
         
-        # Save campaign and check if successful
-        save_success = new_campaign.save()
-        if not save_success:
+        if not new_campaign:
+            current_app.logger.error("Campaign.create() returned None")
             return jsonify({
                 'success': False,
-                'message': 'Failed to save campaign to database'
+                'message': 'Failed to create campaign'
             }), 500
         
-        if not new_campaign.id:
-            return jsonify({
-                'success': False,
-                'message': 'Campaign saved but ID not returned'
-            }), 500
+        current_app.logger.info(f"Campaign object ID: {new_campaign.id}")
         
-        # Associate contacts with the campaign
-        campaign_scheduler.associate_contacts_with_campaign(new_campaign.id, target_contacts)
+        # Associate contacts with the campaign (already done in Campaign.create, but keep for scheduler)
+        try:
+            current_app.logger.info("About to associate contacts with scheduler")
+            campaign_scheduler.associate_contacts_with_campaign(new_campaign.id, target_contacts)
+            current_app.logger.info("Contact association completed")
+        except Exception as assoc_error:
+            current_app.logger.warning(f"Contact association warning: {assoc_error}")
+            # Don't fail the whole operation if association fails
             
         current_app.logger.info(f"Campaign '{campaign_name}' created successfully as draft with ID {new_campaign.id}")
         
+        current_app.logger.info("About to return success response")
         return jsonify({
             'success': True,
             'message': f'Campaign \'{campaign_name}\' created successfully as draft.',
@@ -185,7 +200,9 @@ def create_campaign():
         })
         
     except Exception as e:
+        import traceback
         current_app.logger.error(f"Error creating campaign: {str(e)}")
+        current_app.logger.error(f"Full traceback: {traceback.format_exc()}")
         return jsonify({
             'success': False,
             'message': f'Failed to create campaign: {str(e)}'
@@ -388,6 +405,10 @@ def get_campaign_analytics(campaign_id):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
         
+        # Get link tracking analytics from our system
+        from app.services.link_tracking_service import LinkTrackingService
+        link_analytics = LinkTrackingService.get_link_tracking_analytics(campaign_id=campaign_id, days_back=30)
+        
         # Import PossibleMinds analytics service
         from app.services.possibleminds_analytics_service import create_possibleminds_service
         
@@ -411,6 +432,12 @@ def get_campaign_analytics(campaign_id):
         clicks = analytics_data.get('clicks', [])
         total_clicks = analytics_data.get('total_clicks', len(clicks))
         unique_visitors = analytics_data.get('unique_visitors', 0)
+        
+        # Extract metrics from link tracking analytics
+        link_data = link_analytics.get('analytics', {}) if link_analytics.get('success') else {}
+        total_link_clicks = link_data.get('total_clicks', 0)
+        total_tracked_links = link_data.get('total_links', 0)
+        link_click_rate = link_data.get('click_through_rate', 0)
         
         # Calculate additional metrics if available
         unique_emails = len(set(click.get('contact_email', '') for click in clicks if click.get('contact_email')))
@@ -447,6 +474,13 @@ def get_campaign_analytics(campaign_id):
                 'source': 'possibleminds',
                 'raw_data': analytics_data,
                 'companies_clicked': list(set(click.get('company_name', 'Unknown') for click in clicks if click.get('company_name')))
+            },
+            'link_tracking': {
+                'total_tracked_links': total_tracked_links,
+                'total_link_clicks': total_link_clicks,
+                'link_click_rate': f"{link_click_rate}%",
+                'tracked_links': link_data.get('links', []) if link_analytics.get('success') else [],
+                'source': 'internal'
             }
         })
         

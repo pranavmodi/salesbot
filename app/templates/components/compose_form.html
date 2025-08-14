@@ -59,11 +59,16 @@
                     <!-- GTM Campaign Selection -->
                     <div class="mb-3">
                         <label for="gtmCampaignSelect" class="form-label">
-                            <i class="fas fa-bullhorn me-1"></i>GTM Campaign (Optional)
+                            <i class="fas fa-bullhorn me-1"></i>GTM Campaign *
                         </label>
-                        <select class="form-select" id="gtmCampaignSelect">
-                            <option value="">Select GTM Campaign (or send without campaign)</option>
-                        </select>
+                        <div class="input-group">
+                            <select class="form-select" id="gtmCampaignSelect" required>
+                                <option value="">Select or Create GTM Campaign</option>
+                            </select>
+                            <button type="button" class="btn btn-outline-primary" id="createNewCampaignBtn">
+                                <i class="fas fa-plus"></i> New
+                            </button>
+                        </div>
                         <div id="campaignStatusInfo" class="mt-2" style="display: none;">
                             <div class="alert alert-warning" id="campaignWarning" style="display: none;">
                                 <i class="fas fa-exclamation-triangle me-2"></i>
@@ -196,6 +201,57 @@
                         <strong>Pro Tip:</strong> Our AI will personalize each email based on the recipient's industry and role for maximum engagement.
                     </small>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Campaign Creation Modal -->
+<div class="modal fade" id="quickCampaignModal" tabindex="-1" aria-labelledby="quickCampaignModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="quickCampaignModalLabel">
+                    <i class="fas fa-bullhorn me-2"></i>Create New Campaign
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="quickCampaignForm">
+                    <div class="mb-3">
+                        <label for="quickCampaignName" class="form-label">Campaign Name *</label>
+                        <input type="text" class="form-control" id="quickCampaignName" required 
+                               placeholder="e.g., Healthcare AI Outreach Q1 2025">
+                    </div>
+                    <div class="mb-3">
+                        <label for="quickCampaignDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="quickCampaignDescription" rows="2" 
+                                  placeholder="Brief description of the campaign goals..."></textarea>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="quickCampaignType" class="form-label">Campaign Type</label>
+                            <select class="form-select" id="quickCampaignType">
+                                <option value="manual">Manual Outreach</option>
+                                <option value="automated">Automated Sequence</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="quickCampaignPriority" class="form-label">Priority</label>
+                            <select class="form-select" id="quickCampaignPriority">
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                                <option value="low">Low</option>
+                            </select>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="createQuickCampaignBtn">
+                    <i class="fas fa-plus me-1"></i>Create Campaign
+                </button>
             </div>
         </div>
     </div>

@@ -728,6 +728,28 @@ function setupComposeFormEnhancements() {
         });
     }
     
+    // Add event listeners for campaign management
+    const createNewCampaignBtn = document.getElementById('createNewCampaignBtn');
+    const gtmCampaignSelect = document.getElementById('gtmCampaignSelect');
+    const createQuickCampaignBtn = document.getElementById('createQuickCampaignBtn');
+    
+    if (createNewCampaignBtn) {
+        createNewCampaignBtn.addEventListener('click', function() {
+            const modal = new bootstrap.Modal(document.getElementById('quickCampaignModal'));
+            modal.show();
+        });
+    }
+    
+    if (gtmCampaignSelect) {
+        gtmCampaignSelect.addEventListener('change', function() {
+            updateDeepResearchValidation();
+        });
+    }
+    
+    if (createQuickCampaignBtn) {
+        createQuickCampaignBtn.addEventListener('click', createQuickCampaign);
+    }
+    
     function loadContactsForSelection() {
         console.log('🔄 Loading contacts for selection...');
         contactSelect.innerHTML = '<option value="">Loading contacts...</option>';
@@ -900,6 +922,93 @@ function setupComposeFormEnhancements() {
             generateBtn.disabled = !canGenerate;
             generateBtn.innerHTML = buttonText;
         }
+        
+        // Update send button validation to require campaign selection
+        const sendBtn = document.getElementById('sendComposedEmail');
+        const campaignSelect = document.getElementById('gtmCampaignSelect');
+        
+        if (sendBtn) {
+            const hasContact = selectedContact;
+            const hasSubject = document.getElementById('emailSubject')?.value?.trim();
+            const hasBody = document.getElementById('emailBody')?.value?.trim();
+            const hasCampaign = campaignSelect?.value;
+            
+            const canSend = hasContact && hasSubject && hasBody && hasCampaign;
+            
+            let sendButtonText = '<i class="fas fa-paper-plane me-1"></i>Send Email';
+            if (!hasContact) {
+                sendButtonText = '<i class="fas fa-user me-1"></i>Select Contact';
+            } else if (!hasSubject || !hasBody) {
+                sendButtonText = '<i class="fas fa-edit me-1"></i>Generate Preview First';
+            } else if (!hasCampaign) {
+                sendButtonText = '<i class="fas fa-bullhorn me-1"></i>Select Campaign';
+            }
+            
+            sendBtn.disabled = !canSend;
+            sendBtn.innerHTML = sendButtonText;
+        }
+    }
+    
+    function createQuickCampaign() {
+        const name = document.getElementById('quickCampaignName').value.trim();
+        const description = document.getElementById('quickCampaignDescription').value.trim();
+        const type = document.getElementById('quickCampaignType').value;
+        const priority = document.getElementById('quickCampaignPriority').value;
+        
+        if (!name) {
+            showToast('Please enter a campaign name', 'error');
+            return;
+        }
+        
+        const createBtn = document.getElementById('createQuickCampaignBtn');
+        const originalText = createBtn.innerHTML;
+        createBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Creating...';
+        createBtn.disabled = true;
+        
+        fetch('/api/campaigns', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                name: name,
+                description: description,
+                type: type,
+                priority: priority,
+                email_template: composerType.value || 'deep_research'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Campaign created successfully!', 'success');
+                
+                // Add to dropdown and select it
+                const gtmSelect = document.getElementById('gtmCampaignSelect');
+                const option = document.createElement('option');
+                option.value = data.campaign_id;
+                option.textContent = name;
+                option.selected = true;
+                gtmSelect.appendChild(option);
+                
+                // Close modal and clear form
+                bootstrap.Modal.getInstance(document.getElementById('quickCampaignModal')).hide();
+                document.getElementById('quickCampaignForm').reset();
+                
+                // Update validation states
+                updateDeepResearchValidation();
+            } else {
+                showToast('Failed to create campaign: ' + (data.error || 'Unknown error'), 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error creating campaign:', error);
+            showToast('Error creating campaign: ' + error.message, 'error');
+        })
+        .finally(() => {
+            createBtn.innerHTML = originalText;
+            createBtn.disabled = false;
+        });
     }
 }
 

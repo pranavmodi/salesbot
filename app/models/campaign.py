@@ -179,7 +179,10 @@ class Campaign:
 
     @classmethod
     def save(cls, campaign_data: Dict) -> bool:
-        """Save a new campaign to the database."""
+        """
+        DEPRECATED: Use Campaign.create() instead.
+        Save a new campaign to the database.
+        """
         engine = cls._get_db_engine()
         if not engine:
             current_app.logger.error("Failed to save campaign: Database engine not available.")
@@ -744,41 +747,57 @@ class Campaign:
         }
 
     @classmethod
-    def create_campaign_with_settings(cls, campaign_data: Dict, settings: Dict, contacts: List[str]) -> Optional[int]:
-        """Create a campaign with settings and contacts."""
+    def create(cls, campaign_data: Dict, contacts: List[str] = None, settings: Dict = None) -> Optional['Campaign']:
+        """
+        Unified campaign creation method.
+        
+        Args:
+            campaign_data: Dict with campaign info (name, type, description, etc.)
+            contacts: Optional list of contact emails to add to campaign
+            settings: Optional dict of campaign settings (will use defaults if not provided)
+            
+        Returns:
+            Campaign instance if successful, None if failed
+        """
         engine = cls._get_db_engine()
         if not engine:
             current_app.logger.error("Failed to create campaign: Database engine not available.")
             return None
+        
         tenant_id = current_tenant_id()
         if not tenant_id:
-            current_app.logger.error("Tenant not resolved in Campaign.create_campaign_with_settings; aborting")
+            current_app.logger.error("Tenant not resolved in Campaign.create; aborting")
             return None
+
+        # Use provided settings or defaults
+        if settings is None:
+            settings = cls.get_default_campaign_settings()
 
         try:
             with engine.connect() as conn:
                 with conn.begin():
-                    # Insert campaign
+                    # Insert campaign with all necessary fields
                     insert_query = text("""
                         INSERT INTO campaigns (tenant_id, name, type, description, email_template, 
                                              priority, schedule_date, followup_days, 
-                                             selection_criteria, status) 
+                                             selection_criteria, campaign_settings, status) 
                         VALUES (:tenant_id, :name, :type, :description, :email_template, 
                                :priority, :schedule_date, :followup_days, 
-                               :selection_criteria, :status)
+                               :selection_criteria, :campaign_settings, :status)
                         RETURNING id
                     """)
                     result = conn.execute(insert_query, {
                         'tenant_id': tenant_id,
                         'name': campaign_data['name'],
-                        'type': campaign_data.get('type', ''),
+                        'type': campaign_data.get('type', 'manual'),
                         'description': campaign_data.get('description', ''),
-                        'email_template': campaign_data.get('email_template', ''),
+                        'email_template': campaign_data.get('email_template', 'deep_research'),
                         'priority': campaign_data.get('priority', 'medium'),
                         'schedule_date': campaign_data.get('schedule_date'),
                         'followup_days': campaign_data.get('followup_days', 3),
                         'selection_criteria': campaign_data.get('selection_criteria', '{}'),
-                        'status': campaign_data.get('status', 'active')
+                        'campaign_settings': json.dumps(settings),
+                        'status': campaign_data.get('status', 'draft')
                     })
                     
                     campaign_id = result.fetchone()[0]
@@ -801,8 +820,24 @@ class Campaign:
                                 'status': 'active'
                             })
                     
+                    # Create and return Campaign instance directly
+                    campaign_instance = cls()
+                    campaign_instance.id = campaign_id
+                    campaign_instance.name = campaign_data['name']
+                    campaign_instance.type = campaign_data.get('type', 'manual')
+                    campaign_instance.description = campaign_data.get('description', '')
+                    campaign_instance.email_template = campaign_data.get('email_template', 'deep_research')
+                    campaign_instance.priority = campaign_data.get('priority', 'medium')
+                    campaign_instance.schedule_date = campaign_data.get('schedule_date')
+                    campaign_instance.followup_days = campaign_data.get('followup_days', 3)
+                    campaign_instance.selection_criteria = campaign_data.get('selection_criteria', '{}')
+                    campaign_instance.campaign_settings = json.dumps(settings)
+                    campaign_instance.status = campaign_data.get('status', 'draft')
+                    campaign_instance.created_at = datetime.now()
+                    campaign_instance.updated_at = datetime.now()
+                    
                     current_app.logger.info(f"Successfully created campaign: {campaign_data['name']} with ID {campaign_id}")
-                    return campaign_id
+                    return campaign_instance
                     
         except SQLAlchemyError as e:
             current_app.logger.error(f"Database error creating campaign: {e}")
@@ -868,10 +903,19 @@ class Campaign:
         return base_dict
     
     def save(self):
-        """Save this campaign instance to the database."""
+        """
+        DEPRECATED: Use Campaign.create() for new campaigns instead.
+        Save this campaign instance to the database.
+        """
         engine = self._get_db_engine()
         if not engine:
             current_app.logger.error("Failed to save campaign: Database engine not available.")
+            return False
+
+        # Get tenant_id for new campaign creation
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            current_app.logger.error("Tenant not resolved in Campaign.save; aborting")
             return False
 
         try:
@@ -917,15 +961,16 @@ class Campaign:
                     else:
                         # Insert new campaign
                         insert_query = text("""
-                            INSERT INTO campaigns (name, type, description, email_template, 
+                            INSERT INTO campaigns (tenant_id, name, type, description, email_template, 
                                                  priority, schedule_date, followup_days, 
                                                  selection_criteria, campaign_settings, status) 
-                            VALUES (:name, :type, :description, :email_template, 
+                            VALUES (:tenant_id, :name, :type, :description, :email_template, 
                                    :priority, :schedule_date, :followup_days, 
                                    :selection_criteria, :campaign_settings, :status)
                             RETURNING id
                         """)
                         result = conn.execute(insert_query, {
+                            'tenant_id': tenant_id,
                             'name': self.name,
                             'type': self.type,
                             'description': self.description,

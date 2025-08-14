@@ -4,6 +4,13 @@ import os, random, textwrap, json, pathlib, time, urllib.parse, requests, hashli
 from typing import Dict, Tuple, Any
 from openai import OpenAI
 from dotenv import load_dotenv
+try:
+    from app.services.link_tracking_service import LinkTrackingService
+    from app.models.company import Company
+except ImportError:
+    # Handle case where app context is not available
+    LinkTrackingService = None
+    Company = None
 
 load_dotenv()
 
@@ -231,6 +238,21 @@ class DeepResearchEmailComposer:
                 print(f"⚠️ STEP 4 SKIPPED: Missing company_id or recipient email for tracking")
         else:
             print(f"🚫 STEP 4 SKIPPED: Tracking disabled by user preference")
+        
+        # STEP 4.5: Add link tracking if available
+        try:
+            if LinkTrackingService and campaign_id:
+                print(f"🔗 STEP 4.5: Adding link tracking for campaign {campaign_id}")
+                # Wrap links with tracking URLs
+                html_body, tracking_ids = LinkTrackingService.wrap_links_in_email(
+                    email_body=html_body,
+                    campaign_id=campaign_id,
+                    company_id=company_id,
+                    contact_email=lead.get('email')
+                )
+                print(f"✅ STEP 4.5 COMPLETED: Wrapped {len(tracking_ids)} links for tracking")
+        except Exception as e:
+            print(f"⚠️ STEP 4.5 WARNING: Failed to wrap links for tracking: {e}")
         
         final_result = {"subject": subject, "body": html_body}
         

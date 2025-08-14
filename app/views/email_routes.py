@@ -100,7 +100,8 @@ def preview_email():
                     call_to_action=call_to_action,
                     calendar_url=calendar_url,
                     extra_context=data.get('extra_context'),
-                    include_tracking=include_tracking
+                    include_tracking=include_tracking,
+                    campaign_id=data.get('campaign_id')
                 )
             else:
                 # Deep research composer
@@ -108,7 +109,8 @@ def preview_email():
                     lead=lead_data, 
                     calendar_url=calendar_url, 
                     extra_context=data.get('extra_context'),
-                    include_tracking=include_tracking
+                    include_tracking=include_tracking,
+                    campaign_id=data.get('campaign_id')
                 )
             
             if email_content and 'subject' in email_content and 'body' in email_content:
@@ -138,6 +140,7 @@ def send_email():
             body = data.get('body')
             account_name = data.get('sender_email')  # Use sender_email as account_name
             include_tracking = data.get('include_tracking', True)
+            campaign_id = data.get('campaign_id')
         else:
             recipient_email = request.form.get('recipient_email')
             recipient_name = request.form.get('recipient_name', '')
@@ -145,12 +148,30 @@ def send_email():
             body = request.form.get('preview_body')
             account_name = request.form.get('account_name')
             include_tracking = request.form.get('include_tracking', 'true').lower() == 'true'
+            campaign_id = request.form.get('campaign_id')
         
         if not all([recipient_email, subject, body]):
             return jsonify({
                 'success': False,
                 'message': 'Missing required email information'
             }), 400
+        
+        # Validate campaign_id if provided
+        if campaign_id:
+            try:
+                from app.models.campaign import Campaign
+                campaign = Campaign.get_by_id(int(campaign_id))
+                if not campaign:
+                    return jsonify({
+                        'success': False,
+                        'message': 'Invalid campaign ID'
+                    }), 400
+            except (ValueError, Exception) as e:
+                current_app.logger.error(f"Campaign validation error: {e}")
+                return jsonify({
+                    'success': False,
+                    'message': 'Invalid campaign ID format'
+                }), 400
         
         # If tracking is disabled, remove any existing tracking pixels from body
         if not include_tracking and 'track/open/' in body:
@@ -164,6 +185,25 @@ def send_email():
         success = EmailService.send_email_with_account(
             recipient_email, recipient_name, subject, body, account_name
         )
+        
+        # If email sent successfully and campaign_id provided, associate contact with campaign
+        if success and campaign_id:
+            try:
+                from app.models.campaign import Campaign
+                
+                # Add contact to campaign (this will handle duplicates automatically)
+                campaign_association_success = Campaign.add_contact_to_campaign(
+                    int(campaign_id), recipient_email, status='active'
+                )
+                
+                if campaign_association_success:
+                    current_app.logger.info(f"Contact {recipient_email} successfully added to campaign {campaign_id}")
+                else:
+                    current_app.logger.warning(f"Failed to add contact {recipient_email} to campaign {campaign_id}")
+                    
+            except Exception as e:
+                current_app.logger.error(f"Error associating contact with campaign: {e}")
+                # Don't fail the email send if campaign association fails
         
         return jsonify({
             'success': success,

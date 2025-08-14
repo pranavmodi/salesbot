@@ -380,9 +380,16 @@ function sendComposedEmail(e) {
     const recipientEmail = document.getElementById('recipientEmail').value;
     const subject = document.getElementById('emailSubject').value;
     const body = document.getElementById('emailBody').value;
+    const campaignSelect = document.getElementById('gtmCampaignSelect');
+    const campaignId = campaignSelect ? campaignSelect.value : null;
     
     if (!recipientEmail || !subject || !body) {
         showToast('warningToast', 'Please fill in all required fields');
+        return;
+    }
+    
+    if (!campaignId) {
+        showToast('warningToast', 'Please select a GTM campaign for tracking email engagement');
         return;
     }
     
@@ -412,7 +419,8 @@ function sendComposedEmail(e) {
             sender_email: currentGlobalAccount.email,
             subject: subject,
             body: body,
-            include_tracking: includeTracking
+            include_tracking: includeTracking,
+            campaign_id: campaignId
         })
     })
     .then(response => response.json())
