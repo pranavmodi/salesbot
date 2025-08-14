@@ -6,6 +6,7 @@ let currentGlobalAccount = null;
 
 // Initialize email functionality
 function initializeEmail() {
+    console.log('🔧 Initializing email functionality...');
     setupEmailEventListeners();
     loadGlobalEmailAccounts();
     setupGlobalAccountSelector();
@@ -20,11 +21,19 @@ function setupEmailEventListeners() {
     const composeForm = document.getElementById('composeForm');
     const testEmailBtn = document.getElementById('testEmailConnection');
     
+    console.log('🎯 Setting up email event listeners...', {
+        generatePreviewBtn: !!generatePreviewBtn,
+        composeForm: !!composeForm,
+        testEmailBtn: !!testEmailBtn
+    });
+    
     if (generatePreviewBtn) {
         generatePreviewBtn.addEventListener('click', generateEmailPreview);
+        console.log('✅ Generate preview listener attached');
     }
     if (composeForm) {
         composeForm.addEventListener('submit', sendComposedEmail);
+        console.log('✅ Compose form listener attached');
     }
     if (testEmailBtn) {
         testEmailBtn.addEventListener('click', testEmailConnection);
@@ -33,14 +42,23 @@ function setupEmailEventListeners() {
 
 // Global email accounts management
 function loadGlobalEmailAccounts() {
+    console.log('📧 Loading email accounts...');
     fetch('/api/email/accounts')
         .then(response => response.json())
         .then(data => {
             if (data.success) {
                 const accounts = data.accounts || [];
-                console.log('Loaded email accounts:', accounts);
+                console.log('📧 Loaded email accounts:', accounts.length, accounts);
                 
-                // Update global account selector if it exists
+                // Set the first account as default for compose functionality
+                if (!currentGlobalAccount && accounts.length > 0) {
+                    // Find the default account or use the first one
+                    const defaultAccount = accounts.find(acc => acc.is_default) || accounts[0];
+                    currentGlobalAccount = defaultAccount;
+                    console.log('📧 Set default global account:', defaultAccount.email);
+                }
+                
+                // Update global account selector if it exists (for inbox/email management)
                 const globalAccountSelector = document.getElementById('globalAccountSelector');
                 if (globalAccountSelector && accounts.length > 0) {
                     globalAccountSelector.innerHTML = '<option value="">Select Email Account</option>';
@@ -48,24 +66,25 @@ function loadGlobalEmailAccounts() {
                     accounts.forEach(account => {
                         const option = document.createElement('option');
                         option.value = account.email;
-                        option.textContent = `${account.email} (${account.provider})`;
+                        // Extract provider from SMTP host or just show email
+                        const provider = account.smtp_host ? account.smtp_host.split('.')[0] : 'Email';
+                        option.textContent = `${account.email} (${provider})`;
                         option.setAttribute('data-account', JSON.stringify(account));
                         globalAccountSelector.appendChild(option);
                     });
                     
-                    // Set the first account as default if none selected
-                    if (!currentGlobalAccount && accounts.length > 0) {
-                        globalAccountSelector.value = accounts[0].email;
-                        currentGlobalAccount = accounts[0];
-                        updateActiveAccountInfo(accounts[0]);
+                    // Set the selector to match the current global account
+                    if (currentGlobalAccount) {
+                        globalAccountSelector.value = currentGlobalAccount.email;
+                        updateActiveAccountInfo(currentGlobalAccount);
                     }
                 }
             } else {
-                console.error('Failed to load email accounts:', data.message);
+                console.error('❌ Failed to load email accounts:', data.message);
             }
         })
         .catch(error => {
-            console.error('Error loading email accounts:', error);
+            console.error('❌ Error loading email accounts:', error);
         });
 }
 
@@ -162,7 +181,16 @@ function testGlobalAccountConnection() {
 }
 
 // Email composition and sending
-function generateEmailPreview() {
+function generateEmailPreview(e) {
+    console.log('🎯 generateEmailPreview called - THIS IS CORRECT FOR PREVIEW');
+    console.log('📧 currentGlobalAccount status:', currentGlobalAccount ? 'Available' : 'Not available');
+    
+    // Prevent any form submission or event bubbling
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    
     const contactSelect = document.getElementById('contactSelect');
     const composerType = document.getElementById('composerType');
     const recipientEmail = document.getElementById('recipientEmail').value;
@@ -170,7 +198,9 @@ function generateEmailPreview() {
     const companyName = document.getElementById('companyName').value;
     const position = document.getElementById('position').value;
     
-    if (!contactSelect.value) {
+    console.log('📋 Form data:', { contactSelect: contactSelect?.value, recipientEmail, composerType: composerType?.value });
+    
+    if (!contactSelect?.value) {
         showToast('warningToast', 'Please select a contact first');
         return;
     }
@@ -342,6 +372,9 @@ function toggleRawHtml() {
 }
 
 function sendComposedEmail(e) {
+    console.log('📧 sendComposedEmail called - attempting to send email');
+    console.log('📧 currentGlobalAccount:', currentGlobalAccount);
+    console.log('📧 Event details:', e ? e.type : 'no event', e ? e.target : 'no target');
     e.preventDefault();
     
     const recipientEmail = document.getElementById('recipientEmail').value;
@@ -354,7 +387,8 @@ function sendComposedEmail(e) {
     }
     
     if (!currentGlobalAccount) {
-        showToast('warningToast', 'Please select a sender email account');
+        console.log('❌ No currentGlobalAccount available for sending email');
+        showToast('warningToast', 'Please configure your email account in Settings → Email Configuration to send emails. Preview generation should work without email setup.');
         return;
     }
     
