@@ -116,11 +116,11 @@ class LinkTrackingService:
                     offset += len(new_href) - len(full_match)
                     logger.info(f"Replaced href: {full_match} -> {new_href}")
                 elif is_markdown:
-                    # Replace the URL in markdown link [text](url)
-                    new_markdown = f'[{link_text}]({tracking_url})'
-                    modified_body = modified_body[:start_pos] + new_markdown + modified_body[end_pos:]
-                    offset += len(new_markdown) - len(full_match)
-                    logger.info(f"Replaced markdown: '{full_match}' -> '{new_markdown}'")
+                    # Convert markdown link [text](url) to HTML anchor tag
+                    new_html = f'<a href="{tracking_url}">{link_text}</a>'
+                    modified_body = modified_body[:start_pos] + new_html + modified_body[end_pos:]
+                    offset += len(new_html) - len(full_match)
+                    logger.info(f"Converted markdown to HTML: '{full_match}' -> '{new_html}'")
                     logger.info(f"Replacement details: start_pos={start_pos}, end_pos={end_pos}, offset={offset}")
                 else:
                     # Replace standalone URL

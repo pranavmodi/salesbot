@@ -130,9 +130,33 @@ class ContentBasedEmailComposer:
                     lead, content_url, content_description, content_analysis,
                     call_to_action, calendar_url, extra_context
                 )
+                
+                # Ensure content URL is included in the email body
+                if content_url and content_url not in body:
+                    logger.warning("Template generation didn't include content URL, adding it manually")
+                    # Find a good place to insert the content link (after content description)
+                    if "scorecard" in body.lower() or "content" in body.lower():
+                        # Insert link after mentioning the content
+                        body = body.replace("scorecard", f"scorecard - [check it out here]({content_url})")
+                        body = body.replace("content", f"content - [check it out here]({content_url})")
+                    else:
+                        # Add at the end before closing
+                        body = body.rstrip() + f"\n\nYou can check it out here: [check it out here]({content_url})"
             else:
                 subject = email_content.get('subject', f"Valuable insights for {company_name}")
                 body = email_content.get('body', f"Hi {contact_first_name},\n\nI thought you might find this relevant: {content_url}")
+                
+                # Ensure content URL is included in the email body
+                if content_url and content_url not in body:
+                    logger.warning("AI didn't include content URL, adding it manually")
+                    # Find a good place to insert the content link (after content description)
+                    if "scorecard" in body.lower() or "content" in body.lower():
+                        # Insert link after mentioning the content
+                        body = body.replace("scorecard", f"scorecard - [check it out here]({content_url})")
+                        body = body.replace("content", f"content - [check it out here]({content_url})")
+                    else:
+                        # Add at the end before closing
+                        body = body.rstrip() + f"\n\nYou can check it out here: [check it out here]({content_url})"
             
             # Add signature to plain text body before converting to HTML
             logger.info(f"Body before adding signature: {body[-200:]}")  # Show last 200 chars
@@ -315,6 +339,7 @@ WRITING GUIDELINES:
 6. Make the relevance clear by connecting your content to their specific situation
 7. Include a natural, appropriate call-to-action that invites dialogue
 8. End with a professional closing (no signature, no contact information, no "Best regards" - it will be added automatically)
+9. CRITICAL: You MUST include the actual content URL as a clickable link in the email body
 
 EMAIL STRUCTURE:
 - Subject line (one compelling line that feels personal, not marketing-y)
@@ -325,6 +350,10 @@ EMAIL STRUCTURE:
 - Specific connection to their company/role (using research insights)
 - Natural call-to-action that invites response or discussion
 - Professional closing (no signature needed)
+
+CONTENT LINK REQUIREMENT:
+You MUST include the actual content URL in your email. Use this format: [link text](content_url)
+For example: [Agent Readiness Scorecard](https://example.com/scorecard) or [check it out here](https://example.com/content)
 
 RESPONSE FORMAT:
 Return the email in this exact format:
@@ -377,7 +406,10 @@ The signature will be added automatically. Just end with your call-to-action and
         
         prompt_parts.extend([
             "",
-            "Generate a personalized email where you (Pranav Modi) are sharing content YOU wrote and published. Connect the content value to their specific business context using the research insights. Include a brief introduction of yourself and Possible Minds. Make it feel like a founder reaching out to share their own insights and expertise, not a sales pitch."
+            "Generate a personalized email where you (Pranav Modi) are sharing content YOU wrote and published. Connect the content value to their specific business context using the research insights. Include a brief introduction of yourself and Possible Minds. Make it feel like a founder reaching out to share their own insights and expertise, not a sales pitch.",
+            "",
+            "IMPORTANT: You MUST include the actual content URL as a clickable link in your email. Use markdown format: [link text](content_url)",
+            "For example: [Agent Readiness Scorecard]({content_url}) or [check it out here]({content_url})"
         ])
         
         return "\n".join(prompt_parts)
