@@ -212,15 +212,47 @@ let charts = {};
 
 function initializeCampaignAnalytics(campaignId) {
     currentCampaignId = campaignId;
-    loadAnalyticsData();
-    loadClickDetails();
+    
+    // Wait for DOM to be ready before loading analytics
+    let retryCount = 0;
+    const maxRetries = 5;
+    
+    const waitForDOM = () => {
+        if (retryCount >= maxRetries) {
+            console.error('Failed to initialize analytics after', maxRetries, 'retries - DOM not ready');
+            showAnalyticsError('Analytics initialization failed. Please refresh the page.');
+            return;
+        }
+        
+        // Check if key analytics elements are available
+        const keyElements = ['analyticsContent', 'totalContacts', 'topCompanies'];
+        const missingElements = keyElements.filter(id => !document.getElementById(id));
+        
+        if (missingElements.length > 0) {
+            console.log(`Retry ${retryCount + 1}/${maxRetries}: Waiting for DOM elements:`, missingElements);
+            retryCount++;
+            setTimeout(waitForDOM, 200); // Retry after 200ms
+            return;
+        }
+        
+        console.log('DOM ready, loading analytics data...');
+        loadAnalyticsData();
+        loadClickDetails();
+    };
+    
+    waitForDOM();
 }
 
 function loadAnalyticsData() {
     if (!currentCampaignId) return;
 
-    $('#analyticsLoading').show();
-    $('#analyticsError').hide();
+    // Only manage specific loading elements
+    
+    const analyticsLoading = document.getElementById('analyticsLoading');
+    const analyticsError = document.getElementById('analyticsError');
+    
+    if (analyticsLoading) analyticsLoading.style.display = 'none'; // Don't show loading spinner
+    if (analyticsError) analyticsError.style.display = 'none';
     
     fetch(`/api/campaigns/${currentCampaignId}/analytics`)
         .then(response => {
@@ -231,18 +263,33 @@ function loadAnalyticsData() {
             return response.json();
         })
         .then(data => {
-            $('#analyticsLoading').hide();
+            // Only hide specific loading elements, don't touch content elements
+            const analyticsLoading = document.getElementById('analyticsLoading');
+            if (analyticsLoading) analyticsLoading.style.display = 'none';
+            
+            console.log('All loading states hidden');
             console.log('Analytics API response data:', data);
+            
             if (data.success) {
                 analyticsData = data;
+                console.log('About to call updateAnalyticsDisplay...');
                 updateAnalyticsDisplay();
+                console.log('updateAnalyticsDisplay completed');
+                
+                // Force show the analytics content
+                const analyticsContent = document.getElementById('analyticsContent');
+                if (analyticsContent) {
+                    analyticsContent.style.display = 'block';
+                    analyticsContent.style.visibility = 'visible';
+                }
             } else {
                 console.error('Analytics API returned error:', data);
                 showAnalyticsError(data.message || 'Failed to load analytics data');
             }
         })
         .catch(error => {
-            $('#analyticsLoading').hide();
+            const loadingElement = document.getElementById('analyticsLoading');
+            if (loadingElement) loadingElement.style.display = 'none';
             console.error('Analytics API fetch error:', error);
             showAnalyticsError(`Error: ${error.message}`);
         });
@@ -253,6 +300,19 @@ function updateAnalyticsDisplay() {
 
     console.log('Analytics data received:', analyticsData);
     
+    // Check if all required analytics elements are available in the DOM
+    const requiredElements = [
+        'totalContacts', 'totalEmails', 'totalClicks', 'clickRate',
+        'topCompanies', 'linkTrackingSection', 'engagementFunnelChart'
+    ];
+    
+    const missingElements = requiredElements.filter(id => !document.getElementById(id));
+    if (missingElements.length > 0) {
+        console.log('Some analytics elements not yet available in DOM:', missingElements);
+        console.log('This may happen if the modal template is still loading. Skipping analytics update.');
+        return;
+    }
+    
     const metrics = analyticsData.performance_metrics;
     if (!metrics) {
         console.error('Performance metrics missing from analytics data:', analyticsData);
@@ -261,34 +321,111 @@ function updateAnalyticsDisplay() {
     }
     
     console.log('Performance metrics:', metrics);
+    console.log('Analytics section:', analyticsData.analytics);
     
-    $('#totalContacts').text(metrics.total_contacts.toLocaleString());
-    $('#totalEmails').text(metrics.total_emails.toLocaleString());
+    // Add null/undefined checks and debug logging
+    const totalContacts = metrics.total_contacts !== undefined ? metrics.total_contacts : 0;
+    const totalEmails = metrics.total_emails !== undefined ? metrics.total_emails : 0;
+    const totalClicks = metrics.total_clicks !== undefined ? metrics.total_clicks : 0;
+    const clickRate = metrics.click_rate || '0%';
+    
+    console.log(`Display values: contacts=${totalContacts}, emails=${totalEmails}, clicks=${totalClicks}, rate=${clickRate}`);
+    
+    // Check if elements exist before updating
+    const contactsElement = document.getElementById('totalContacts');
+    const emailsElement = document.getElementById('totalEmails');
+    const clicksElement = document.getElementById('totalClicks');
+    const rateElement = document.getElementById('clickRate');
+    
+    console.log('DOM elements found:', {
+        totalContacts: !!contactsElement,
+        totalEmails: !!emailsElement,
+        totalClicks: !!clicksElement,
+        clickRate: !!rateElement
+    });
+    
+    // Check if ANY analytics elements exist
+    const analyticsContent = document.getElementById('analyticsContent');
+    const modalBody = document.querySelector('#campaignAnalyticsModal .modal-body');
+    const allElements = document.querySelectorAll('#campaignAnalyticsModal *');
+    
+    console.log('Analytics container check:', {
+        analyticsContent: !!analyticsContent,
+        modalBody: !!modalBody,
+        totalElementsInModal: allElements.length,
+        modalBodyHTML: modalBody ? modalBody.innerHTML.substring(0, 200) + '...' : 'null'
+    });
+    
+    if (contactsElement) contactsElement.textContent = totalContacts.toLocaleString();
+    if (emailsElement) emailsElement.textContent = totalEmails.toLocaleString();
 
-    if (analyticsData.analytics.data_source === 'ga4_custom_params_error' || (metrics.total_clicks === 0 && metrics.total_emails > 0)) {
-        $('#totalClicks').html('<span class="text-muted">Processing...</span>');
-        $('#clickRate').html('<span class="text-muted">Processing...</span>');
-        $('#dataProcessingNotice').show();
+    // Check if this is external analytics with processing issues
+    const isExternalProcessing = analyticsData.analytics.data_source === 'ga4_custom_params_error' || 
+                                (analyticsData.analytics.source !== 'local_tracking' && totalClicks === 0 && totalEmails > 0);
+
+    console.log(`Is external processing: ${isExternalProcessing}, source: ${analyticsData.analytics.source}`);
+
+    if (isExternalProcessing) {
+        if (clicksElement) clicksElement.innerHTML = '<span class="text-muted">Processing...</span>';
+        if (rateElement) rateElement.innerHTML = '<span class="text-muted">Processing...</span>';
+        const processingNotice = document.getElementById('dataProcessingNotice');
+        if (processingNotice) processingNotice.style.display = 'block';
     } else {
-        $('#totalClicks').text(metrics.total_clicks.toLocaleString());
-        $('#clickRate').text(metrics.click_rate || '0%');
-        $('#dataProcessingNotice').hide();
+        // For manual campaigns and working analytics, show actual data
+        if (clicksElement) clicksElement.textContent = totalClicks.toLocaleString();
+        if (rateElement) rateElement.textContent = clickRate;
+        const processingNotice = document.getElementById('dataProcessingNotice');
+        if (processingNotice) processingNotice.style.display = 'none';
     }
+    
+    console.log('Updated UI elements with data:', {
+        contacts: totalContacts,
+        emails: totalEmails, 
+        clicks: totalClicks,
+        rate: clickRate
+    });
 
     updateLinkTrackingDisplay();
     updateEngagementFunnelChart();
-    updateTopCompanies();
+    
+    // Only update top companies if the container is available
+    const topCompaniesContainer = document.getElementById('topCompanies');
+    if (topCompaniesContainer) {
+        updateTopCompanies();
+    } else {
+        console.log('Top companies container not available, skipping updateTopCompanies');
+    }
 }
 
 function updateEngagementFunnelChart() {
-    const ctx = document.getElementById('engagementFunnelChart').getContext('2d');
+    const chartElement = document.getElementById('engagementFunnelChart');
+    if (!chartElement) {
+        console.log('Engagement funnel chart element not found, skipping chart update');
+        return;
+    }
+    
+    const ctx = chartElement.getContext('2d');
+    if (!ctx) {
+        console.log('Unable to get chart context, skipping chart update');
+        return;
+    }
+    
     const metrics = analyticsData.performance_metrics;
     const analytics = analyticsData.analytics;
 
-    if (!metrics || !analytics) return;
+    if (!metrics || !analytics) {
+        console.log('Missing analytics data for chart, skipping chart update');
+        return;
+    }
     
     if (charts.funnelChart) {
         charts.funnelChart.destroy();
+    }
+    
+    // Check if Chart.js is available
+    if (typeof Chart === 'undefined') {
+        console.log('Chart.js library not available, skipping chart creation');
+        return;
     }
     
     charts.funnelChart = new Chart(ctx, {
@@ -320,14 +457,28 @@ function updateEngagementFunnelChart() {
 }
 
 function updateTopCompanies() {
-    const container = $('#topCompanies');
+    const container = document.getElementById('topCompanies');
     const topCompanies = analyticsData.analytics?.companies_clicked || [];
     
-    if (topCompanies.length === 0) {
-        container.html('<div class="text-muted text-center py-3">No company engagement data yet.</div>');
+    console.log('updateTopCompanies called with data:', {
+        analytics: analyticsData.analytics,
+        companies_clicked: topCompanies,
+        companiesLength: topCompanies.length
+    });
+    
+    // Check if container exists before proceeding
+    if (!container) {
+        console.log('Top companies container not found in DOM, skipping update');
         return;
     }
     
+    if (topCompanies.length === 0) {
+        console.log('No companies found, showing empty message');
+        container.innerHTML = '<div class="text-muted text-center py-3">No company engagement data yet.</div>';
+        return;
+    }
+    
+    console.log('Rendering companies:', topCompanies);
     const html = topCompanies.slice(0, 5).map(company => `
         <div class="list-group-item d-flex justify-content-between align-items-center">
             <div class="fw-bold">${company}</div>
@@ -335,42 +486,67 @@ function updateTopCompanies() {
         </div>
     `).join('');
     
-    container.html(html);
+    console.log('Generated company HTML:', html);
+    console.log('Container element found:', !!container);
+    
+    container.innerHTML = html;
+    console.log('Companies HTML set successfully');
 }
 
 function updateLinkTrackingDisplay() {
     if (!analyticsData || !analyticsData.link_tracking) {
-        $('#linkTrackingSection').hide();
+        const linkTrackingSection = document.getElementById('linkTrackingSection');
+        if (linkTrackingSection) {
+            linkTrackingSection.style.display = 'none';
+        }
         return;
     }
     
     const linkData = analyticsData.link_tracking;
     console.log('Link tracking data:', linkData);
     
+    // Check if link tracking section exists before updating
+    const linkTrackingSection = document.getElementById('linkTrackingSection');
+    if (!linkTrackingSection) {
+        console.log('Link tracking section not available, skipping update');
+        return;
+    }
+    
     // Update overview metrics
-    $('#totalTrackedLinks').text(linkData.total_tracked_links || 0);
-    $('#totalLinkClicks').text(linkData.total_link_clicks || 0);
-    $('#linkClickRate').text(linkData.link_click_rate || '0%');
+    const totalTrackedLinksElement = document.getElementById('totalTrackedLinks');
+    const totalLinkClicksElement = document.getElementById('totalLinkClicks');
+    const linkClickRateElement = document.getElementById('linkClickRate');
+    
+    if (totalTrackedLinksElement) totalTrackedLinksElement.textContent = linkData.total_tracked_links || 0;
+    if (totalLinkClicksElement) totalLinkClicksElement.textContent = linkData.total_link_clicks || 0;
+    if (linkClickRateElement) linkClickRateElement.textContent = linkData.link_click_rate || '0%';
     
     // Update individual link performance table
     const trackedLinks = linkData.tracked_links || [];
     updateLinkPerformanceTable(trackedLinks);
     
-    $('#linkTrackingSection').show();
+    linkTrackingSection.style.display = 'block';
 }
 
 function updateLinkPerformanceTable(trackedLinks) {
-    const tbody = $('#linkPerformanceTableBody');
+    const tbody = document.getElementById('linkPerformanceTableBody');
+    const linkTrackingEmpty = document.getElementById('linkTrackingEmpty');
+    const linkPerformanceTable = document.getElementById('linkPerformanceTable');
     
-    if (trackedLinks.length === 0) {
-        tbody.empty();
-        $('#linkTrackingEmpty').show();
-        $('#linkPerformanceTable').hide();
+    if (!tbody || !linkTrackingEmpty || !linkPerformanceTable) {
+        console.log('Link performance table elements not available, skipping update');
         return;
     }
     
-    $('#linkTrackingEmpty').hide();
-    $('#linkPerformanceTable').show();
+    if (trackedLinks.length === 0) {
+        tbody.innerHTML = '';
+        linkTrackingEmpty.style.display = 'block';
+        linkPerformanceTable.style.display = 'none';
+        return;
+    }
+    
+    linkTrackingEmpty.style.display = 'none';
+    linkPerformanceTable.style.display = 'block';
     
     const html = trackedLinks.map(link => {
         const clickCount = link.click_count || 0;
@@ -406,7 +582,7 @@ function updateLinkPerformanceTable(trackedLinks) {
         `;
     }).join('');
     
-    tbody.html(html);
+    tbody.innerHTML = html;
 }
 
 function loadClickDetails() {
@@ -419,26 +595,36 @@ function loadClickDetails() {
                 updateClickDetailsTable(data.clicks);
             }
             else {
-                $('#clickDetailsTable').empty();
-                $('#clickDetailsEmpty').show();
+                const clickDetailsTable = document.getElementById('clickDetailsTable');
+                const clickDetailsEmpty = document.getElementById('clickDetailsEmpty');
+                if (clickDetailsTable) clickDetailsTable.innerHTML = '';
+                if (clickDetailsEmpty) clickDetailsEmpty.style.display = 'block';
             }
         })
         .catch(error => {
-            $('#clickDetailsTable').empty();
-            $('#clickDetailsEmpty').show();
+            const clickDetailsTable = document.getElementById('clickDetailsTable');
+            const clickDetailsEmpty = document.getElementById('clickDetailsEmpty');
+            if (clickDetailsTable) clickDetailsTable.innerHTML = '';
+            if (clickDetailsEmpty) clickDetailsEmpty.style.display = 'block';
         });
 }
 
 function updateClickDetailsTable(clicks) {
-    const tbody = $('#clickDetailsTable');
+    const tbody = document.getElementById('clickDetailsTable');
+    const clickDetailsEmpty = document.getElementById('clickDetailsEmpty');
     
-    if (clicks.length === 0) {
-        tbody.empty();
-        $('#clickDetailsEmpty').show();
+    if (!tbody || !clickDetailsEmpty) {
+        console.log('Click details table elements not available, skipping update');
         return;
     }
     
-    $('#clickDetailsEmpty').hide();
+    if (clicks.length === 0) {
+        tbody.innerHTML = '';
+        clickDetailsEmpty.style.display = 'block';
+        return;
+    }
+    
+    clickDetailsEmpty.style.display = 'none';
     
     const html = clicks.map(click => `
         <tr>
@@ -450,12 +636,19 @@ function updateClickDetailsTable(clicks) {
         </tr>
     `).join('');
     
-    tbody.html(html);
+    tbody.innerHTML = html;
 }
 
 function showAnalyticsError(message) {
-    $('#analyticsError').show();
-    $('#analyticsErrorMessage').text(message);
+    const analyticsError = document.getElementById('analyticsError');
+    const analyticsErrorMessage = document.getElementById('analyticsErrorMessage');
+    
+    if (analyticsError && analyticsErrorMessage) {
+        analyticsError.style.display = 'block';
+        analyticsErrorMessage.textContent = message;
+    } else {
+        console.error('Analytics error elements not available:', message);
+    }
 }
 
 function showDebugData() {
@@ -467,5 +660,10 @@ function showDebugData() {
     const debugUrl = `/api/campaigns/${currentCampaignId}/analytics?debug=true`;
     const debugWindow = window.open(debugUrl, 'DebugData', 'width=800,height=600,scrollbars=yes');
 }
+
+// Make functions globally available for external access
+window.initializeCampaignAnalytics = initializeCampaignAnalytics;
+window.updateAnalyticsDisplay = updateAnalyticsDisplay;
+window.loadAnalyticsData = loadAnalyticsData;
 </script>
  

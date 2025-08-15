@@ -2060,46 +2060,28 @@ function viewCampaignAnalytics(campaignId, campaignName) {
         titleElement.textContent = `${campaignName} - Analytics`;
     }
     
-    // Set loading state for analytics content
-    const analyticsContent = document.getElementById('analyticsContent');
-    if (analyticsContent) {
-        analyticsContent.innerHTML = `
-            <div class="text-center py-4">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-                <p class="mt-2">Loading analytics...</p>
-            </div>
-        `;
-    }
+    // Don't set loading state - let the analytics pane handle its own content
+    console.log('Analytics modal opened, initialization will be handled by analytics pane');
     
-    // Fetch analytics data
-    fetch(`/api/campaigns/${campaignId}/analytics`)
-        .then(response => response.json())
-        .then(data => {
-            console.log('Raw analytics API response:', data);
-            if (data.success) {
-                console.log('Analytics data being passed to display function:', data.analytics);
-                displayCampaignAnalytics(data.analytics, campaignName);
-            } else {
-                throw new Error(data.error || 'Failed to load analytics');
-            }
-        })
-        .catch(error => {
-            console.error('Error loading campaign analytics:', error);
-            if (analyticsContent) {
-                analyticsContent.innerHTML = `
-                    <div class="text-center py-4">
-                        <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
-                        <h5 class="text-danger">Failed to Load Analytics</h5>
-                        <p class="text-muted">${error.message}</p>
-                        <button class="btn btn-outline-primary" onclick="viewCampaignAnalytics(${campaignId}, '${campaignName}')">
-                            <i class="fas fa-refresh me-2"></i>Retry
-                        </button>
-                    </div>
-                `;
-            }
-        });
+    // Initialize analytics component (modal is now available in dashboard template)
+    if (typeof initializeCampaignAnalytics === 'function') {
+        console.log('Found initializeCampaignAnalytics function, initializing...');
+        initializeCampaignAnalytics(campaignId);
+    } else {
+        console.error('Campaign analytics component not loaded');
+        if (analyticsContent) {
+            analyticsContent.innerHTML = `
+                <div class="text-center py-4">
+                    <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                    <h5 class="text-danger">Analytics component not available</h5>
+                    <p class="text-muted">Campaign analytics component not loaded</p>
+                    <button class="btn btn-outline-primary" onclick="viewCampaignAnalytics(${campaignId}, '${campaignName}')">
+                        <i class="fas fa-refresh me-2"></i>Retry
+                    </button>
+                </div>
+            `;
+        }
+    }
 }
 
 function displayCampaignAnalytics(analytics, campaignName) {

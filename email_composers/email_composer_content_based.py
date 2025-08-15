@@ -155,17 +155,20 @@ class ContentBasedEmailComposer:
             except Exception as e:
                 logger.warning(f"Failed to wrap links for tracking: {e}")
             
-            # Add signature to email body
-            body = body.strip()  # Ensure no trailing newlines before adding signature
-            body += '\n' + self._signature()
+            # Convert plain text formatting to HTML for proper email display
+            html_body = self._convert_to_html(body)
             
-            # Add tracking if requested
+            # Add signature to HTML body
+            html_body = html_body.replace('</body>', f'{self._signature()}</body>')
+            
+            # Add tracking pixel if requested
             if include_tracking:
-                body = self._add_tracking_pixel(body)
+                tracking_pixel = self._get_tracking_url()
+                html_body = self._add_tracking_pixel_to_html(html_body, tracking_pixel)
             
             result = {
                 'subject': subject,
-                'body': body,
+                'body': html_body,
                 'composer_type': self.composer_type,
                 'content_url': content_url,
                 'content_type': content_type
@@ -176,11 +179,15 @@ class ContentBasedEmailComposer:
             
         except Exception as e:
             logger.error(f"Error composing content-based email: {e}")
-            fallback_body = f"Hi {contact_first_name},\n\nI'm Pranav Modi, founder of Possible Minds. I recently published some insights that I thought might be relevant to your work at {company_name}.\n\nYou can check it out here: {content_url}\n\n{content_description}\n\nWould love to hear your thoughts if it resonates with what you're seeing in your industry.\n\nBest regards,{self._signature()}"
+            fallback_body = f"Hi {contact_first_name},\n\nI'm Pranav Modi, founder of Possible Minds. I recently published some insights that I thought might be relevant to your work at {company_name}.\n\nYou can check it out here: {content_url}\n\n{content_description}\n\nWould love to hear your thoughts if it resonates with what you're seeing in your industry.\n\nBest regards,"
+            
+            # Convert fallback to HTML as well
+            fallback_html = self._convert_to_html(fallback_body)
+            fallback_html = fallback_html.replace('</body>', f'{self._signature()}</body>')
             
             return {
                 'subject': f"Insights I thought you'd find relevant",
-                'body': fallback_body,
+                'body': fallback_html,
                 'composer_type': self.composer_type,
                 'error': str(e)
             }
@@ -668,8 +675,8 @@ IMPORTANT: Frame the content as your own work that you've published. Make it fee
         return cta_templates.get(cta_type, cta_templates['learn_more'])
     
     def _generate_signature(self) -> str:
-        """Generate professional signature."""
-        return "Best regards,\n\nPranav Modi\nFounder, Possible Minds\nAI Agent Solutions for Enterprise\n\nP.S. No pressure to respond - just thought you'd find the insights relevant to your work!"
+        """Generate professional signature (used by template generation)."""
+        return "Best regards,\n\nPranav Modi\nFounder, Possible Minds\nAI Agent Solutions for Enterprise"
     
     def _add_tracking_pixel(self, body: str) -> str:
         """Add tracking pixel to email body."""
@@ -685,11 +692,67 @@ IMPORTANT: Frame the content as your own work that you've published. Make it fee
             # Fallback for when outside Flask context
             return "https://possibleminds.in/track/pixel.gif"
     
+    @staticmethod
+    def _convert_to_html(text: str) -> str:
+        """Convert plain text email to HTML format while preserving formatting."""
+        import re
+        
+        # Split into lines
+        lines = text.split('\n')
+        html_lines = []
+        
+        for line in lines:
+            # Skip empty lines for now, we'll add them back as <br> tags
+            if not line.strip():
+                html_lines.append('<br>')
+                continue
+                
+            # Convert **bold** to <strong>
+            line = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', line)
+            
+            # Convert *italic* to <em> 
+            line = re.sub(r'\*(.*?)\*', r'<em>\1</em>', line)
+            
+            # Add the line
+            html_lines.append(line)
+        
+        # Join lines with <br> tags for line breaks
+        html_content = '<br>'.join(html_lines)
+        
+        # Clean up multiple consecutive <br> tags and replace with paragraph breaks
+        html_content = re.sub(r'(<br>\s*){3,}', '<br><br>', html_content)
+        
+        # Wrap in basic HTML structure for better email client compatibility
+        html_email = f"""<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    {html_content}
+</body>
+</html>"""
+        
+        return html_email
+
+    def _add_tracking_pixel_to_html(self, html_body: str, pixel_url: str) -> str:
+        """Add invisible 1x1 tracking pixel to HTML email body."""
+        # Add tracking pixel just before closing </body> tag
+        tracking_pixel_html = f'<img src="{pixel_url}" width="1" height="1" style="display:none;" alt="" />'
+        
+        if '</body>' in html_body:
+            html_body = html_body.replace('</body>', f'{tracking_pixel_html}</body>')
+        else:
+            # Fallback: append at the end
+            html_body += tracking_pixel_html
+            
+        return html_body
+
     def _signature(self) -> str:
         """Generate email signature with HTML links (same as deep research template)."""
-        return """
-Pranav Modi
-Founder, <a href="https://possibleminds.in">Possible Minds</a>
+        return """<br><br>
+Pranav Modi<br>
+Founder, <a href="https://possibleminds.in">Possible Minds</a><br>
 📧 <a href="mailto:pranav@possibleminds.in">pranav@possibleminds.in</a> | 🌐 <a href="https://possibleminds.in">possibleminds.in</a>"""
 
     def get_composer_info(self) -> Dict:

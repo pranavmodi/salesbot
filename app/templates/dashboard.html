@@ -530,4 +530,29 @@ document.addEventListener('DOMContentLoaded', function() {
 {% include 'onboarding_modal.html' %}
 {% endif %}
 
+<!-- Include Campaign Analytics Modal -->
+<!-- Campaign Analytics Modal -->
+<div class="modal fade" id="campaignAnalyticsModal" tabindex="-1" aria-labelledby="campaignAnalyticsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="campaignAnalyticsModalLabel">
+                    <i class="fas fa-chart-line me-2"></i><span id="campaignAnalyticsTitle">Campaign Analytics</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            
+            <div class="modal-body">
+                {% include 'components/campaign_analytics_pane.html' %}
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %} 

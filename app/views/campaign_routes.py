@@ -399,7 +399,7 @@ def schedule_campaign_route(campaign_id):
 
 @campaign_bp.route('/campaigns/<int:campaign_id>/analytics', methods=['GET'])
 def get_campaign_analytics(campaign_id):
-    """Get analytics for a specific campaign from external PossibleMinds endpoint."""
+    """Get analytics for a specific campaign. For manual campaigns, only use local redirect tracking."""
     try:
         campaign = Campaign.get_by_id(campaign_id)
         if not campaign:
@@ -409,29 +409,46 @@ def get_campaign_analytics(campaign_id):
         from app.services.link_tracking_service import LinkTrackingService
         link_analytics = LinkTrackingService.get_link_tracking_analytics(campaign_id=campaign_id, days_back=30)
         
-        # Import PossibleMinds analytics service
-        from app.services.possibleminds_analytics_service import create_possibleminds_service
+        # Check if this is a manual campaign
+        is_manual_campaign = campaign.type == 'manual'
         
-        # Get analytics from PossibleMinds endpoint
-        current_app.logger.info(f"Fetching analytics for campaign {campaign_id} from PossibleMinds")
-        analytics_service = create_possibleminds_service()
-        analytics_data = analytics_service.get_campaign_clicks(str(campaign_id))
-        
-        if not analytics_data.get('success', True):
-            current_app.logger.warning(f"PossibleMinds analytics warning for campaign {campaign_id}: {analytics_data.get('message')}")
-            # Return empty analytics rather than failing
+        # For manual campaigns, only use local tracking data
+        if is_manual_campaign:
+            current_app.logger.info(f"Manual campaign {campaign_id} - using only local redirect tracking")
+            # Use empty external analytics for manual campaigns
             analytics_data = {
                 'success': True,
                 'clicks': [],
                 'total_clicks': 0,
                 'unique_visitors': 0,
-                'message': 'No analytics data available'
+                'message': 'Manual campaign - using local tracking only'
             }
-        
-        # Extract metrics from PossibleMinds response
-        clicks = analytics_data.get('clicks', [])
-        total_clicks = analytics_data.get('total_clicks', len(clicks))
-        unique_visitors = analytics_data.get('unique_visitors', 0)
+            clicks = []
+            total_clicks = 0
+            unique_visitors = 0
+        else:
+            # For non-manual campaigns, fetch from external PossibleMinds service
+            from app.services.possibleminds_analytics_service import create_possibleminds_service
+            
+            current_app.logger.info(f"Fetching analytics for campaign {campaign_id} from PossibleMinds")
+            analytics_service = create_possibleminds_service()
+            analytics_data = analytics_service.get_campaign_clicks(str(campaign_id))
+            
+            if not analytics_data.get('success', True):
+                current_app.logger.warning(f"PossibleMinds analytics warning for campaign {campaign_id}: {analytics_data.get('message')}")
+                # Return empty analytics rather than failing
+                analytics_data = {
+                    'success': True,
+                    'clicks': [],
+                    'total_clicks': 0,
+                    'unique_visitors': 0,
+                    'message': 'No analytics data available'
+                }
+            
+            # Extract metrics from PossibleMinds response
+            clicks = analytics_data.get('clicks', [])
+            total_clicks = analytics_data.get('total_clicks', len(clicks))
+            unique_visitors = analytics_data.get('unique_visitors', 0)
         
         # Extract metrics from link tracking analytics
         link_data = link_analytics.get('analytics', {}) if link_analytics.get('success') else {}
@@ -439,8 +456,36 @@ def get_campaign_analytics(campaign_id):
         total_tracked_links = link_data.get('total_links', 0)
         link_click_rate = link_data.get('click_through_rate', 0)
         
-        # Calculate additional metrics if available
-        unique_emails = len(set(click.get('contact_email', '') for click in clicks if click.get('contact_email')))
+        # For manual campaigns, use local tracking data as primary source
+        if is_manual_campaign and total_link_clicks > 0:
+            total_clicks = total_link_clicks
+            # Get unique emails from local tracking data
+            local_links = link_data.get('links', [])
+            unique_emails = len(set(link.get('contact_email', '') for link in local_links if link.get('contact_email')))
+            
+            # Get companies from local tracking data
+            companies_clicked = []
+            for link in local_links:
+                if link.get('click_count', 0) > 0 and link.get('company_id'):
+                    try:
+                        # Look up company name from company_id
+                        from app.database import get_shared_engine
+                        engine = get_shared_engine()
+                        with engine.connect() as conn:
+                            result = conn.execute(text("SELECT company_name FROM companies WHERE id = :company_id"), 
+                                                {'company_id': link['company_id']})
+                            row = result.fetchone()
+                            if row and row[0]:
+                                companies_clicked.append(row[0])
+                    except Exception as e:
+                        current_app.logger.warning(f"Failed to get company name for ID {link.get('company_id')}: {e}")
+            
+            companies_clicked = list(set(companies_clicked))  # Remove duplicates
+            current_app.logger.info(f"Manual campaign {campaign_id} - using local tracking: {total_clicks} clicks, {unique_emails} unique emails, {len(companies_clicked)} companies")
+        else:
+            # Calculate additional metrics from external data if available
+            unique_emails = len(set(click.get('contact_email', '') for click in clicks if click.get('contact_email')))
+            companies_clicked = list(set(click.get('company_name', 'Unknown') for click in clicks if click.get('company_name')))
         
         # Get campaign statistics (email counts, etc.)
         campaign_stats = Campaign.get_campaign_stats(campaign_id)
@@ -451,12 +496,17 @@ def get_campaign_analytics(campaign_id):
         if campaign_stats.get('sent_emails', 0) > 0:
             click_rate = round((total_clicks / campaign_stats['sent_emails'] * 100), 2)
         
-        current_app.logger.info(f"Campaign {campaign_id} analytics: {total_clicks} clicks, {unique_visitors} unique visitors, {campaign_stats.get('sent_emails', 0)} emails sent")
+        current_app.logger.info(f"Campaign {campaign_id} analytics: {total_clicks} clicks, {unique_emails} unique emails, {campaign_stats.get('sent_emails', 0)} emails sent")
+        
+        # Set analytics source based on campaign type
+        analytics_source = 'local_tracking' if is_manual_campaign else 'possibleminds'
         
         return jsonify({
             'success': True,
             'campaign_id': campaign_id,
             'campaign_name': campaign.name,
+            'campaign_type': campaign.type,
+            'is_manual_campaign': is_manual_campaign,
             'performance_metrics': {
                 'total_contacts': campaign_stats.get('total_contacts', 0),
                 'total_emails': campaign_stats.get('sent_emails', 0),  # Use sent_emails for "emails sent" metric
@@ -471,9 +521,9 @@ def get_campaign_analytics(campaign_id):
                 'unique_visitors': unique_visitors,
                 'unique_recipients': unique_emails,
                 'click_rate': f"{click_rate}%" if click_rate > 0 else "0%",
-                'source': 'possibleminds',
-                'raw_data': analytics_data,
-                'companies_clicked': list(set(click.get('company_name', 'Unknown') for click in clicks if click.get('company_name')))
+                'source': analytics_source,
+                'raw_data': analytics_data if not is_manual_campaign else {'message': 'Manual campaign - using local tracking'},
+                'companies_clicked': companies_clicked
             },
             'link_tracking': {
                 'total_tracked_links': total_tracked_links,
@@ -487,6 +537,80 @@ def get_campaign_analytics(campaign_id):
     except Exception as e:
         current_app.logger.error(f"Error getting campaign analytics for campaign {campaign_id}: {str(e)}")
         return jsonify({'error': 'Failed to retrieve campaign analytics'}), 500
+
+@campaign_bp.route('/campaigns/<int:campaign_id>/clicks', methods=['GET'])
+def get_campaign_clicks(campaign_id):
+    """Get click details for a specific campaign."""
+    try:
+        campaign = Campaign.get_by_id(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+        
+        # Check if this is a manual campaign
+        is_manual_campaign = campaign.type == 'manual'
+        
+        if is_manual_campaign:
+            # For manual campaigns, get clicks from report_clicks table
+            from app.database import get_shared_engine
+            engine = get_shared_engine()
+            with engine.connect() as conn:
+                result = conn.execute(text("""
+                    SELECT rc.click_timestamp, rc.company_id, rc.tracking_id, 
+                           rc.ip_address, rc.user_agent, rc.tenant_id,
+                           c.company_name, lt.contact_email, lt.original_url
+                    FROM report_clicks rc
+                    LEFT JOIN companies c ON rc.company_id = c.id
+                    LEFT JOIN link_tracking lt ON rc.tracking_id = lt.tracking_id
+                    WHERE rc.campaign_id = :campaign_id
+                    ORDER BY rc.click_timestamp DESC
+                    LIMIT 50
+                """), {'campaign_id': campaign_id})
+                
+                clicks = []
+                for row in result:
+                    clicks.append({
+                        'click_timestamp': row.click_timestamp.isoformat() if row.click_timestamp else None,
+                        'company_name': row.company_name or 'Unknown',
+                        'recipient_email': row.contact_email or 'Unknown',
+                        'device_type': 'Web',  # Default for manual campaigns
+                        'country': 'Unknown',  # Not tracked in manual campaigns
+                        'ip_address': row.ip_address,
+                        'user_agent': row.user_agent,
+                        'original_url': row.original_url
+                    })
+                
+                current_app.logger.info(f"Manual campaign {campaign_id} clicks: {len(clicks)} records found")
+                return jsonify({
+                    'success': True,
+                    'clicks': clicks,
+                    'total_clicks': len(clicks),
+                    'source': 'local_tracking'
+                })
+        else:
+            # For non-manual campaigns, try external service
+            from app.services.possibleminds_analytics_service import create_possibleminds_service
+            analytics_service = create_possibleminds_service()
+            analytics_data = analytics_service.get_campaign_clicks(str(campaign_id))
+            
+            if analytics_data.get('success'):
+                return jsonify({
+                    'success': True,
+                    'clicks': analytics_data.get('clicks', []),
+                    'total_clicks': len(analytics_data.get('clicks', [])),
+                    'source': 'possibleminds'
+                })
+            else:
+                return jsonify({
+                    'success': True,
+                    'clicks': [],
+                    'total_clicks': 0,
+                    'source': 'possibleminds',
+                    'message': 'No external click data available'
+                })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting campaign clicks for campaign {campaign_id}: {str(e)}")
+        return jsonify({'error': 'Failed to retrieve campaign clicks'}), 500
 
 @campaign_bp.route('/campaigns/<int:campaign_id>/schedule', methods=['GET'])
 def get_campaign_schedule(campaign_id):
