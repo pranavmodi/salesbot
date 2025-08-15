@@ -826,15 +826,15 @@ if (typeof module !== 'undefined' && module.exports) {
 let availableGTMCampaigns = [];
 let currentSelectedContact = null;
 
-// Load GTM campaigns for manual execution
+// Load all GTM campaigns for dropdown
 function loadGTMCampaigns() {
-    fetch('/api/campaigns?execution_mode=manual')
+    fetch('/api/campaigns')  // Load ALL campaigns, not just manual
         .then(response => response.json())
         .then(data => {
             if (data.success) {
                 availableGTMCampaigns = data.campaigns || [];
                 updateGTMCampaignDropdown();
-                console.log(`Loaded ${availableGTMCampaigns.length} manual GTM campaigns`);
+                console.log(`Loaded ${availableGTMCampaigns.length} GTM campaigns`);
             } else {
                 console.warn('Failed to load GTM campaigns:', data.message);
             }
@@ -849,7 +849,7 @@ function updateGTMCampaignDropdown() {
     const campaignSelect = document.getElementById('gtmCampaignSelect');
     if (!campaignSelect) return;
 
-    campaignSelect.innerHTML = '<option value="">Select GTM Campaign (or send without campaign)</option>';
+    campaignSelect.innerHTML = '<option value="">Select or Create GTM Campaign</option>';
     
     availableGTMCampaigns.forEach(campaign => {
         const option = document.createElement('option');
@@ -916,26 +916,29 @@ function validateCampaignSelection() {
         statusText.textContent = 'Select a contact to enable sending';
         return;
     }
-    
+
     const selectedCampaignId = campaignSelect ? campaignSelect.value : '';
     
-    // If no campaign selected, allow sending without campaign
+    // Campaign selection is required
     if (!selectedCampaignId) {
-        sendButton.disabled = false;
-        statusText.textContent = 'Ready to send (without campaign tracking)';
+        sendButton.disabled = true;
+        statusText.textContent = 'Select a GTM campaign to enable sending';
         return;
     }
+
+    // Enable sending when both contact and campaign are selected (preview not required)
+    sendButton.disabled = false;
     
     // Validate campaign selection
     const selectedCampaign = availableGTMCampaigns.find(c => c.id == selectedCampaignId);
     if (!selectedCampaign) {
         sendButton.disabled = true;
         statusText.textContent = 'Invalid campaign selected';
-        showCampaignWarning('Selected campaign not found');
+        showCampaignWarning('Selected campaign not found - please choose a valid campaign');
         return;
     }
     
-    // Check if contact is part of the campaign and email hasn't been sent
+    // Check if contact is part of the campaign and email hasn't been sent (for information only)
     checkContactCampaignStatus(selectedCampaignId, currentSelectedContact.lead_id || currentSelectedContact.id);
 }
 
@@ -953,29 +956,28 @@ function checkContactCampaignStatus(campaignId, contactId) {
                 const lastEmailDate = data.last_email_date;
                 
                 if (!isInCampaign) {
-                    sendButton.disabled = true;
-                    statusText.textContent = 'Contact is not part of this campaign';
-                    showCampaignWarning('This contact is not included in the selected campaign');
+                    // Don't disable - just show warning
+                    statusText.textContent = 'Ready to send (contact will be added to campaign)';
+                    showCampaignWarning('This contact is not included in the selected campaign - they will be added when email is sent');
                 } else if (emailSent) {
-                    sendButton.disabled = true;
-                    statusText.textContent = `Email already sent on ${lastEmailDate || 'unknown date'}`;
-                    showCampaignWarning(`An email has already been sent to this contact for this campaign on ${lastEmailDate || 'unknown date'}`);
+                    // Don't disable - just show warning about duplicate
+                    statusText.textContent = 'Ready to send (duplicate email warning)';
+                    showCampaignWarning(`Warning: An email has already been sent to this contact for this campaign on ${lastEmailDate || 'unknown date'}. Sending again will create a duplicate.`);
                 } else {
-                    sendButton.disabled = false;
                     statusText.textContent = 'Ready to send via GTM campaign';
                     showCampaignSuccess('Contact is part of this campaign and ready to receive email');
                 }
             } else {
-                sendButton.disabled = true;
-                statusText.textContent = 'Error validating campaign status';
-                showCampaignWarning('Unable to verify campaign status');
+                // Don't disable - just show warning
+                statusText.textContent = 'Ready to send (campaign status unknown)';
+                showCampaignWarning('Unable to verify campaign status - email will still be sent');
             }
         })
         .catch(error => {
             console.error('Error checking campaign status:', error);
-            sendButton.disabled = true;
-            statusText.textContent = 'Error validating campaign status';
-            showCampaignWarning('Unable to verify campaign status');
+            // Don't disable - just show warning
+            statusText.textContent = 'Ready to send (campaign status unknown)';
+            showCampaignWarning('Unable to verify campaign status - email will still be sent');
         });
 }
 

@@ -7,11 +7,15 @@ from functools import wraps
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 def admin_required(f):
-    """Decorator to require admin access (only for pranav.modi@gmail.com)."""
+    """Decorator to require admin access."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        # Get admin emails from environment variable (fallback to hardcoded)
+        admin_emails = os.getenv('ADMIN_EMAILS', 'pranav.modi@gmail.com').split(',')
+        admin_emails = [email.strip() for email in admin_emails]  # Clean whitespace
+        
         user = session.get('user')
-        if not user or user.get('email') != 'pranav.modi@gmail.com':
+        if not user or user.get('email') not in admin_emails:
             current_app.logger.warning(f"Unauthorized admin access attempt from: {user.get('email') if user else 'anonymous'}")
             if request.path.startswith('/admin/api/'):
                 return jsonify({'success': False, 'error': 'Unauthorized'}), 403
