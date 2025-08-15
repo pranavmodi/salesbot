@@ -929,17 +929,14 @@ function setupComposeFormEnhancements() {
         
         if (sendBtn) {
             const hasContact = selectedContact;
-            const hasSubject = document.getElementById('emailSubject')?.value?.trim();
-            const hasBody = document.getElementById('emailBody')?.value?.trim();
             const hasCampaign = campaignSelect?.value;
             
-            const canSend = hasContact && hasSubject && hasBody && hasCampaign;
+            // Only require contact and campaign - allow manual email composition
+            const canSend = hasContact && hasCampaign;
             
             let sendButtonText = '<i class="fas fa-paper-plane me-1"></i>Send Email';
             if (!hasContact) {
                 sendButtonText = '<i class="fas fa-user me-1"></i>Select Contact';
-            } else if (!hasSubject || !hasBody) {
-                sendButtonText = '<i class="fas fa-edit me-1"></i>Generate Preview First';
             } else if (!hasCampaign) {
                 sendButtonText = '<i class="fas fa-bullhorn me-1"></i>Select Campaign';
             }
