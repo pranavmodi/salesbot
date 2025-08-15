@@ -154,6 +154,10 @@ class ContentBasedEmailComposer:
             except Exception as e:
                 logger.warning(f"Failed to wrap links for tracking: {e}")
             
+            # Add signature to email body
+            body = body.strip()  # Ensure no trailing newlines before adding signature
+            body += '\n' + self._signature()
+            
             # Add tracking if requested
             if include_tracking:
                 body = self._add_tracking_pixel(body)
@@ -171,9 +175,11 @@ class ContentBasedEmailComposer:
             
         except Exception as e:
             logger.error(f"Error composing content-based email: {e}")
+            fallback_body = f"Hi {contact_first_name},\n\nI'm Pranav Modi, founder of Possible Minds. I recently published some insights that I thought might be relevant to your work at {company_name}.\n\nYou can check it out here: {content_url}\n\n{content_description}\n\nWould love to hear your thoughts if it resonates with what you're seeing in your industry.\n\nBest regards,{self._signature()}"
+            
             return {
                 'subject': f"Insights I thought you'd find relevant",
-                'body': f"Hi {contact_first_name},\n\nI'm Pranav Modi, founder of Possible Minds. I recently published some insights that I thought might be relevant to your work at {company_name}.\n\nYou can check it out here: {content_url}\n\n{content_description}\n\nWould love to hear your thoughts if it resonates with what you're seeing in your industry.\n\nBest regards,\n\nPranav Modi\nFounder, Possible Minds",
+                'body': fallback_body,
                 'composer_type': self.composer_type,
                 'error': str(e)
             }
@@ -674,6 +680,13 @@ IMPORTANT: Frame the content as your own work that you've published. Make it fee
         # This should integrate with your tracking system
         return "https://your-tracking-domain.com/track/email.gif"
     
+    def _signature(self) -> str:
+        """Generate email signature with HTML links (same as deep research template)."""
+        return """
+Pranav Modi
+Founder, <a href="https://possibleminds.in">Possible Minds</a>
+📧 <a href="mailto:pranav@possibleminds.in">pranav@possibleminds.in</a> | 🌐 <a href="https://possibleminds.in">possibleminds.in</a>"""
+
     def get_composer_info(self) -> Dict:
         """Return information about this composer."""
         return {
