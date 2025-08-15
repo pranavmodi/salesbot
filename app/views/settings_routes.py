@@ -10,6 +10,7 @@ import smtplib
 import imaplib
 import ssl
 import socket
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -50,34 +51,76 @@ def settings_page():
 def save_api_keys():
     """Save API keys for tenant."""
     tenant_id = current_tenant_id()
+    logger.info(f"🔑 API key save request - Tenant ID: {tenant_id}")
+    
+    # Additional debugging for tenant context
+    user_session = session.get('user', {})
+    logger.info(f"👤 User session data: {list(user_session.keys()) if user_session else 'None'}")
+    if user_session:
+        logger.info(f"👤 Session tenant_id: {user_session.get('tenant_id', 'Not set')}")
+    
     if not tenant_id:
+        logger.error("❌ No tenant context available")
+        logger.error(f"❌ Request headers: X-Tenant-ID={request.headers.get('X-Tenant-ID', 'None')}")
+        logger.error(f"❌ Session user: {user_session}")
         return jsonify({'error': 'No tenant context'}), 400
     
     try:
         data = request.get_json()
         if not data:
+            logger.error("❌ No data provided in request")
             return jsonify({'error': 'No data provided'}), 400
+        
+        logger.info(f"📝 Request data keys: {list(data.keys())}")
+        # Log key lengths without exposing the actual keys
+        for key in ['openai_api_key', 'anthropic_api_key', 'perplexity_api_key']:
+            if key in data:
+                logger.info(f"  {key}: {len(data[key])} characters")
         
         tenant_settings = TenantSettings()
         current_settings = tenant_settings.get_tenant_settings(tenant_id)
         
+        logger.info(f"📖 Current settings loaded - keys: {list(current_settings.keys())}")
+        
         # Update API keys
         if 'openai_api_key' in data:
             current_settings['openai_api_key'] = data['openai_api_key']
+            logger.info(f"✅ OpenAI key updated (length: {len(data['openai_api_key'])})")
         if 'anthropic_api_key' in data:
             current_settings['anthropic_api_key'] = data['anthropic_api_key']
+            logger.info(f"✅ Anthropic key updated (length: {len(data['anthropic_api_key'])})")
         if 'perplexity_api_key' in data:
             current_settings['perplexity_api_key'] = data['perplexity_api_key']
+            logger.info(f"✅ Perplexity key updated (length: {len(data['perplexity_api_key'])})")
         
+        logger.info("💾 Attempting to save tenant settings...")
         success = tenant_settings.save_tenant_settings(current_settings, tenant_id)
+        logger.info(f"💾 Save result: {success}")
         
         if success:
+            # Verify the save by reading back immediately
+            logger.info("🔍 Verifying save by reading back settings...")
+            verification_settings = tenant_settings.get_tenant_settings(tenant_id)
+            
+            # Check if keys are still there
+            openai_still_there = len(verification_settings.get('openai_api_key', '')) > 0
+            anthropic_still_there = len(verification_settings.get('anthropic_api_key', '')) > 0
+            
+            logger.info(f"🔍 Verification results - OpenAI present: {openai_still_there}, Anthropic present: {anthropic_still_there}")
+            
+            if 'openai_api_key' in data and not openai_still_there:
+                logger.error("❌ CRITICAL: OpenAI key disappeared after save!")
+                return jsonify({'error': 'API keys were not saved correctly - OpenAI key missing after save'}), 500
+            
             return jsonify({'message': 'API keys saved successfully'})
         else:
+            logger.error("❌ Save operation returned False")
             return jsonify({'error': 'Failed to save API keys'}), 500
     
     except Exception as e:
-        logger.error(f"Failed to save API keys: {e}")
+        logger.error(f"❌ Exception in save_api_keys: {e}")
+        import traceback
+        logger.error(f"❌ Full traceback: {traceback.format_exc()}")
         return jsonify({'error': 'Internal server error'}), 500
 
 @settings_bp.route('/email-accounts', methods=['POST'])
@@ -255,3 +298,67 @@ def complete_onboarding():
     except Exception as e:
         logger.error(f"Error completing onboarding: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@settings_bp.route('/debug-api-keys', methods=['GET'])
+@login_required
+def debug_api_keys():
+    """Debug endpoint to check tenant settings status."""
+    tenant_id = current_tenant_id()
+    user_session = session.get('user', {})
+    
+    debug_info = {
+        'tenant_id': tenant_id,
+        'session_keys': list(user_session.keys()) if user_session else [],
+        'session_tenant_id': user_session.get('tenant_id') if user_session else None,
+        'headers': {
+            'X-Tenant-ID': request.headers.get('X-Tenant-ID'),
+            'X-Tenant-Slug': request.headers.get('X-Tenant-Slug')
+        },
+        'encryption_key_available': bool(os.getenv('TENANT_SETTINGS_ENCRYPTION_KEY')),
+        'database_status': 'unknown',
+        'settings_status': 'unknown'
+    }
+    
+    try:
+        # Test database connection
+        engine = get_shared_engine()
+        with engine.connect() as conn:
+            result = conn.execute(text('SELECT COUNT(*) FROM tenant_settings'))
+            debug_info['database_status'] = 'connected'
+            debug_info['total_tenant_settings'] = result.fetchone()[0]
+            
+            if tenant_id:
+                # Check if this tenant has settings
+                result = conn.execute(text('''
+                    SELECT 
+                        CASE WHEN openai_api_key_encrypted IS NOT NULL THEN 'present' ELSE 'missing' END as openai_key,
+                        CASE WHEN anthropic_api_key_encrypted IS NOT NULL THEN 'present' ELSE 'missing' END as anthropic_key,
+                        updated_at
+                    FROM tenant_settings 
+                    WHERE tenant_id = :tenant_id
+                '''), {'tenant_id': tenant_id})
+                
+                row = result.fetchone()
+                if row:
+                    debug_info['tenant_settings'] = {
+                        'openai_key': row.openai_key,
+                        'anthropic_key': row.anthropic_key,
+                        'last_updated': row.updated_at.isoformat() if row.updated_at else None
+                    }
+                    debug_info['settings_status'] = 'found'
+                else:
+                    debug_info['settings_status'] = 'not_found'
+                    
+                # Test encryption/decryption
+                tenant_settings = TenantSettings()
+                settings = tenant_settings.get_tenant_settings(tenant_id)
+                debug_info['decryption_test'] = {
+                    'openai_key_length': len(settings.get('openai_api_key', '')),
+                    'anthropic_key_length': len(settings.get('anthropic_api_key', '')),
+                    'settings_keys': list(settings.keys())
+                }
+            
+    except Exception as e:
+        debug_info['database_error'] = str(e)
+        
+    return jsonify(debug_info)

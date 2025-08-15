@@ -3,6 +3,21 @@ from app.config import Config
 import os
 
 def create_app():
+    # Run startup validation before creating the app
+    try:
+        from app.startup_validation import run_startup_validation
+        run_startup_validation()
+    except ImportError:
+        # If startup_validation module is not available, continue without validation
+        # This allows for backward compatibility during deployment
+        pass
+    except Exception as e:
+        # Critical startup validation failed
+        import logging
+        logging.error(f"❌ Startup validation failed: {e}")
+        logging.error("❌ Application cannot start safely. Please fix the issues above.")
+        raise SystemExit(1)
+    
     app = Flask(__name__)
     app.config.from_object(Config)
     

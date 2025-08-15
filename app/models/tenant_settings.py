@@ -100,6 +100,14 @@ class TenantSettings:
             logger.error("No tenant_id provided for saving settings")
             return False
         
+        logger.info(f"Saving tenant settings for tenant_id: {tenant_id}")
+        logger.info(f"Settings keys being saved: {list(settings.keys())}")
+        
+        # Check if encryption key is available
+        if not self._fernet:
+            logger.error("CRITICAL: Fernet encryption not initialized - API keys cannot be saved securely")
+            return False
+            
         try:
             engine = get_shared_engine()
             with engine.connect() as conn:
@@ -120,6 +128,8 @@ class TenantSettings:
                     openai_key_encrypted = self._encrypt_data(settings.get('openai_api_key', ''))
                     anthropic_key_encrypted = self._encrypt_data(settings.get('anthropic_api_key', ''))
                     perplexity_key_encrypted = self._encrypt_data(settings.get('perplexity_api_key', ''))
+                    
+                    logger.info(f"Encrypted key lengths - OpenAI: {len(openai_key_encrypted or '')}, Anthropic: {len(anthropic_key_encrypted or '')}")
                     
                     if existing_row:
                         # Update existing settings
@@ -162,10 +172,33 @@ class TenantSettings:
                             'other_settings': json.dumps(settings.get('other_settings', {}))
                         })
                     
+                    # Verify the save by reading it back
+                    verify_result = conn.execute(text("""
+                        SELECT openai_api_key_encrypted FROM tenant_settings WHERE tenant_id = :tenant_id
+                    """), {'tenant_id': tenant_id})
+                    verify_row = verify_result.fetchone()
+                    
+                    if verify_row and verify_row.openai_api_key_encrypted:
+                        logger.info(f"✅ Save verified - encrypted key exists in database for tenant {tenant_id}")
+                        # Try to decrypt it immediately to verify encryption/decryption works
+                        try:
+                            decrypted_key = self._decrypt_data(verify_row.openai_api_key_encrypted)
+                            if decrypted_key:
+                                logger.info(f"✅ Encryption/decryption verified - key can be read back (length: {len(decrypted_key)})")
+                            else:
+                                logger.error(f"❌ Decryption failed - encrypted key exists but cannot be decrypted")
+                        except Exception as decrypt_err:
+                            logger.error(f"❌ Decryption test failed: {decrypt_err}")
+                    else:
+                        logger.error(f"❌ Save verification failed - no encrypted key found in database after save")
+                    
                     return True
                     
         except Exception as e:
             logger.error(f"Failed to save tenant settings: {e}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return False
     
     def get_email_configs(self, tenant_id: str = None) -> List[Dict[str, Any]]:
