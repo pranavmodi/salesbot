@@ -139,6 +139,24 @@ def validate_environment_variables() -> Dict[str, any]:
     
     return results
 
+def validate_environment_variables_silent() -> Dict[str, any]:
+    """Silent version of environment variable validation - no logging."""
+    results = {'success': True, 'errors': [], 'missing_critical': []}
+    
+    for var_name, config in REQUIRED_ENV_VARS.items():
+        value = os.getenv(var_name)
+        if not value:
+            results['success'] = False
+            results['missing_critical'].append(var_name)
+        elif 'validation' in config:
+            try:
+                if not config['validation'](value):
+                    results['success'] = False
+            except Exception:
+                results['success'] = False
+    
+    return results
+
 def validate_database_connection() -> bool:
     """
     Test database connection without importing heavy dependencies.
@@ -199,6 +217,30 @@ def validate_encryption_setup() -> bool:
         logger.error(f"❌ Encryption setup failed: {e}")
         return False
 
+def validate_encryption_setup_silent() -> bool:
+    """Silent version of encryption validation - no logging."""
+    try:
+        from cryptography.fernet import Fernet
+        
+        encryption_key = os.getenv('TENANT_SETTINGS_ENCRYPTION_KEY')
+        if not encryption_key:
+            return False
+            
+        fernet = Fernet(encryption_key.encode())
+        
+        # Test encryption/decryption cycle
+        test_data = "startup_validation_test"
+        encrypted = fernet.encrypt(test_data.encode())
+        decrypted = fernet.decrypt(encrypted).decode()
+        
+        return decrypted == test_data
+            
+    except Exception:
+        return False
+
+# Global flag to prevent duplicate validation logging
+_validation_already_run = False
+
 def run_startup_validation() -> None:
     """
     Run complete startup validation.
@@ -206,7 +248,20 @@ def run_startup_validation() -> None:
     Raises:
         StartupValidationError: If critical validation fails
     """
+    global _validation_already_run
+    
+    # Only show full logging on first run
+    if _validation_already_run:
+        # Silent validation - just check for critical errors
+        env_results = validate_environment_variables_silent()
+        if not env_results['success']:
+            raise StartupValidationError("Critical environment variables missing or invalid")
+        if not validate_encryption_setup_silent():
+            raise StartupValidationError("Encryption setup validation failed")
+        return
+    
     logger.info("🚀 Starting application validation...")
+    _validation_already_run = True
     
     # Validate environment variables
     env_results = validate_environment_variables()
@@ -235,7 +290,7 @@ def run_startup_validation() -> None:
     if not validate_encryption_setup():
         raise StartupValidationError("Encryption setup validation failed")
     
-    # Show warnings for optional variables
+    # Show warnings for optional variables (only once)
     if env_results['warnings']:
         logger.warning("⚠️  Some optional features may not work:")
         for warning in env_results['warnings']:
