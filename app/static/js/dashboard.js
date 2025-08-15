@@ -843,7 +843,7 @@ function setupComposeFormEnhancements() {
     function populateContactFields(contact) {
         const recipientEmail = document.getElementById('recipientEmail');
         const recipientName = document.getElementById('recipientName');
-        const companyName = document.getElementById('companyName');
+        const companyName = document.getElementById('composeCompanyName');
         const position = document.getElementById('position');
         
         if (recipientEmail) recipientEmail.value = contact.email;
@@ -855,7 +855,7 @@ function setupComposeFormEnhancements() {
     function clearContactFields() {
         const recipientEmail = document.getElementById('recipientEmail');
         const recipientName = document.getElementById('recipientName');
-        const companyName = document.getElementById('companyName');
+        const companyName = document.getElementById('composeCompanyName');
         const position = document.getElementById('position');
         
         if (recipientEmail) recipientEmail.value = '';

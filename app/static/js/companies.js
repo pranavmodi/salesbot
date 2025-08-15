@@ -891,7 +891,8 @@ function saveCompany() {
     // Get form data
     const companyData = {
         company_name: document.getElementById('companyName').value.trim(),
-        website_url: document.getElementById('websiteUrl').value.trim()
+        website_url: document.getElementById('websiteUrl').value.trim(),
+        company_research: document.getElementById('companyResearch').value.trim()
     };
     
     // Validate required fields

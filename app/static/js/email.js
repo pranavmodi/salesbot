@@ -195,7 +195,7 @@ function generateEmailPreview(e) {
     const composerType = document.getElementById('composerType');
     const recipientEmail = document.getElementById('recipientEmail').value;
     const recipientName = document.getElementById('recipientName').value;
-    const companyName = document.getElementById('companyName').value;
+    const companyName = document.getElementById('composeCompanyName').value;
     const position = document.getElementById('position').value;
     
     console.log('📋 Form data:', { contactSelect: contactSelect?.value, recipientEmail, composerType: composerType?.value });
