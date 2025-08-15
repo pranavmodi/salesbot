@@ -38,32 +38,61 @@ class LinkTrackingService:
             return email_body, []
         
         # Find all links in the email body (both href attributes and standalone URLs)
-        link_pattern = r'href=["\']([^"\']+)["\']|(https?://[^\s<>"\']+)'
+        # Simplified regex to better handle markdown links and standalone URLs
+        link_pattern = r'href=["\']([^"\']+)["\']|\[([^\]]+)\]\(([^)]+)\)|(https?://[^\s<>"\']+)'
         matches = re.finditer(link_pattern, email_body, re.IGNORECASE)
         
         tracking_ids = []
         modified_body = email_body
         offset = 0  # Track offset for string replacements
         
+        logger.info(f"Processing email body for link tracking. Body length: {len(email_body)}")
+        logger.info(f"Link pattern: {link_pattern}")
+        
         for match in matches:
+            logger.info(f"Match groups: {match.groups()}")
+            
             if match.group(1):  # href attribute match
                 original_url = match.group(1)
                 full_match = match.group(0)
                 is_href = True
-            elif match.group(2):  # standalone URL match (second capture group)
-                original_url = match.group(2)
+                is_markdown = False
+                logger.info(f"Found href link: {original_url}")
+            elif match.group(2) and match.group(3):  # markdown link match [text](url)
+                original_url = match.group(3)
+                link_text = match.group(2)
+                full_match = match.group(0)
+                is_href = False
+                is_markdown = True
+                logger.info(f"Found markdown link: [{link_text}]({original_url})")
+            elif match.group(4):  # standalone URL match
+                original_url = match.group(4)
                 full_match = original_url
                 is_href = False
+                is_markdown = False
+                logger.info(f"Found standalone URL: {original_url}")
             else:
+                logger.warning(f"No valid match groups found: {match.groups()}")
                 continue
             
-            # Clean trailing punctuation from URLs
-            original_url = re.sub(r'[.,;!?)\]]+$', '', original_url)
+            # Clean trailing punctuation from URLs more carefully
+            # Only remove punctuation that's clearly not part of the URL
+            # Be more conservative about what we remove
+            original_url_cleaned = original_url.strip()
+            
+            # Only remove trailing punctuation if it's clearly not part of the URL
+            # Don't remove closing parentheses, brackets, or other URL characters
+            if original_url_cleaned.endswith(('.', ',', ';', '!', '?')):
+                original_url_cleaned = original_url_cleaned.rstrip('.,;!?')
+            
+            logger.info(f"URL cleaning: '{original_url}' -> '{original_url_cleaned}'")
+            original_url = original_url_cleaned
             
             # Skip if it's already a tracking URL, email, tel, or anchor link
             if (original_url.startswith(('mailto:', 'tel:', '#')) or 
                 '/track/click/' in original_url or
                 not urlparse(original_url).netloc):
+                logger.info(f"Skipping URL: {original_url} (already tracked or invalid)")
                 continue
                 
             # Create tracking URL
@@ -74,6 +103,7 @@ class LinkTrackingService:
             if tracking_id:
                 tracking_url = url_for('tracking.track_click', tracking_id=tracking_id, _external=True)
                 tracking_ids.append(tracking_id)
+                logger.info(f"Created tracking URL: {tracking_url} for original: {original_url}")
                 
                 # Replace the URL in the email body
                 start_pos = match.start() + offset
@@ -84,10 +114,28 @@ class LinkTrackingService:
                     new_href = full_match.replace(original_url, tracking_url)
                     modified_body = modified_body[:start_pos] + new_href + modified_body[end_pos:]
                     offset += len(new_href) - len(full_match)
+                    logger.info(f"Replaced href: {full_match} -> {new_href}")
+                elif is_markdown:
+                    # Replace the URL in markdown link [text](url)
+                    new_markdown = f'[{link_text}]({tracking_url})'
+                    modified_body = modified_body[:start_pos] + new_markdown + modified_body[end_pos:]
+                    offset += len(new_markdown) - len(full_match)
+                    logger.info(f"Replaced markdown: '{full_match}' -> '{new_markdown}'")
+                    logger.info(f"Replacement details: start_pos={start_pos}, end_pos={end_pos}, offset={offset}")
                 else:
                     # Replace standalone URL
                     modified_body = modified_body[:start_pos] + tracking_url + modified_body[end_pos:]
                     offset += len(tracking_url) - len(original_url)
+                    logger.info(f"Replaced standalone: {full_match} -> {tracking_url}")
+            else:
+                logger.warning(f"Failed to create tracking record for URL: {original_url}")
+        
+        logger.info(f"Link tracking complete. Modified {len(tracking_ids)} links.")
+        
+        # Debug: Check if there are any remaining broken links
+        remaining_broken = re.findall(r'\[([^\]]+)\]\(([^)]*$)', modified_body)
+        if remaining_broken:
+            logger.warning(f"Found potentially broken markdown links: {remaining_broken}")
         
         return modified_body, tracking_ids
     

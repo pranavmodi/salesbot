@@ -134,7 +134,16 @@ class ContentBasedEmailComposer:
                 subject = email_content.get('subject', f"Valuable insights for {company_name}")
                 body = email_content.get('body', f"Hi {contact_first_name},\n\nI thought you might find this relevant: {content_url}")
             
-            # Add link tracking if available
+            # Add signature to plain text body before converting to HTML
+            logger.info(f"Body before adding signature: {body[-200:]}")  # Show last 200 chars
+            body += '\n\n' + self._signature()
+            logger.info(f"Body after adding signature: {body[-200:]}")  # Show last 200 chars
+            
+            # Convert plain text formatting to HTML for proper email display
+            html_body = self._convert_to_html(body)
+            logger.info(f"Final HTML body: {html_body[-500:]}")  # Show last 500 chars
+            
+            # Add link tracking if available (after HTML conversion, like deep research composer)
             try:
                 if LinkTrackingService and campaign_id:
                     # Get company_id for tracking
@@ -144,9 +153,9 @@ class ContentBasedEmailComposer:
                         if companies:
                             company_id = companies[0].id
                     
-                    # Wrap links with tracking URLs
-                    body, tracking_ids = LinkTrackingService.wrap_links_in_email(
-                        email_body=body,
+                    # Wrap links with tracking URLs (on HTML body, not plain text)
+                    html_body, tracking_ids = LinkTrackingService.wrap_links_in_email(
+                        email_body=html_body,
                         campaign_id=campaign_id,
                         company_id=company_id,
                         contact_email=lead.get('email')
@@ -154,12 +163,6 @@ class ContentBasedEmailComposer:
                     logger.info(f"Wrapped {len(tracking_ids)} links for tracking in content-based email")
             except Exception as e:
                 logger.warning(f"Failed to wrap links for tracking: {e}")
-            
-            # Convert plain text formatting to HTML for proper email display
-            html_body = self._convert_to_html(body)
-            
-            # Add signature to HTML body
-            html_body = html_body.replace('</body>', f'{self._signature()}</body>')
             
             # Add tracking pixel if requested
             if include_tracking:
@@ -179,15 +182,9 @@ class ContentBasedEmailComposer:
             
         except Exception as e:
             logger.error(f"Error composing content-based email: {e}")
-            fallback_body = f"Hi {contact_first_name},\n\nI'm Pranav Modi, founder of Possible Minds. I recently published some insights that I thought might be relevant to your work at {company_name}.\n\nYou can check it out here: {content_url}\n\n{content_description}\n\nWould love to hear your thoughts if it resonates with what you're seeing in your industry.\n\nBest regards,"
-            
-            # Convert fallback to HTML as well
-            fallback_html = self._convert_to_html(fallback_body)
-            fallback_html = fallback_html.replace('</body>', f'{self._signature()}</body>')
-            
             return {
-                'subject': f"Insights I thought you'd find relevant",
-                'body': fallback_html,
+                'subject': f"Error composing email",
+                'body': f"<p>Failed to compose email: {str(e)}</p>",
                 'composer_type': self.composer_type,
                 'error': str(e)
             }
@@ -317,7 +314,7 @@ WRITING GUIDELINES:
 5. Keep tone professional but warm and conversational - write as a peer, not a salesperson
 6. Make the relevance clear by connecting your content to their specific situation
 7. Include a natural, appropriate call-to-action that invites dialogue
-8. End with a professional signature
+8. End with a professional closing (no signature, no contact information, no "Best regards" - it will be added automatically)
 
 EMAIL STRUCTURE:
 - Subject line (one compelling line that feels personal, not marketing-y)
@@ -327,7 +324,7 @@ EMAIL STRUCTURE:
 - Content introduction - frame it as your own work/insights
 - Specific connection to their company/role (using research insights)
 - Natural call-to-action that invites response or discussion
-- Professional closing with your signature
+- Professional closing (no signature needed)
 
 RESPONSE FORMAT:
 Return the email in this exact format:
@@ -336,7 +333,14 @@ SUBJECT: [subject line]
 BODY:
 [email body]
 
-IMPORTANT: Frame the content as your own work that you've published. Make it feel like a founder reaching out to share insights from their experience, not a marketing email."""
+CRITICAL: Do NOT include any of the following in your response:
+- No signature
+- No "Best regards" or similar closings
+- No contact information
+- No "[Your Contact Information]" placeholders
+- No "Looking forward to your feedback" or similar phrases
+
+The signature will be added automatically. Just end with your call-to-action and a natural closing sentence."""
 
     def _create_user_prompt(self, contact_name: str, contact_first_name: str, 
                           company_name: str, contact_role: str, content_url: str,
@@ -591,10 +595,10 @@ IMPORTANT: Frame the content as your own work that you've published. Make it fee
         content_intro = self._generate_content_introduction(content_description, content_analysis)
         value_prop = self._generate_value_proposition(company_name, content_analysis)
         cta = self._generate_call_to_action(call_to_action, calendar_url, content_url)
-        signature = self._generate_signature()
+        # Note: Signature is added later in the main flow to avoid duplication
         
         # Combine sections
-        body_parts = [opener, context_bridge, content_intro, value_prop, cta, signature]
+        body_parts = [opener, context_bridge, content_intro, value_prop, cta]
         
         # Add extra context if provided
         if extra_context:
@@ -674,10 +678,6 @@ IMPORTANT: Frame the content as your own work that you've published. Make it fee
         
         return cta_templates.get(cta_type, cta_templates['learn_more'])
     
-    def _generate_signature(self) -> str:
-        """Generate professional signature (used by template generation)."""
-        return "Best regards,\n\nPranav Modi\nFounder, Possible Minds\nAI Agent Solutions for Enterprise"
-    
     def _add_tracking_pixel(self, body: str) -> str:
         """Add tracking pixel to email body."""
         tracking_pixel = f"\n\n<!-- Email tracking pixel -->\n<img src=\"{self._get_tracking_url()}\" width=\"1\" height=\"1\" style=\"display:none;\" />"
@@ -749,11 +749,11 @@ IMPORTANT: Frame the content as your own work that you've published. Make it fee
         return html_body
 
     def _signature(self) -> str:
-        """Generate email signature with HTML links (same as deep research template)."""
-        return """<br><br>
-Pranav Modi<br>
-Founder, <a href="https://possibleminds.in">Possible Minds</a><br>
-📧 <a href="mailto:pranav@possibleminds.in">pranav@possibleminds.in</a> | 🌐 <a href="https://possibleminds.in">possibleminds.in</a>"""
+        """Generate email signature in plain text format."""
+        return """
+Pranav Modi
+Founder, Possible Minds
+📧 pranav@possibleminds.in | 🌐 possibleminds.in"""
 
     def get_composer_info(self) -> Dict:
         """Return information about this composer."""

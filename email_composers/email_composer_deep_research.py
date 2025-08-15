@@ -923,8 +923,8 @@ class DeepResearchEmailComposer:
 
     @staticmethod
     def _signature() -> str:
-        """Generate email signature with HTML links."""
+        """Generate email signature in plain text format."""
         return """
 Pranav Modi
-Founder, <a href="https://possibleminds.in">Possible Minds</a>
-📧 <a href="mailto:pranav@possibleminds.in">pranav@possibleminds.in</a> | 🌐 <a href="https://possibleminds.in">possibleminds.in</a>""" 
+Founder, Possible Minds
+📧 pranav@possibleminds.in | 🌐 possibleminds.in""" 
