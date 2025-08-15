@@ -108,8 +108,74 @@
 
             <hr class="my-4">
 
+            <!-- Link Tracking Section -->
+            <h4 class="mb-3">
+                <i class="fas fa-link me-2"></i>Link Tracking Analytics
+            </h4>
+            <div id="linkTrackingSection" class="analytics-section mb-4">
+                <!-- Link Tracking Overview -->
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <div class="card bg-info bg-opacity-10">
+                            <div class="card-body text-center">
+                                <h4 class="mb-0 text-info" id="totalTrackedLinks">-</h4>
+                                <p class="mb-0 text-muted small">Links Tracked</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-success bg-opacity-10">
+                            <div class="card-body text-center">
+                                <h4 class="mb-0 text-success" id="totalLinkClicks">-</h4>
+                                <p class="mb-0 text-muted small">Link Clicks</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-warning bg-opacity-10">
+                            <div class="card-body text-center">
+                                <h4 class="mb-0 text-warning" id="linkClickRate">-</h4>
+                                <p class="mb-0 text-muted small">Link CTR</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Individual Link Performance -->
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-external-link-alt me-2"></i>Individual Link Performance</h6>
+                    </div>
+                    <div class="card-body">
+                        <div id="linkPerformanceTable" class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>URL</th>
+                                        <th>Contact</th>
+                                        <th>Clicks</th>
+                                        <th>Last Clicked</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="linkPerformanceTableBody">
+                                    <!-- Dynamic content -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="linkTrackingEmpty" class="text-center p-4" style="display: none;">
+                            <i class="fas fa-link fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">No link tracking data</h5>
+                            <p class="text-muted">Links will be tracked when emails with URLs are sent through this campaign.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="my-4">
+
             <!-- Click Details Section -->
-            <h4 class="mb-3">Click Details</h4>
+            <h4 class="mb-3">Report Click Details</h4>
             <div id="clickDetails" class="analytics-section">
                 <div class="table-responsive">
                     <table class="table table-hover">
@@ -209,6 +275,7 @@ function updateAnalyticsDisplay() {
         $('#dataProcessingNotice').hide();
     }
 
+    updateLinkTrackingDisplay();
     updateEngagementFunnelChart();
     updateTopCompanies();
 }
@@ -269,6 +336,77 @@ function updateTopCompanies() {
     `).join('');
     
     container.html(html);
+}
+
+function updateLinkTrackingDisplay() {
+    if (!analyticsData || !analyticsData.link_tracking) {
+        $('#linkTrackingSection').hide();
+        return;
+    }
+    
+    const linkData = analyticsData.link_tracking;
+    console.log('Link tracking data:', linkData);
+    
+    // Update overview metrics
+    $('#totalTrackedLinks').text(linkData.total_tracked_links || 0);
+    $('#totalLinkClicks').text(linkData.total_link_clicks || 0);
+    $('#linkClickRate').text(linkData.link_click_rate || '0%');
+    
+    // Update individual link performance table
+    const trackedLinks = linkData.tracked_links || [];
+    updateLinkPerformanceTable(trackedLinks);
+    
+    $('#linkTrackingSection').show();
+}
+
+function updateLinkPerformanceTable(trackedLinks) {
+    const tbody = $('#linkPerformanceTableBody');
+    
+    if (trackedLinks.length === 0) {
+        tbody.empty();
+        $('#linkTrackingEmpty').show();
+        $('#linkPerformanceTable').hide();
+        return;
+    }
+    
+    $('#linkTrackingEmpty').hide();
+    $('#linkPerformanceTable').show();
+    
+    const html = trackedLinks.map(link => {
+        const clickCount = link.click_count || 0;
+        const lastClicked = link.last_clicked ? new Date(link.last_clicked).toLocaleString() : 'Never';
+        const status = clickCount > 0 ? 'Clicked' : 'Not Clicked';
+        const statusClass = clickCount > 0 ? 'text-success' : 'text-muted';
+        const urlDisplay = link.original_url.length > 50 ? 
+            link.original_url.substring(0, 47) + '...' : 
+            link.original_url;
+        
+        return `
+            <tr>
+                <td>
+                    <a href="${link.original_url}" target="_blank" title="${link.original_url}">
+                        ${urlDisplay}
+                        <i class="fas fa-external-link-alt ms-1 small"></i>
+                    </a>
+                </td>
+                <td>${link.contact_email || 'N/A'}</td>
+                <td>
+                    <span class="badge ${clickCount > 0 ? 'bg-success' : 'bg-secondary'}">
+                        ${clickCount}
+                    </span>
+                </td>
+                <td>${lastClicked}</td>
+                <td>
+                    <span class="${statusClass}">
+                        <i class="fas ${clickCount > 0 ? 'fa-check-circle' : 'fa-circle'} me-1"></i>
+                        ${status}
+                    </span>
+                </td>
+            </tr>
+        `;
+    }).join('');
+    
+    tbody.html(html);
 }
 
 function loadClickDetails() {

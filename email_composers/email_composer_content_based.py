@@ -11,6 +11,7 @@ import logging
 import re
 import openai
 import os
+import uuid
 from typing import Dict, Optional, List
 from datetime import datetime
 try:
@@ -677,8 +678,12 @@ IMPORTANT: Frame the content as your own work that you've published. Make it fee
     
     def _get_tracking_url(self) -> str:
         """Generate tracking URL for email analytics."""
-        # This should integrate with your tracking system
-        return "https://your-tracking-domain.com/track/email.gif"
+        try:
+            from flask import url_for
+            return url_for('tracking.track_pixel', _external=True) + '?t=' + str(uuid.uuid4())
+        except:
+            # Fallback for when outside Flask context
+            return "https://possibleminds.in/track/pixel.gif"
     
     def _signature(self) -> str:
         """Generate email signature with HTML links (same as deep research template)."""

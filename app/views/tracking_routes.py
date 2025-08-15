@@ -50,8 +50,8 @@ def track_click(tracking_id):
                 try:
                     conn.execute(text("""
                         INSERT INTO report_clicks 
-                        (company_id, campaign_id, tracking_id, clicked_at, ip_address, user_agent, referer, tenant_id)
-                        VALUES (:company_id, :campaign_id, :tracking_id, CURRENT_TIMESTAMP, :ip_address, :user_agent, :referer, :tenant_id)
+                        (company_id, campaign_id, tracking_id, click_timestamp, ip_address, user_agent, referer, tenant_id, created_at, updated_at)
+                        VALUES (:company_id, :campaign_id, :tracking_id, CURRENT_TIMESTAMP, :ip_address, :user_agent, :referer, :tenant_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                     """), {
                         'company_id': company_id,
                         'campaign_id': campaign_id, 

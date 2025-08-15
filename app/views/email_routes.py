@@ -183,7 +183,7 @@ def send_email():
         
         # Use the new multi-account send method
         success = EmailService.send_email_with_account(
-            recipient_email, recipient_name, subject, body, account_name
+            recipient_email, recipient_name, subject, body, account_name, campaign_id
         )
         
         # If email sent successfully and campaign_id provided, associate contact with campaign

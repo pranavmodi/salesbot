@@ -38,7 +38,7 @@ class LinkTrackingService:
             return email_body, []
         
         # Find all links in the email body (both href attributes and standalone URLs)
-        link_pattern = r'href=["\']([^"\']+)["\']|(?:https?://[^\s<>"\']+)'
+        link_pattern = r'href=["\']([^"\']+)["\']|(https?://[^\s<>"\']+)'
         matches = re.finditer(link_pattern, email_body, re.IGNORECASE)
         
         tracking_ids = []
@@ -50,10 +50,15 @@ class LinkTrackingService:
                 original_url = match.group(1)
                 full_match = match.group(0)
                 is_href = True
-            else:  # standalone URL match
-                original_url = match.group(0)
+            elif match.group(2):  # standalone URL match (second capture group)
+                original_url = match.group(2)
                 full_match = original_url
                 is_href = False
+            else:
+                continue
+            
+            # Clean trailing punctuation from URLs
+            original_url = re.sub(r'[.,;!?)\]]+$', '', original_url)
             
             # Skip if it's already a tracking URL, email, tel, or anchor link
             if (original_url.startswith(('mailto:', 'tel:', '#')) or 
@@ -153,7 +158,7 @@ class LinkTrackingService:
             
             engine = get_shared_engine()
             with engine.connect() as conn:
-                # Base query for link tracking data
+                # Base query for link tracking data - using click data from link_tracking table itself
                 base_query = """
                     SELECT 
                         lt.tracking_id,
@@ -162,10 +167,9 @@ class LinkTrackingService:
                         lt.company_id,
                         lt.contact_email,
                         lt.created_at,
-                        COUNT(lc.id) as click_count,
-                        MAX(lc.clicked_at) as last_clicked
+                        lt.click_count,
+                        lt.last_clicked_at as last_clicked
                     FROM link_tracking lt
-                    LEFT JOIN link_clicks lc ON lt.tracking_id = lc.tracking_id
                     WHERE lt.tenant_id = :tenant_id
                     AND lt.created_at >= NOW() - INTERVAL ':days_back days'
                 """
@@ -180,7 +184,7 @@ class LinkTrackingService:
                     base_query += " AND lt.company_id = :company_id" 
                     params['company_id'] = company_id
                 
-                base_query += " GROUP BY lt.tracking_id, lt.original_url, lt.campaign_id, lt.company_id, lt.contact_email, lt.created_at"
+                # No need for GROUP BY since we're not using LEFT JOIN anymore
                 base_query += " ORDER BY lt.created_at DESC"
                 
                 result = conn.execute(text(base_query), params)
@@ -192,6 +196,7 @@ class LinkTrackingService:
                 total_clicks = 0
                 
                 for row in rows:
+                    click_count = row.click_count or 0
                     link_data = {
                         'tracking_id': row.tracking_id,
                         'original_url': row.original_url,
@@ -199,11 +204,11 @@ class LinkTrackingService:
                         'company_id': row.company_id,
                         'contact_email': row.contact_email,
                         'created_at': row.created_at.isoformat() if row.created_at else None,
-                        'click_count': row.click_count,
+                        'click_count': click_count,
                         'last_clicked': row.last_clicked.isoformat() if row.last_clicked else None
                     }
                     link_analytics.append(link_data)
-                    total_clicks += row.click_count
+                    total_clicks += click_count
                 
                 return {
                     'success': True,

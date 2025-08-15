@@ -1097,11 +1097,11 @@ def get_campaign_contacts(campaign_id):
                 engine = get_shared_engine()
                 with engine.connect() as conn:
                     last_email_query = text("""
-                        SELECT sent_at FROM email_history 
+                        SELECT date FROM email_history 
                         WHERE campaign_id = :campaign_id 
-                        AND recipient_email = :email
+                        AND "to" = :email
                         AND tenant_id = :tenant_id
-                        ORDER BY sent_at DESC 
+                        ORDER BY date DESC 
                         LIMIT 1
                     """)
                     last_email_result = conn.execute(last_email_query, {

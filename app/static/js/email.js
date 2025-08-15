@@ -234,10 +234,15 @@ function generateEmailPreview(e) {
     const enableTracking = document.getElementById('enableTracking');
     const includeTracking = enableTracking ? enableTracking.checked : true; // Default to true if element not found
     
+    // Get campaign ID for link tracking
+    const campaignSelect = document.getElementById('gtmCampaignSelect');
+    const campaignId = campaignSelect ? campaignSelect.value : null;
+    
     const requestData = {
         contact_data: contactData,
         composer_type: composerType.value || 'deep_research',
-        include_tracking: includeTracking
+        include_tracking: includeTracking,
+        campaign_id: campaignId
     };
     
     // Add content-based fields if that composer is selected

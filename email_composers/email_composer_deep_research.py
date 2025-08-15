@@ -101,7 +101,9 @@ class DeepResearchEmailComposer:
             tenant_id = current_tenant_id()
             if tenant_id:
                 tenant_settings = TenantSettings()
-                tenant_key = tenant_settings.get_api_key(key_name, tenant_id)
+                # Extract service name from key_name (e.g., 'openai_api_key' -> 'openai')
+                service_name = key_name.replace('_api_key', '')
+                tenant_key = tenant_settings.get_api_key(service_name, tenant_id)
                 if tenant_key:
                     return tenant_key
                 else:
