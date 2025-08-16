@@ -50,6 +50,10 @@
                         {{ session.user.name }}
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end">
+                        <li><h6 class="dropdown-header">
+                            <i class="fas fa-envelope me-2"></i>{{ session.user.email }}
+                        </h6></li>
+                        <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="/settings">
                             <i class="fas fa-cog me-2"></i>Settings
                         </a></li>
