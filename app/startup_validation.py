@@ -54,6 +54,11 @@ OPTIONAL_ENV_VARS = {
         'example': 'your-secret-key-here',
         'critical': False
     },
+    'APOLLO_API_KEY': {
+        'description': 'Apollo.io API key for lead data import',
+        'example': 'OlP15UR6Y82p0sNbqNDQAw',
+        'critical': False
+    },
     'NETLIFY_PUBLISH_URL': {
         'description': 'Netlify deployment URL for deep research reports',
         'example': 'https://your-netlify-site.netlify.app',
