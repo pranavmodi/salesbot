@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Thank You - SalesBot CRM{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-4">
+            <div class="card text-center">
+                <div class="card-body py-5">
+                    <div class="text-success mb-3">
+                        <i class="fas fa-check-circle" style="font-size: 4rem;"></i>
+                    </div>
+                    <h3 class="card-title text-success mb-3">Thank You!</h3>
+                    <p class="card-text text-muted mb-4">
+                        Your feedback has been submitted successfully. We appreciate you taking the time to help us improve.
+                    </p>
+                    <p class="card-text small text-muted mb-4">
+                        Our team will review your feedback and get back to you if needed.
+                    </p>
+                    <div class="d-grid gap-2">
+                        <a href="/" class="btn btn-primary">
+                            <i class="fas fa-home me-2"></i>
+                            Back to Dashboard
+                        </a>
+                        <a href="/feedback" class="btn btn-outline-secondary">
+                            <i class="fas fa-comment me-2"></i>
+                            Submit More Feedback
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -271,3 +271,121 @@ def get_recent_activity():
     except Exception as e:
         current_app.logger.error(f"Error fetching recent activity: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@admin_bp.route('/feedback')
+@admin_required
+def feedback_dashboard():
+    """Admin feedback dashboard."""
+    current_app.logger.info("Rendering admin feedback dashboard")
+    current_app.logger.info(f"User accessing admin feedback: {session.get('user', {}).get('email', 'unknown')}")
+    return render_template('admin/feedback.html')
+
+@admin_bp.route('/api/feedback')
+@admin_required
+def get_feedback():
+    """Get all feedback for admin view."""
+    try:
+        current_app.logger.info("Admin feedback list requested")
+        from app.models.feedback import Feedback
+        
+        feedbacks = Feedback.get_all_for_admin()
+        current_app.logger.info(f"Retrieved {len(feedbacks)} feedback entries")
+        
+        # Convert feedback objects to dictionaries
+        feedback_data = []
+        for feedback in feedbacks:
+            try:
+                feedback_dict = {
+                    'id': feedback.id,
+                    'user_email': feedback.user_email,
+                    'user_name': feedback.user_name,
+                    'tenant_id': feedback.tenant_id,
+                    'message': feedback.message,
+                    'category': feedback.category,
+                    'status': feedback.status,
+                    'created_at': feedback.created_at.isoformat() if feedback.created_at else None,
+                    'updated_at': feedback.updated_at.isoformat() if feedback.updated_at else None,
+                    'admin_notes': feedback.admin_notes or ''
+                }
+                feedback_data.append(feedback_dict)
+            except Exception as item_error:
+                current_app.logger.error(f"Error processing feedback item {feedback.id}: {item_error}")
+                continue
+        
+        current_app.logger.info(f"Successfully processed {len(feedback_data)} feedback entries")
+        
+        return jsonify({
+            'success': True,
+            'feedback': feedback_data
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error fetching feedback: {e}")
+        import traceback
+        current_app.logger.error(f"Full traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@admin_bp.route('/api/feedback/<feedback_id>/update', methods=['POST'])
+@admin_required
+def update_feedback(feedback_id):
+    """Update feedback status and admin notes."""
+    try:
+        from app.models.feedback import Feedback
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+        
+        status = data.get('status', '').strip()
+        admin_notes = data.get('admin_notes', '').strip()
+        
+        # Validate status
+        valid_statuses = ['new', 'reviewed', 'resolved']
+        if status not in valid_statuses:
+            return jsonify({'success': False, 'error': 'Invalid status'}), 400
+        
+        success = Feedback.update_status(feedback_id, status, admin_notes)
+        
+        if success:
+            return jsonify({'success': True, 'message': 'Feedback updated successfully'})
+        else:
+            return jsonify({'success': False, 'error': 'Failed to update feedback'}), 500
+            
+    except Exception as e:
+        current_app.logger.error(f"Error updating feedback: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@admin_bp.route('/api/feedback/stats')
+@admin_required
+def get_feedback_stats():
+    """Get feedback statistics for admin dashboard."""
+    try:
+        current_app.logger.info("Admin feedback stats requested")
+        from app.models.feedback import Feedback
+        
+        stats = Feedback.get_stats()
+        current_app.logger.info(f"Feedback stats retrieved: {stats}")
+        
+        return jsonify({
+            'success': True,
+            'stats': stats
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error fetching feedback stats: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@admin_bp.route('/api/feedback/test')
+@admin_required  
+def test_feedback_api():
+    """Test endpoint to verify admin feedback API is working."""
+    try:
+        current_app.logger.info("Test feedback API called")
+        return jsonify({
+            'success': True,
+            'message': 'Admin feedback API is working',
+            'user': session.get('user', {}).get('email', 'unknown')
+        })
+    except Exception as e:
+        current_app.logger.error(f"Error in test endpoint: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500

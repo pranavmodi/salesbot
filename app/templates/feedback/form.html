@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Give Feedback - SalesBot CRM{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-comment me-2"></i>
+                        Give Feedback
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-4">
+                        We'd love to hear your thoughts! Your feedback helps us improve the platform.
+                    </p>
+                    
+                    <form id="feedbackForm">
+                        <div class="mb-3">
+                            <label for="category" class="form-label">Category <span class="text-danger">*</span></label>
+                            <select class="form-select" id="category" required>
+                                <option value="">Select a category</option>
+                                <option value="general">General Feedback</option>
+                                <option value="bug">Bug Report</option>
+                                <option value="feature">Feature Request</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="message" class="form-label">Your Feedback <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="message" rows="6" 
+                                      placeholder="Please share your feedback, suggestions, or report any issues you've encountered..."
+                                      required></textarea>
+                            <div class="form-text">Be as detailed as possible. This helps us understand and address your feedback better.</div>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="/" class="btn btn-secondary me-md-2">Cancel</a>
+                            <button type="submit" class="btn btn-primary" id="submitBtn">
+                                <i class="fas fa-paper-plane me-1"></i>
+                                Submit Feedback
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Success/Error alerts -->
+<div class="position-fixed top-0 end-0 p-3" style="z-index: 11">
+    <div id="successAlert" class="alert alert-success alert-dismissible d-none" role="alert">
+        <i class="fas fa-check-circle me-2"></i>
+        <span id="successMessage">Feedback submitted successfully!</span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div id="errorAlert" class="alert alert-danger alert-dismissible d-none" role="alert">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        <span id="errorMessage">Error submitting feedback.</span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+</div>
+{% endblock %}
+
+{% block body_js %}
+<script>
+document.getElementById('feedbackForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const submitBtn = document.getElementById('submitBtn');
+    const category = document.getElementById('category').value;
+    const message = document.getElementById('message').value.trim();
+    
+    if (!category || !message) {
+        showError('Please fill in all required fields.');
+        return;
+    }
+    
+    // Disable submit button and show loading
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Submitting...';
+    
+    // Submit feedback
+    fetch('/feedback/submit', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            category: category,
+            message: message
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showSuccess(data.message || 'Feedback submitted successfully!');
+            // Reset form
+            document.getElementById('feedbackForm').reset();
+            // Redirect to thank you page after a short delay
+            setTimeout(() => {
+                window.location.href = '/feedback/thank-you';
+            }, 1500);
+        } else {
+            showError(data.error || 'Failed to submit feedback.');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showError('An unexpected error occurred. Please try again.');
+    })
+    .finally(() => {
+        // Re-enable submit button
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-paper-plane me-1"></i>Submit Feedback';
+    });
+});
+
+function showSuccess(message) {
+    const alert = document.getElementById('successAlert');
+    const messageSpan = document.getElementById('successMessage');
+    messageSpan.textContent = message;
+    alert.classList.remove('d-none');
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+        alert.classList.add('d-none');
+    }, 5000);
+}
+
+function showError(message) {
+    const alert = document.getElementById('errorAlert');
+    const messageSpan = document.getElementById('errorMessage');
+    messageSpan.textContent = message;
+    alert.classList.remove('d-none');
+    
+    // Auto-hide after 8 seconds
+    setTimeout(() => {
+        alert.classList.add('d-none');
+    }, 8000);
+}
+</script>
+{% endblock %}

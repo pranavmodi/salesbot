@@ -103,5 +103,355 @@
     </script>
     
     {% block extra_js %}{% endblock %}
+
+    <!-- Floating Feedback Widget -->
+    {% if session.user %}
+    <div id="feedbackWidget" class="feedback-widget">
+        <div class="feedback-button-container">
+            <div class="feedback-button-label">Give Feedback</div>
+            <div id="feedbackButton" class="feedback-button" onclick="toggleFeedbackWidget()">
+                <i class="fas fa-comment-dots"></i>
+            </div>
+        </div>
+        
+        <div id="feedbackPanel" class="feedback-panel d-none">
+            <div class="feedback-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-comment me-2"></i>
+                    Quick Feedback
+                </h6>
+                <button type="button" class="btn-close btn-close-white" onclick="closeFeedbackWidget()"></button>
+            </div>
+            
+            <div class="feedback-body">
+                <form id="quickFeedbackForm">
+                    <div class="mb-3">
+                        <select class="form-select form-select-sm" id="quickCategory" required>
+                            <option value="">Select category</option>
+                            <option value="general">General Feedback</option>
+                            <option value="bug">Bug Report</option>
+                            <option value="feature">Feature Request</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <textarea class="form-control form-control-sm" id="quickMessage" rows="3" 
+                                  placeholder="Share your thoughts..." required></textarea>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-sm" id="quickSubmitBtn">
+                            <i class="fas fa-paper-plane me-1"></i>
+                            Send Feedback
+                        </button>
+                        <a href="/feedback" class="btn btn-outline-secondary btn-sm">
+                            <i class="fas fa-external-link-alt me-1"></i>
+                            Full Form
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <style>
+    .feedback-widget {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1050;
+    }
+
+    .feedback-button-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .feedback-button-label {
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 500;
+        white-space: nowrap;
+        opacity: 1;
+        transform: translateY(0);
+        transition: all 0.3s ease;
+        pointer-events: none;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .feedback-button-container:hover .feedback-button-label {
+        background: rgba(0, 123, 255, 0.9);
+        transform: translateY(-2px);
+    }
+
+    .feedback-button {
+        width: 60px;
+        height: 60px;
+        background: linear-gradient(135deg, #007bff, #0056b3);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 24px;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+        transition: all 0.3s ease;
+        animation: pulse 2s infinite;
+    }
+
+    .feedback-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4);
+        animation: none;
+    }
+
+    .feedback-button.active {
+        background: linear-gradient(135deg, #28a745, #1e7e34);
+        animation: none;
+    }
+
+    @keyframes pulse {
+        0% {
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+        }
+        50% {
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.5), 0 0 0 10px rgba(0, 123, 255, 0.1);
+        }
+        100% {
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+        }
+    }
+
+    .feedback-panel {
+        position: absolute;
+        bottom: 90px;
+        right: 0;
+        width: 320px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+        border: 1px solid rgba(0, 123, 255, 0.2);
+        animation: slideUp 0.3s ease;
+    }
+
+    @keyframes slideUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .feedback-header {
+        background: linear-gradient(135deg, #007bff, #0056b3);
+        color: white;
+        padding: 12px 16px;
+        border-radius: 12px 12px 0 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .feedback-body {
+        padding: 16px;
+    }
+
+    .feedback-panel .form-control:focus,
+    .feedback-panel .form-select:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
+
+    /* Mobile responsiveness */
+    @media (max-width: 768px) {
+        .feedback-panel {
+            width: calc(100vw - 30px);
+            right: -15px;
+        }
+        
+        .feedback-widget {
+            bottom: 15px;
+            right: 15px;
+        }
+        
+        .feedback-button {
+            width: 55px;
+            height: 55px;
+            font-size: 20px;
+        }
+
+        .feedback-button-label {
+            font-size: 11px;
+            padding: 4px 8px;
+        }
+    }
+
+    /* Success animation */
+    .feedback-success {
+        background: linear-gradient(135deg, #28a745, #1e7e34) !important;
+        animation: successPulse 0.6s ease;
+    }
+
+    @keyframes successPulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+    }
+    </style>
+
+    <script>
+    let feedbackWidgetOpen = false;
+
+    function toggleFeedbackWidget() {
+        const panel = document.getElementById('feedbackPanel');
+        const button = document.getElementById('feedbackButton');
+        
+        if (feedbackWidgetOpen) {
+            closeFeedbackWidget();
+        } else {
+            panel.classList.remove('d-none');
+            button.classList.add('active');
+            feedbackWidgetOpen = true;
+            
+            // Focus on the first input
+            setTimeout(() => {
+                document.getElementById('quickCategory').focus();
+            }, 100);
+        }
+    }
+
+    function closeFeedbackWidget() {
+        const panel = document.getElementById('feedbackPanel');
+        const button = document.getElementById('feedbackButton');
+        
+        panel.classList.add('d-none');
+        button.classList.remove('active');
+        feedbackWidgetOpen = false;
+        
+        // Reset form
+        document.getElementById('quickFeedbackForm').reset();
+    }
+
+    // Close widget when clicking outside
+    document.addEventListener('click', function(event) {
+        const widget = document.getElementById('feedbackWidget');
+        if (feedbackWidgetOpen && !widget.contains(event.target)) {
+            closeFeedbackWidget();
+        }
+    });
+
+    // Handle quick feedback form submission
+    document.getElementById('quickFeedbackForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const submitBtn = document.getElementById('quickSubmitBtn');
+        const category = document.getElementById('quickCategory').value;
+        const message = document.getElementById('quickMessage').value.trim();
+        
+        if (!category || !message) {
+            showQuickFeedbackError('Please fill in all fields.');
+            return;
+        }
+        
+        // Disable submit button and show loading
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Sending...';
+        
+        // Submit feedback
+        fetch('/feedback/submit', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                category: category,
+                message: message
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showQuickFeedbackSuccess();
+                // Close widget after success
+                setTimeout(() => {
+                    closeFeedbackWidget();
+                }, 2000);
+            } else {
+                showQuickFeedbackError(data.error || 'Failed to submit feedback.');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showQuickFeedbackError('An unexpected error occurred. Please try again.');
+        })
+        .finally(() => {
+            // Re-enable submit button
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-paper-plane me-1"></i>Send Feedback';
+        });
+    });
+
+    function showQuickFeedbackSuccess() {
+        const button = document.getElementById('feedbackButton');
+        const panel = document.getElementById('feedbackPanel');
+        
+        // Show success state
+        button.classList.add('feedback-success');
+        button.innerHTML = '<i class="fas fa-check"></i>';
+        
+        // Update panel content
+        panel.innerHTML = `
+            <div class="feedback-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-check-circle me-2"></i>
+                    Thank You!
+                </h6>
+            </div>
+            <div class="feedback-body text-center">
+                <div class="text-success mb-2">
+                    <i class="fas fa-check-circle fa-2x"></i>
+                </div>
+                <p class="mb-0">Your feedback has been submitted successfully!</p>
+            </div>
+        `;
+        
+        // Reset after delay
+        setTimeout(() => {
+            button.classList.remove('feedback-success');
+            button.innerHTML = '<i class="fas fa-comment-dots"></i>';
+        }, 2000);
+    }
+
+    function showQuickFeedbackError(message) {
+        // Create a small error message below the form
+        const body = document.querySelector('.feedback-body');
+        let errorDiv = body.querySelector('.quick-error-message');
+        
+        if (!errorDiv) {
+            errorDiv = document.createElement('div');
+            errorDiv.className = 'quick-error-message alert alert-danger alert-sm mt-2 py-1 px-2 small';
+            body.appendChild(errorDiv);
+        }
+        
+        errorDiv.innerHTML = `<i class="fas fa-exclamation-triangle me-1"></i>${message}`;
+        
+        // Remove error message after 5 seconds
+        setTimeout(() => {
+            if (errorDiv) {
+                errorDiv.remove();
+            }
+        }, 5000);
+    }
+    </script>
+    {% endif %}
 </body>
 </html> 

@@ -1,0 +1,462 @@
+{% extends "base.html" %}
+
+{% block title %}Admin - Feedback Management{% endblock %}
+
+{% block extra_css %}
+<style>
+.feedback-status-new { background-color: #f8f9fa; border-left: 4px solid #007bff; }
+.feedback-status-reviewed { background-color: #fff3cd; border-left: 4px solid #ffc107; }
+.feedback-status-resolved { background-color: #d1edff; border-left: 4px solid #28a745; }
+.feedback-message { max-height: 100px; overflow-y: auto; }
+.admin-notes { max-height: 80px; overflow-y: auto; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>
+                    <i class="fas fa-comments me-2"></i>
+                    Feedback Management
+                </h2>
+                <a href="/admin" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-1"></i>
+                    Back to Admin Dashboard
+                </a>
+            </div>
+
+            <!-- Feedback Stats Cards -->
+            <div class="row mb-4" id="statsCards">
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h5 class="card-title text-primary">Total Feedback</h5>
+                            <h2 class="text-primary" id="totalFeedback">-</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h5 class="card-title text-info">New</h5>
+                            <h2 class="text-info" id="newFeedback">-</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h5 class="card-title text-warning">Reviewed</h5>
+                            <h2 class="text-warning" id="reviewedFeedback">-</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h5 class="card-title text-success">Resolved</h5>
+                            <h2 class="text-success" id="resolvedFeedback">-</h2>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label for="statusFilter" class="form-label">Filter by Status</label>
+                            <select class="form-select" id="statusFilter">
+                                <option value="">All Statuses</option>
+                                <option value="new">New</option>
+                                <option value="reviewed">Reviewed</option>
+                                <option value="resolved">Resolved</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="categoryFilter" class="form-label">Filter by Category</label>
+                            <select class="form-select" id="categoryFilter">
+                                <option value="">All Categories</option>
+                                <option value="general">General</option>
+                                <option value="bug">Bug Report</option>
+                                <option value="feature">Feature Request</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="searchInput" class="form-label">Search</label>
+                            <input type="text" class="form-control" id="searchInput" placeholder="Search in messages...">
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()">
+                                <i class="fas fa-times me-1"></i>Clear Filters
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Feedback List -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">All Feedback</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div id="loadingSpinner" class="text-center p-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading feedback...</p>
+                    </div>
+                    <div id="feedbackList" class="d-none"></div>
+                    <div id="noFeedback" class="text-center p-4 d-none">
+                        <i class="fas fa-comments fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">No feedback found matching your criteria.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Update Feedback Modal -->
+<div class="modal fade" id="updateFeedbackModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Update Feedback</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="updateFeedbackForm">
+                    <input type="hidden" id="updateFeedbackId">
+                    
+                    <div class="mb-3">
+                        <label for="updateStatus" class="form-label">Status</label>
+                        <select class="form-select" id="updateStatus" required>
+                            <option value="new">New</option>
+                            <option value="reviewed">Reviewed</option>
+                            <option value="resolved">Resolved</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="updateAdminNotes" class="form-label">Admin Notes</label>
+                        <textarea class="form-control" id="updateAdminNotes" rows="4" 
+                                  placeholder="Add any notes about this feedback..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="updateFeedback()">Update Feedback</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Admin feedback page specific JavaScript
+console.log('🔧 Admin feedback page script loading...');
+
+let allFeedback = [];
+let filteredFeedback = [];
+
+// Wait for page to be fully loaded and other scripts to finish
+window.addEventListener('load', function() {
+    // Add a small delay to ensure all other scripts have finished
+    setTimeout(function() {
+        console.log('🚀 Admin feedback page initializing...');
+        initAdminFeedbackPage();
+    }, 500);
+});
+
+function initAdminFeedbackPage() {
+    console.log('📋 Admin feedback page loaded and ready');
+    
+    // Check if elements exist before proceeding
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const feedbackList = document.getElementById('feedbackList');
+    
+    if (!loadingSpinner || !feedbackList) {
+        console.error('❌ Required feedback elements not found on page');
+        console.log('Available elements:', {
+            loadingSpinner: !!loadingSpinner,
+            feedbackList: !!feedbackList
+        });
+        return;
+    }
+    
+    console.log('✅ Feedback elements found, loading data...');
+    loadFeedbackStats();
+    loadFeedback();
+    
+    // Fallback: Force hide spinner after 10 seconds if it's still visible
+    setTimeout(() => {
+        const spinner = document.getElementById('loadingSpinner');
+        if (spinner && !spinner.classList.contains('d-none')) {
+            console.warn('⚠️ Forcing spinner to hide after timeout');
+            spinner.classList.add('d-none');
+            showErrorMessage('Request timed out. Please refresh the page and try again.');
+        }
+    }, 10000);
+    
+    // Set up filters
+    const statusFilter = document.getElementById('statusFilter');
+    const categoryFilter = document.getElementById('categoryFilter');
+    const searchInput = document.getElementById('searchInput');
+    
+    if (statusFilter) statusFilter.addEventListener('change', applyFilters);
+    if (categoryFilter) categoryFilter.addEventListener('change', applyFilters);
+    if (searchInput) searchInput.addEventListener('input', applyFilters);
+    
+    console.log('🎯 Admin feedback page initialization complete');
+}
+
+function loadFeedbackStats() {
+    console.log('Loading feedback stats...');
+    fetch('/admin/api/feedback/stats')
+    .then(response => {
+        console.log('Stats response status:', response.status);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Stats data received:', data);
+        if (data.success) {
+            const stats = data.stats;
+            document.getElementById('totalFeedback').textContent = stats.total || 0;
+            document.getElementById('newFeedback').textContent = stats.status_counts?.new || 0;
+            document.getElementById('reviewedFeedback').textContent = stats.status_counts?.reviewed || 0;
+            document.getElementById('resolvedFeedback').textContent = stats.status_counts?.resolved || 0;
+        } else {
+            console.error('Stats API returned success=false:', data);
+            // Show error in stats cards
+            document.getElementById('totalFeedback').textContent = 'Error';
+            document.getElementById('newFeedback').textContent = 'Error';
+            document.getElementById('reviewedFeedback').textContent = 'Error';
+            document.getElementById('resolvedFeedback').textContent = 'Error';
+        }
+    })
+    .catch(error => {
+        console.error('Error loading stats:', error);
+        // Show error in stats cards
+        document.getElementById('totalFeedback').textContent = 'Error';
+        document.getElementById('newFeedback').textContent = 'Error';
+        document.getElementById('reviewedFeedback').textContent = 'Error';
+        document.getElementById('resolvedFeedback').textContent = 'Error';
+    });
+}
+
+function loadFeedback() {
+    console.log('Loading feedback...');
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    
+    fetch('/admin/api/feedback')
+    .then(response => {
+        console.log('Feedback response status:', response.status);
+        // Always hide the spinner regardless of response status
+        if (loadingSpinner) {
+            loadingSpinner.classList.add('d-none');
+            console.log('Loading spinner hidden');
+        }
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Feedback data received:', data);
+        if (data.success) {
+            allFeedback = data.feedback;
+            filteredFeedback = [...allFeedback];
+            console.log('Loaded', allFeedback.length, 'feedback items');
+            displayFeedback();
+        } else {
+            console.error('Error loading feedback:', data.error);
+            showErrorMessage('Failed to load feedback: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error loading feedback:', error);
+        // Ensure spinner is hidden even on error
+        if (loadingSpinner) {
+            loadingSpinner.classList.add('d-none');
+        }
+        showErrorMessage('Failed to load feedback. Please check your admin permissions and try again.');
+    });
+}
+
+function showErrorMessage(message) {
+    const container = document.getElementById('feedbackList');
+    const noFeedbackDiv = document.getElementById('noFeedback');
+    
+    container.classList.add('d-none');
+    noFeedbackDiv.innerHTML = `
+        <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+        <p class="text-danger">${message}</p>
+        <button class="btn btn-outline-primary btn-sm" onclick="location.reload()">
+            <i class="fas fa-refresh me-1"></i>Retry
+        </button>
+    `;
+    noFeedbackDiv.classList.remove('d-none');
+}
+
+function displayFeedback() {
+    const container = document.getElementById('feedbackList');
+    const noFeedbackDiv = document.getElementById('noFeedback');
+    
+    if (filteredFeedback.length === 0) {
+        container.classList.add('d-none');
+        noFeedbackDiv.classList.remove('d-none');
+        return;
+    }
+    
+    noFeedbackDiv.classList.add('d-none');
+    container.classList.remove('d-none');
+    
+    const html = filteredFeedback.map(feedback => {
+        const statusClass = `feedback-status-${feedback.status}`;
+        const statusBadge = getStatusBadge(feedback.status);
+        const categoryBadge = getCategoryBadge(feedback.category);
+        const createdAt = new Date(feedback.created_at).toLocaleString();
+        
+        return `
+            <div class="border-bottom p-3 ${statusClass}">
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="d-flex align-items-center mb-2">
+                            <strong class="me-2">${feedback.user_name}</strong>
+                            <span class="text-muted small">(${feedback.user_email})</span>
+                            <span class="ms-auto text-muted small">${createdAt}</span>
+                        </div>
+                        <div class="mb-2">
+                            ${categoryBadge}
+                            ${statusBadge}
+                        </div>
+                        <div class="feedback-message">
+                            <p class="mb-1">${feedback.message.replace(/\n/g, '<br>')}</p>
+                        </div>
+                        ${feedback.admin_notes ? `
+                            <div class="mt-2">
+                                <small class="text-muted"><strong>Admin Notes:</strong></small>
+                                <div class="admin-notes bg-light p-2 rounded small">
+                                    ${feedback.admin_notes.replace(/\n/g, '<br>')}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <button class="btn btn-sm btn-outline-primary" onclick="openUpdateModal('${feedback.id}', '${feedback.status}', \`${feedback.admin_notes || ''}\`)">
+                            <i class="fas fa-edit me-1"></i>Update
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = html;
+}
+
+function getStatusBadge(status) {
+    const badges = {
+        'new': '<span class="badge bg-primary">New</span>',
+        'reviewed': '<span class="badge bg-warning">Reviewed</span>',
+        'resolved': '<span class="badge bg-success">Resolved</span>'
+    };
+    return badges[status] || '<span class="badge bg-secondary">Unknown</span>';
+}
+
+function getCategoryBadge(category) {
+    const badges = {
+        'general': '<span class="badge bg-info">General</span>',
+        'bug': '<span class="badge bg-danger">Bug</span>',
+        'feature': '<span class="badge bg-success">Feature</span>',
+        'other': '<span class="badge bg-secondary">Other</span>'
+    };
+    return badges[category] || '<span class="badge bg-secondary">Unknown</span>';
+}
+
+function applyFilters() {
+    const statusFilter = document.getElementById('statusFilter').value;
+    const categoryFilter = document.getElementById('categoryFilter').value;
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    
+    filteredFeedback = allFeedback.filter(feedback => {
+        const matchesStatus = !statusFilter || feedback.status === statusFilter;
+        const matchesCategory = !categoryFilter || feedback.category === categoryFilter;
+        const matchesSearch = !searchTerm || 
+            feedback.message.toLowerCase().includes(searchTerm) ||
+            feedback.user_name.toLowerCase().includes(searchTerm) ||
+            feedback.user_email.toLowerCase().includes(searchTerm);
+        
+        return matchesStatus && matchesCategory && matchesSearch;
+    });
+    
+    displayFeedback();
+}
+
+function clearFilters() {
+    document.getElementById('statusFilter').value = '';
+    document.getElementById('categoryFilter').value = '';
+    document.getElementById('searchInput').value = '';
+    applyFilters();
+}
+
+function openUpdateModal(feedbackId, status, adminNotes) {
+    document.getElementById('updateFeedbackId').value = feedbackId;
+    document.getElementById('updateStatus').value = status;
+    document.getElementById('updateAdminNotes').value = adminNotes;
+    
+    const modal = new bootstrap.Modal(document.getElementById('updateFeedbackModal'));
+    modal.show();
+}
+
+function updateFeedback() {
+    const feedbackId = document.getElementById('updateFeedbackId').value;
+    const status = document.getElementById('updateStatus').value;
+    const adminNotes = document.getElementById('updateAdminNotes').value;
+    
+    fetch(`/admin/api/feedback/${feedbackId}/update`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            status: status,
+            admin_notes: adminNotes
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('updateFeedbackModal'));
+            modal.hide();
+            
+            // Reload data
+            loadFeedbackStats();
+            loadFeedback();
+            
+            // Show success message
+            alert('Feedback updated successfully!');
+        } else {
+            alert('Error updating feedback: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error updating feedback:', error);
+        alert('Error updating feedback. Please try again.');
+    });
+}
+</script>
+{% endblock %}
