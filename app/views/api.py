@@ -13,6 +13,7 @@ import logging
 from flask import Blueprint, request, Response, render_template, abort, make_response, jsonify
 from app.models.company import Company
 from app.models.contact import Contact
+from app.models.tenant_settings import TenantSettings
 
 logger = logging.getLogger(__name__)
 
@@ -518,6 +519,63 @@ def get_recent_errors():
             'success': False,
             'message': f'Error getting recent errors: {str(e)}'
         }), 500
+
+# Tenant Profile API Routes
+@api_bp.route('/tenant/profile', methods=['GET'])
+def get_tenant_profile():
+    """Get tenant profile information."""
+    try:
+        from app.tenant import current_tenant_id
+        
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            return jsonify({'success': False, 'error': 'No tenant context available'}), 400
+        
+        tenant_settings = TenantSettings()
+        profile = tenant_settings.get_tenant_profile(tenant_id)
+        
+        return jsonify({
+            'success': True,
+            'profile': profile
+        })
+    except Exception as e:
+        logger.error(f"Error getting tenant profile: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/tenant/profile', methods=['POST'])
+def save_tenant_profile():
+    """Save tenant profile information."""
+    try:
+        from app.tenant import current_tenant_id
+        
+        tenant_id = current_tenant_id()
+        if not tenant_id:
+            return jsonify({'success': False, 'error': 'No tenant context available'}), 400
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No profile data provided'}), 400
+        
+        # Validate required fields
+        required_fields = ['firstName', 'lastName', 'jobTitle', 'personalEmail', 'companyName']
+        for field in required_fields:
+            if not data.get(field, '').strip():
+                return jsonify({'success': False, 'error': f'{field} is required'}), 400
+        
+        tenant_settings = TenantSettings()
+        success = tenant_settings.save_tenant_profile(data, tenant_id)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'Profile saved successfully'
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Failed to save profile'}), 500
+            
+    except Exception as e:
+        logger.error(f"Error saving tenant profile: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @api_bp.errorhandler(500)
 def internal_error(error):

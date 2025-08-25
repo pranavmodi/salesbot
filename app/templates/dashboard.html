@@ -77,6 +77,11 @@
             <i class="fas fa-edit me-1"></i> Compose
         </button>
     </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="profile-tab" data-bs-toggle="tab" data-bs-target="#profile-tab-pane" type="button" role="tab" aria-controls="profile-tab-pane" aria-selected="false">
+            <i class="fas fa-user-tie me-1"></i> Profile
+        </button>
+    </li>
     {% if enable_gtm_campaign_tab %}
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="gtm-campaign-tab" data-bs-toggle="tab" data-bs-target="#gtm-campaign-tab-pane" type="button" role="tab" aria-controls="gtm-campaign-tab-pane" aria-selected="false">
@@ -177,6 +182,11 @@
     <!-- Compose Tab -->
     <div class="tab-pane fade" id="compose-tab-pane" role="tabpanel" aria-labelledby="compose-tab">
         {% include 'components/compose_form.html' %}
+    </div>
+    
+    <!-- Profile Tab -->
+    <div class="tab-pane fade" id="profile-tab-pane" role="tabpanel" aria-labelledby="profile-tab">
+        {% include 'components/tenant_profile.html' %}
     </div>
 
     <!-- GTM Campaign Tab -->

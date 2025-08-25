@@ -210,3 +210,33 @@ class TenantSettings:
         """Get API key for a specific service (openai, anthropic, perplexity)."""
         settings = self.get_tenant_settings(tenant_id)
         return settings.get(f'{service}_api_key', '')
+    
+    def get_tenant_profile(self, tenant_id: str = None) -> Dict[str, Any]:
+        """Get tenant profile information from other_settings."""
+        settings = self.get_tenant_settings(tenant_id)
+        return settings.get('other_settings', {}).get('profile', {})
+    
+    def save_tenant_profile(self, profile_data: Dict[str, Any], tenant_id: str = None) -> bool:
+        """Save tenant profile information to other_settings."""
+        if not tenant_id:
+            tenant_id = current_tenant_id()
+        
+        if not tenant_id:
+            logger.error("No tenant_id provided for saving profile")
+            return False
+        
+        try:
+            # Get current settings
+            current_settings = self.get_tenant_settings(tenant_id)
+            other_settings = current_settings.get('other_settings', {})
+            
+            # Update profile in other_settings
+            other_settings['profile'] = profile_data
+            
+            # Save updated settings
+            current_settings['other_settings'] = other_settings
+            return self.save_tenant_settings(current_settings, tenant_id)
+            
+        except Exception as e:
+            logger.error(f"Failed to save tenant profile: {e}")
+            return False

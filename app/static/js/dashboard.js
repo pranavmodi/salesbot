@@ -49,6 +49,9 @@ document.addEventListener('DOMContentLoaded', function() {
             setupMainEventListeners();
             setupInboxPagination();
             
+            // Initialize profile functionality
+            initializeProfileTab();
+            
             console.log("Dashboard initialized successfully");
         } catch (error) {
             console.error("Error during dashboard initialization:", error);
@@ -1020,3 +1023,155 @@ window.loadEmailConversations = loadEmailConversations;
 window.loadDetailedConversations = loadDetailedConversations;
 window.loadCampaignActivity = loadCampaignActivity;
 window.setupComposeFormEnhancements = setupComposeFormEnhancements;
+
+// Profile Tab Functionality
+function initializeProfileTab() {
+    console.log("Initializing profile tab...");
+    
+    const profileForm = document.getElementById('tenantProfileForm');
+    if (profileForm) {
+        // Load existing profile data
+        loadTenantProfile();
+        
+        // Setup form submission
+        profileForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            saveTenantProfile();
+        });
+        
+        // Setup real-time preview
+        setupProfilePreview();
+        
+        console.log("Profile tab initialized successfully");
+    } else {
+        console.error("Profile form not found");
+    }
+}
+
+function loadTenantProfile() {
+    fetch('/api/tenant/profile')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.profile) {
+                populateProfileForm(data.profile);
+                updateProfilePreview(data.profile);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading profile:', error);
+        });
+}
+
+function populateProfileForm(profile) {
+    const fields = [
+        'firstName', 'lastName', 'jobTitle', 'phoneNumber', 'personalEmail',
+        'linkedinProfile', 'companyName', 'companyWebsite', 'companySize',
+        'industry', 'companyDescription', 'emailSignature', 'brandVoice',
+        'preferredCTA', 'calendarUrl', 'valueProposition'
+    ];
+    
+    fields.forEach(field => {
+        const element = document.getElementById(field);
+        if (element && profile[field]) {
+            element.value = profile[field];
+        }
+    });
+}
+
+function saveTenantProfile() {
+    const form = document.getElementById('tenantProfileForm');
+    const formData = new FormData(form);
+    const profileData = {};
+    
+    // Convert FormData to object
+    for (let [key, value] of formData.entries()) {
+        profileData[key] = value;
+    }
+    
+    const saveBtn = document.getElementById('saveProfileBtn');
+    const originalText = saveBtn.innerHTML;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+    saveBtn.disabled = true;
+    
+    fetch('/api/tenant/profile', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(profileData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('Profile saved successfully!', 'success');
+            updateProfilePreview(profileData);
+        } else {
+            showToast('Failed to save profile: ' + (data.error || 'Unknown error'), 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error saving profile:', error);
+        showToast('Error saving profile: ' + error.message, 'error');
+    })
+    .finally(() => {
+        saveBtn.innerHTML = originalText;
+        saveBtn.disabled = false;
+    });
+}
+
+function setupProfilePreview() {
+    const fields = [
+        'firstName', 'lastName', 'jobTitle', 'companyName', 'emailSignature'
+    ];
+    
+    fields.forEach(field => {
+        const element = document.getElementById(field);
+        if (element) {
+            element.addEventListener('input', updateProfilePreview);
+        }
+    });
+}
+
+function updateProfilePreview(profileData = null) {
+    const previewElement = document.getElementById('profilePreview');
+    if (!previewElement) return;
+    
+    if (!profileData) {
+        // Get current form data
+        const form = document.getElementById('tenantProfileForm');
+        const formData = new FormData(form);
+        profileData = {};
+        for (let [key, value] of formData.entries()) {
+            profileData[key] = value;
+        }
+    }
+    
+    const firstName = profileData.firstName || '';
+    const lastName = profileData.lastName || '';
+    const jobTitle = profileData.jobTitle || '';
+    const companyName = profileData.companyName || '';
+    const emailSignature = profileData.emailSignature || '';
+    
+    if (firstName && lastName) {
+        let preview = `
+            <div class="mb-2">
+                <strong>${firstName} ${lastName}</strong><br>
+                ${jobTitle ? jobTitle + '<br>' : ''}
+                ${companyName ? companyName + '<br>' : ''}
+            </div>
+        `;
+        
+        if (emailSignature) {
+            preview += `<div class="text-muted small">${emailSignature}</div>`;
+        }
+        
+        previewElement.innerHTML = preview;
+    } else {
+        previewElement.innerHTML = '<small class="text-muted">Fill out the form to see a preview of how your information will appear in emails</small>';
+    }
+}
+
+// Global profile functions
+window.initializeProfileTab = initializeProfileTab;
+window.loadTenantProfile = loadTenantProfile;
+window.saveTenantProfile = saveTenantProfile;
