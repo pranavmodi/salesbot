@@ -53,14 +53,38 @@ def resolve_tenant_context() -> None:
                 g.tenant_slug = slug
                 return
 
-        # Fallback: unset if not found
-        g.tenant_id = None
-        g.tenant_slug = None
+        # Fallback: try to get default tenant
+        result = conn.execute(
+            text("SELECT id FROM tenants WHERE slug = 'default' LIMIT 1")
+        )
+        row = result.fetchone()
+        if row and row[0]:
+            g.tenant_id = str(row[0])
+            g.tenant_slug = 'default'
+            current_app.logger.info(f"Using fallback default tenant: {g.tenant_id}")
+        else:
+            g.tenant_id = None
+            g.tenant_slug = None
     except Exception as e:
-        # Do not block request on resolution error
+        # Do not block request on resolution error - try to get default tenant
         current_app.logger.warning(f"Tenant resolution failed: {e}")
-        g.tenant_id = None
-        g.tenant_slug = None
+        try:
+            from app.database import get_shared_engine
+            from sqlalchemy import text
+            engine = get_shared_engine()
+            with engine.connect() as conn:
+                result = conn.execute(text("SELECT id FROM tenants WHERE slug = 'default' LIMIT 1"))
+                row = result.fetchone()
+                if row and row[0]:
+                    g.tenant_id = str(row[0])
+                    g.tenant_slug = 'default'
+                    current_app.logger.info(f"Using fallback default tenant after error: {g.tenant_id}")
+                else:
+                    g.tenant_id = None
+                    g.tenant_slug = None
+        except:
+            g.tenant_id = None
+            g.tenant_slug = None
 
 
 

@@ -21,6 +21,7 @@ class DatabaseCleanerService:
     # Define table order for deletion (child tables first to avoid foreign key constraints)
     TABLE_ORDER = [
         'report_clicks',           # Has foreign keys to companies, campaigns, email_history
+        'link_tracking',           # Has foreign key to companies
         'campaign_email_jobs',     # Has foreign key to campaigns
         'email_history',           # Has foreign key to campaigns
         'email_tracking',          # Email tracking data

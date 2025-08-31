@@ -472,8 +472,8 @@ def get_campaign_analytics(campaign_id):
                         from app.database import get_shared_engine
                         engine = get_shared_engine()
                         with engine.connect() as conn:
-                            result = conn.execute(text("SELECT company_name FROM companies WHERE id = :company_id"), 
-                                                {'company_id': link['company_id']})
+                            result = conn.execute(text("SELECT company_name FROM companies WHERE id = :company_id AND tenant_id = :tenant_id"), 
+                                                {'company_id': link['company_id'], 'tenant_id': g.tenant_id})
                             row = result.fetchone()
                             if row and row[0]:
                                 companies_clicked.append(row[0])

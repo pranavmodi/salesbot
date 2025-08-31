@@ -30,10 +30,11 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 class ContactDataIngester:
-    def __init__(self, contacts_dir: str = "contacts"):
+    def __init__(self, contacts_dir: str = "contacts", tenant_id: str = None):
         self.contacts_dir = contacts_dir
         self.engine = None
         self.Session = None
+        self.tenant_id = tenant_id
         self.email_patterns = [
             r'email',
             r'e-mail',
@@ -44,7 +45,7 @@ class ContactDataIngester:
         ]
         
     def connect_db(self):
-        """Create database connection"""
+        """Create database connection and resolve tenant_id if not provided"""
         database_url = os.getenv("DATABASE_URL")
         if not database_url:
             raise ValueError("DATABASE_URL environment variable not set")
@@ -58,6 +59,18 @@ class ContactDataIngester:
                 pool_recycle=3600     # Recycle connections every hour
             )
             self.Session = sessionmaker(bind=self.engine)
+            
+            # Resolve tenant_id if not provided
+            if not self.tenant_id:
+                with self.engine.connect() as conn:
+                    result = conn.execute(text("SELECT id FROM tenants WHERE slug = 'default' LIMIT 1"))
+                    row = result.fetchone()
+                    if row:
+                        self.tenant_id = str(row[0])
+                        logger.info(f"Using default tenant: {self.tenant_id}")
+                    else:
+                        raise ValueError("No default tenant found and no tenant_id provided")
+            
             logger.info("Connected to PostgreSQL database successfully")
         except Exception as e:
             logger.error(f"Failed to connect to database: {str(e)}")
@@ -110,17 +123,22 @@ class ContactDataIngester:
             'company_name': ['company', 'company name', 'company_name', 'organization', 'employer'],
             'company_domain': ['company domain', 'domain', 'website', 'company_domain'],
             'linkedin_profile': ['linkedin', 'linkedin profile', 'linkedin_profile', 'linkedin url', 'person linkedin url'],
+            'email': ['email', 'email address', 'e-mail', 'mail', 'work email', 'primary email'],
             'location': ['location', 'city', 'state', 'country', 'address'],
             'phone': ['phone', 'mobile', 'work phone', 'corporate phone', 'work direct phone'],
             'linkedin_message': ['linkedin message', 'message', 'personalized message']
         }
         
+        # Track which source columns have been used to prevent conflicts
+        used_columns = set()
+        
         for standard_col, patterns in mappings.items():
             for df_col in df_columns:
                 df_col_lower = df_col.lower().strip()
                 if any(pattern in df_col_lower for pattern in patterns):
-                    if standard_col not in column_mapping:  # Take first match
+                    if standard_col not in column_mapping and df_col not in used_columns:  # Take first match and avoid conflicts
                         column_mapping[standard_col] = df_col
+                        used_columns.add(df_col)
                         break
         
         return column_mapping
@@ -214,7 +232,7 @@ class ContactDataIngester:
                                 WHERE LOWER(company_name) = LOWER(:company_name) 
                                 AND tenant_id = :tenant_id
                                 LIMIT 1
-                            """), {"company_name": company_name, "tenant_id": 1})
+                            """), {"company_name": company_name, "tenant_id": self.tenant_id})
                             row = result.fetchone()
                             if row:
                                 company_id = row.id
@@ -227,7 +245,7 @@ class ContactDataIngester:
                                 WHERE LOWER(website_url) LIKE :domain_pattern 
                                 AND tenant_id = :tenant_id
                                 LIMIT 1
-                            """), {"domain_pattern": domain_pattern, "tenant_id": 1})
+                            """), {"domain_pattern": domain_pattern, "tenant_id": self.tenant_id})
                             row = result.fetchone()
                             if row:
                                 company_id = row.id
@@ -239,7 +257,6 @@ class ContactDataIngester:
                                 website_url = company_domain if company_domain.startswith(('http://', 'https://')) else f"https://{company_domain}"
                             
                             fallback_name = company_name or company_domain or 'Unknown'
-                            # TODO: Add tenant_id support when used in multi-tenant context
                             result = conn.execute(text("""
                                 INSERT INTO companies (
                                     company_name, website_url, company_research, 
@@ -252,17 +269,19 @@ class ContactDataIngester:
                                 "company_name": fallback_name,
                                 "website_url": website_url,
                                 "company_research": f"Company automatically created during contact import from {source_file}. Research pending.",
-                                "tenant_id": 1  # Default tenant for standalone script - TODO: make configurable
+                                "tenant_id": self.tenant_id
                             })
                             company_id = result.fetchone().id
                             logger.info(f"Created new company '{fallback_name}' with ID {company_id}")
                     
                     # Check if contact exists
+                    logger.info(f"Checking for existing contact: {email} with tenant_id: {self.tenant_id}")
                     result = conn.execute(
                         text("SELECT source_files, all_data, company_id FROM contacts WHERE email = :email AND tenant_id = :tenant_id"),
-                        {"email": email, "tenant_id": 1}  # Default tenant for standalone script
+                        {"email": email, "tenant_id": self.tenant_id}
                     )
                     existing = result.fetchone()
+                    logger.info(f"Existing contact found: {existing is not None}")
                     
                     if existing:
                         # Update existing contact
@@ -303,9 +322,11 @@ class ContactDataIngester:
                                 "updated_at": datetime.now()
                             })
                             
-                            update_params["tenant_id"] = 1  # Default tenant for standalone script
+                            update_params["tenant_id"] = self.tenant_id
                             query = f"UPDATE contacts SET {', '.join(update_fields)} WHERE email = :email AND tenant_id = :tenant_id"
+                            logger.info(f"Updating existing contact: {email}")
                             conn.execute(text(query), update_params)
+                            logger.info(f"Successfully updated contact: {email}")
                     else:
                         # Insert new contact with company_id
                         insert_params = {
@@ -323,8 +344,11 @@ class ContactDataIngester:
                             "company_id": company_id,
                             "source_files": json.dumps([source_file]),
                             "all_data": json.dumps(all_data),
-                            "tenant_id": 1  # Default tenant for standalone script - TODO: make configurable
+                            "tenant_id": self.tenant_id
                         }
+                        
+                        logger.info(f"Inserting new contact: {email} with tenant_id: {self.tenant_id}")
+                        logger.info(f"Contact data: {contact_data}")
                         
                         conn.execute(text("""
                             INSERT INTO contacts (
@@ -337,6 +361,8 @@ class ContactDataIngester:
                                 :phone, :linkedin_message, :company_id, :source_files, :all_data, :tenant_id
                             )
                         """), insert_params)
+                        
+                        logger.info(f"Successfully inserted new contact: {email}")
                         
         except SQLAlchemyError as e:
             logger.error(f"Database error in upsert_contact: {str(e)}")
@@ -438,8 +464,8 @@ class ContactDataIngester:
         
         try:
             with self.engine.connect() as conn:
-                # Total contacts
-                result = conn.execute(text("SELECT COUNT(*) FROM contacts"))
+                # Total contacts for this tenant
+                result = conn.execute(text("SELECT COUNT(*) FROM contacts WHERE tenant_id = :tenant_id"), {"tenant_id": self.tenant_id})
                 stats['total_contacts'] = result.scalar()
                 
                 # Contacts by source file - GLOBAL across all tenants
@@ -451,11 +477,11 @@ class ContactDataIngester:
                 """))
                 stats['files_processed'] = [dict(row._mapping) for row in result]
                 
-                # Companies represented
+                # Companies represented for this tenant
                 result = conn.execute(text("""
                     SELECT COUNT(DISTINCT company_name) FROM contacts 
-                    WHERE company_name IS NOT NULL AND company_name != ''
-                """))
+                    WHERE company_name IS NOT NULL AND company_name != '' AND tenant_id = :tenant_id
+                """), {"tenant_id": self.tenant_id})
                 stats['unique_companies'] = result.scalar()
                 
         except SQLAlchemyError as e:

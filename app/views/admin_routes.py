@@ -61,7 +61,7 @@ def get_stats():
                 stats['total_tenants'] = 0
             
             try:
-                result = conn.execute(text("SELECT COUNT(*) FROM companies"))
+                result = conn.execute(text("SELECT COUNT(*) FROM companies WHERE tenant_id = :tenant_id"), {'tenant_id': g.tenant_id})
                 stats['total_companies'] = result.scalar()
             except Exception as e:
                 current_app.logger.warning(f"Error counting companies: {e}")
@@ -92,8 +92,8 @@ def get_stats():
             try:
                 result = conn.execute(text("""
                     SELECT COUNT(*) FROM companies 
-                    WHERE llm_research_step_status = 'completed'
-                """))
+                    WHERE llm_research_step_status = 'completed' AND tenant_id = :tenant_id
+                """), {'tenant_id': g.tenant_id})
                 stats['completed_research'] = result.scalar()
             except Exception as e:
                 current_app.logger.warning(f"Error counting completed research: {e}")
@@ -102,8 +102,8 @@ def get_stats():
             try:
                 result = conn.execute(text("""
                     SELECT COUNT(*) FROM companies 
-                    WHERE llm_research_step_status IN ('step_1_in_progress', 'step_2_in_progress', 'step_3_in_progress', 'background_job_running')
-                """))
+                    WHERE llm_research_step_status IN ('step_1_in_progress', 'step_2_in_progress', 'step_3_in_progress', 'background_job_running') AND tenant_id = :tenant_id
+                """), {'tenant_id': g.tenant_id})
                 stats['research_in_progress'] = result.scalar()
             except Exception as e:
                 current_app.logger.warning(f"Error counting research in progress: {e}")
@@ -125,8 +125,8 @@ def get_stats():
             try:
                 result = conn.execute(text("""
                     SELECT COUNT(*) FROM companies 
-                    WHERE created_at >= :date
-                """), {'date': seven_days_ago})
+                    WHERE created_at >= :date AND tenant_id = :tenant_id
+                """), {'date': seven_days_ago, 'tenant_id': g.tenant_id})
                 stats['new_companies_7d'] = result.scalar()
             except Exception as e:
                 current_app.logger.warning(f"Error counting new companies in 7 days: {e}")
@@ -145,8 +145,8 @@ def get_stats():
             try:
                 result = conn.execute(text("""
                     SELECT COUNT(*) FROM companies 
-                    WHERE llm_research_completed_at >= :date
-                """), {'date': seven_days_ago})
+                    WHERE llm_research_completed_at >= :date AND tenant_id = :tenant_id
+                """), {'date': seven_days_ago, 'tenant_id': g.tenant_id})
                 stats['research_completed_7d'] = result.scalar()
             except Exception as e:
                 current_app.logger.warning(f"Error counting research completed in 7 days: {e}")
@@ -200,8 +200,8 @@ def get_stats():
             try:
                 result = conn.execute(text("""
                     SELECT COUNT(*) FROM companies 
-                    WHERE research_error IS NOT NULL AND research_error != ''
-                """))
+                    WHERE research_error IS NOT NULL AND research_error != '' AND tenant_id = :tenant_id
+                """), {'tenant_id': g.tenant_id})
                 stats['companies_with_errors'] = result.scalar()
             except:
                 stats['companies_with_errors'] = 0

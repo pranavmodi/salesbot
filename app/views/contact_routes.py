@@ -50,6 +50,9 @@ def get_contacts():
         if page < 1:
             page = 1
             
+        current_app.logger.info(f"GET /contacts called with page={page}, per_page={per_page}")
+        current_app.logger.info(f"Current tenant_id from g: {getattr(g, 'tenant_id', 'NOT_SET')}")
+        
         # Get paginated contacts
         contact_data = Contact.get_paginated(page=page, per_page=per_page)
         
@@ -528,8 +531,8 @@ def import_contacts():
             if len(df.columns) == 0:
                 raise Exception("CSV file has no columns")
             
-            # Initialize data ingester
-            ingester = ContactDataIngester()
+            # Initialize data ingester with current user's tenant
+            ingester = ContactDataIngester(tenant_id=g.tenant_id)
             ingester.connect_db()
             
             # Get statistics before import
@@ -636,8 +639,8 @@ def preview_csv():
             if len(df.columns) == 0:
                 raise Exception("CSV file has no columns")
             
-            # Initialize data ingester for column mapping
-            ingester = ContactDataIngester()
+            # Initialize data ingester for column mapping with current user's tenant
+            ingester = ContactDataIngester(tenant_id=g.tenant_id)
             
             # Get column information
             columns = df.columns.tolist()

@@ -64,14 +64,22 @@ class Contact:
         contacts = []
         engine = cls._get_db_engine()
         if not engine:
+            current_app.logger.error("Failed to get database engine in Contact.load_all")
             return contacts
         tenant_id = current_tenant_id()
         if not tenant_id:
             current_app.logger.warning("Tenant not resolved in Contact.load_all; returning empty list")
             return contacts
             
+        current_app.logger.info(f"Loading contacts for tenant_id: {tenant_id}")
+        
         try:
             with engine.connect() as conn:
+                # First check total count
+                count_result = conn.execute(text("SELECT COUNT(*) FROM contacts WHERE tenant_id = :tenant_id"), {"tenant_id": tenant_id})
+                total_count = count_result.scalar()
+                current_app.logger.info(f"Total contacts in database for tenant {tenant_id}: {total_count}")
+                
                 result = conn.execute(text("""
                     SELECT email, first_name, last_name, full_name, job_title, 
                            company_name, company_domain, linkedin_profile, location, 
@@ -84,6 +92,8 @@ class Contact:
                 for row in result:
                     contact_data = dict(row._mapping)
                     contacts.append(cls(contact_data))
+                
+                current_app.logger.info(f"Successfully loaded {len(contacts)} contacts from database")
                     
         except SQLAlchemyError as e:
             current_app.logger.error(f"Error loading contacts from database: {e}")
@@ -100,6 +110,7 @@ class Contact:
         engine = cls._get_db_engine()
         
         if not engine:
+            current_app.logger.error("Failed to get database engine in Contact.get_paginated")
             return {
                 'contacts': [],
                 'current_page': page,
@@ -118,11 +129,14 @@ class Contact:
                 'total_contacts': 0
             }
             
+        current_app.logger.info(f"Getting paginated contacts for tenant_id: {tenant_id}, page: {page}, per_page: {per_page}")
+        
         try:
             with engine.connect() as conn:
                 # Get total count
                 count_result = conn.execute(text("SELECT COUNT(*) FROM contacts WHERE tenant_id = :tenant_id"), {"tenant_id": tenant_id})
                 total = count_result.scalar()
+                current_app.logger.info(f"Total contacts for tenant {tenant_id}: {total}")
                 
                 # Get paginated results
                 offset = (page - 1) * per_page
@@ -139,6 +153,8 @@ class Contact:
                 for row in result:
                     contact_data = dict(row._mapping)
                     contacts.append(cls(contact_data))
+                
+                current_app.logger.info(f"Retrieved {len(contacts)} contacts for page {page}")
                     
         except SQLAlchemyError as e:
             current_app.logger.error(f"Error getting paginated contacts: {e}")
