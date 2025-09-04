@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎯 Lead Generation Tool - Salesbot</title>
+    <meta name="description" content="Build company databases and extract qualified leads with precision">
+    
+    <!-- External CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+</head>
+<body>
+    <!-- Header Section -->
+    <header class="header">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h1>🎯 Lead Generation Tool</h1>
+                <p>Build company databases and extract qualified leads with precision</p>
+            </div>
+            <div>
+                <a href="{{ url_for('main.index') }}" class="btn btn-secondary">← Back to Dashboard</a>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Step Navigation -->
+    <nav class="step-navigation">
+        <div class="step active" id="step1">
+            <div class="step-number">1</div>
+            <div class="step-title">Company Database</div>
+            <div class="step-subtitle">Manage & view companies</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step" id="step2">
+            <div class="step-number">2</div>
+            <div class="step-title">Lead Scraping</div>
+            <div class="step-subtitle">Extract job postings from ATS</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step" id="step3">
+            <div class="step-number">3</div>
+            <div class="step-title">Lead Scoring</div>
+            <div class="step-subtitle">Analyze & score leads</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step" id="step4">
+            <div class="step-number">4</div>
+            <div class="step-title">Export & Results</div>
+            <div class="step-subtitle">Download qualified leads</div>
+        </div>
+    </nav>
+
+    <!-- Main Content Container -->
+    <main class="main-container">
+        
+        <!-- Database Stats Section -->
+        <section class="stats-section" id="stats">
+            <h2>📊 Database Overview</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalCompanies">0</div>
+                    <div class="stat-label">Total Companies</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="qualifiedLeads">0</div>
+                    <div class="stat-label">Qualified Leads</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="companiesWithJobs">0</div>
+                    <div class="stat-label">Companies with Jobs</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalJobs">0</div>
+                    <div class="stat-label">Total Job Postings</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Company Management Section -->
+        <section class="section" id="companySection">
+            <div class="section-header">
+                <h2>🏢 Company Database</h2>
+                <div class="controls">
+                    <button class="btn btn-secondary" onclick="refreshCompanies()">🔄 Refresh</button>
+                    <button class="btn btn-secondary" onclick="showEnrichModal()">🔍 Bulk Enrich</button>
+                </div>
+            </div>
+            
+            <div class="filters">
+                <label><input type="checkbox" id="qualifiedOnly"> Qualified leads only</label>
+                <label><input type="checkbox" id="hasJobs"> Has job postings</label>
+                <button class="btn btn-secondary" onclick="applyFilters()">Apply Filters</button>
+            </div>
+
+            <div id="companiesTable" class="table-container">
+                <!-- Companies will be loaded here dynamically -->
+            </div>
+            
+            <!-- Pagination -->
+            <div class="pagination" id="companiesPagination">
+                <!-- Pagination will be added here -->
+            </div>
+        </section>
+
+        <!-- Scraping Section -->
+        <section class="section" id="scrapingSection" style="display: none;">
+            <h2>🕷️ ATS Job Scraping</h2>
+            
+            <div class="form-section">
+                <h3>Company Configuration</h3>
+                <div class="input-group">
+                    <label for="companyList">Companies to scrape (one per line):</label>
+                    <textarea id="companyList" placeholder="Enter company names, one per line...
+Example:
+Fast Pace Health
+GoHealth Urgent Care
+NextCare"></textarea>
+                </div>
+                
+                <div class="checkbox-group">
+                    <h4>ATS Sources:</h4>
+                    <label><input type="checkbox" id="includeGreenhouse" checked> Greenhouse</label>
+                    <label><input type="checkbox" id="includeLever" checked> Lever</label>
+                </div>
+                
+                <button class="btn btn-primary" onclick="startScraping()">🚀 Start Scraping</button>
+            </div>
+            
+            <!-- Progress Section -->
+            <div id="progressSection" style="display: none;">
+                <h3>📈 Scraping Progress</h3>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-info">
+                    <span id="progressText">Starting...</span>
+                </div>
+                <div id="progressDetails" class="progress-details"></div>
+            </div>
+            
+            <!-- Results Section -->
+            <div id="resultsSection" style="display: none;">
+                <h3>📋 Scraping Results</h3>
+                <div id="resultsTable"></div>
+            </div>
+        </section>
+
+        <!-- Scoring Section -->
+        <section class="section" id="scoringSection" style="display: none;">
+            <h2>🎯 Lead Scoring</h2>
+            <p>Score companies based on support hiring signals, digital presence, and implementation feasibility.</p>
+            
+            <div class="scoring-controls">
+                <button class="btn btn-primary" onclick="scoreAllCompanies()">📊 Score All Companies</button>
+                <button class="btn btn-secondary" onclick="showScoringDetails()">📋 Scoring Criteria</button>
+            </div>
+            
+            <div id="scoringResults" class="scoring-results"></div>
+        </section>
+
+        <!-- Export Section -->
+        <section class="section" id="exportSection" style="display: none;">
+            <h2>📤 Export & Results</h2>
+            <p>Download qualified leads and scraping results.</p>
+            
+            <div class="export-controls">
+                <button class="btn btn-primary" onclick="exportQualifiedLeads()">📥 Export Qualified Leads</button>
+                <button class="btn btn-secondary" onclick="exportAllCompanies()">📥 Export All Companies</button>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Company Detail Modal -->
+    <div id="companyModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="companyModalTitle">Company Details</h3>
+                <span class="close" onclick="closeCompanyModal()">&times;</span>
+            </div>
+            <div class="modal-body" id="companyModalBody">
+                <!-- Company details will be loaded here -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeCompanyModal()">Close</button>
+                <button class="btn btn-primary" id="enrichCompanyBtn" onclick="enrichCurrentCompany()">🔍 Enrich</button>
+                <button class="btn btn-primary" id="scoreCompanyBtn" onclick="scoreCurrentCompany()">🎯 Score</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Processing...</div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        // Configuration for Flask routes
+        window.LEADGEN_CONFIG = {
+            apiBaseUrl: '/leadgen/api',
+            csrfToken: '{{ csrf_token() if csrf_token else '' }}'
+        };
+    </script>
+    <script src="{{ url_for('static', filename='leadgen.js') }}"></script>
+</body>
+</html>

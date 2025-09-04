@@ -4,8 +4,12 @@ This module provides a single, shared database engine to prevent connection limi
 """
 import os
 from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.pool import QueuePool
 import threading
+
+# SQLAlchemy Base class for ORM models (used by leadgen models)
+Base = declarative_base()
 
 class DatabaseManager:
     """Singleton database manager to share a single engine across all models."""

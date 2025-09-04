@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🕷️ Lead Crawler - Similar Company Discovery</title>
+    <meta name="description" content="Discover similar companies based on seed companies and industry">
+    
+    <!-- External CSS -->
+    <link rel="stylesheet" href="/static/styles.css">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+</head>
+<body>
+    <!-- Header Section -->
+    <header class="header">
+        <h1>🕷️ Lead Crawler</h1>
+        <p>Discover similar companies based on seed companies and industry</p>
+        <div class="header-actions">
+            <a href="/" class="btn btn-secondary">← Back to Main Tool</a>
+        </div>
+    </header>
+    
+    <!-- Main Content -->
+    <main>
+        <!-- Crawler Configuration -->
+        <section class="step-content active">
+            <header class="step-header">
+                <h2>Company Discovery Crawler</h2>
+                <p>Start with seed companies and discover similar companies in the same industry</p>
+            </header>
+            
+            <!-- Crawler Form -->
+            <div class="card main-crawler-card">
+                <header class="crawler-header">
+                    <h3>🎯 Crawler Configuration</h3>
+                    <div class="crawler-status" id="crawlerStatus">
+                        <span class="status-badge status-ready">Ready to Crawl</span>
+                    </div>
+                </header>
+                
+                <form id="crawlerForm" class="crawler-form">
+                    <!-- Seed Companies -->
+                    <div class="form-group">
+                        <label for="seedCompanies" class="form-label">
+                            🌱 Seed Companies
+                            <span class="label-help">Enter company names or domains (one per line)</span>
+                        </label>
+                        <textarea id="seedCompanies" name="seedCompanies" class="form-textarea" rows="4" 
+                                placeholder="Enter seed company names or domains...&#10;Example:&#10;Slack&#10;Zoom&#10;Intercom&#10;zendesk.com" required></textarea>
+                    </div>
+                    
+                    <!-- Industry Filter -->
+                    <div class="form-group">
+                        <label for="industry" class="form-label">
+                            🏢 Target Industry
+                            <span class="label-help">Industry to focus the discovery on</span>
+                        </label>
+                        <select id="industry" name="industry" class="form-select" required>
+                            <option value="">Select industry...</option>
+                            <option value="Software">Software / SaaS</option>
+                            <option value="E-commerce">E-commerce</option>
+                            <option value="Healthcare">Healthcare</option>
+                            <option value="Financial Services">Financial Services</option>
+                            <option value="Education">Education</option>
+                            <option value="Media">Media / Entertainment</option>
+                            <option value="Professional Services">Professional Services</option>
+                            <option value="Manufacturing">Manufacturing</option>
+                            <option value="Retail">Retail</option>
+                            <option value="Real Estate">Real Estate</option>
+                            <option value="Travel">Travel / Hospitality</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Company Size Range -->
+                    <div class="form-group">
+                        <label for="companySize" class="form-label">
+                            👥 Company Size Range
+                            <span class="label-help">Target employee count range</span>
+                        </label>
+                        <select id="companySize" name="companySize" class="form-select" required>
+                            <option value="">Select size range...</option>
+                            <option value="1-10">Startup (1-10 employees)</option>
+                            <option value="11-50">Small (11-50 employees)</option>
+                            <option value="51-200">Medium (51-200 employees)</option>
+                            <option value="201-1000">Large (201-1000 employees)</option>
+                            <option value="1000+">Enterprise (1000+ employees)</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Advanced Options -->
+                    <div class="form-group">
+                        <label class="form-label">⚙️ Crawling Options</label>
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="enableEnrichment" name="enableEnrichment" checked>
+                                <span class="checkmark"></span>
+                                Auto-enrich discovered companies with OpenAI
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="enableScoring" name="enableScoring" checked>
+                                <span class="checkmark"></span>
+                                Auto-score discovered companies for lead qualification
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="skipExisting" name="skipExisting" checked>
+                                <span class="checkmark"></span>
+                                Skip companies already in database
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Crawl Limits -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="maxCompanies" class="form-label">
+                                📊 Max Companies to Discover
+                            </label>
+                            <input type="number" id="maxCompanies" name="maxCompanies" 
+                                   class="form-input" min="1" max="500" value="50">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="crawlDepth" class="form-label">
+                                🔍 Crawl Depth
+                            </label>
+                            <select id="crawlDepth" name="crawlDepth" class="form-select">
+                                <option value="1">Level 1 - Direct Similar</option>
+                                <option value="2" selected>Level 2 - Similar + Related</option>
+                                <option value="3">Level 3 - Extended Network</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Submit Button -->
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary" id="startCrawlerBtn">
+                            🕷️ Start Company Crawling
+                        </button>
+                        <button type="button" class="btn btn-secondary" id="stopCrawlerBtn" style="display: none;">
+                            ⏹️ Stop Crawling
+                        </button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Progress Section -->
+            <div class="card progress-card" id="crawlerProgress" style="display: none;">
+                <header class="card-header">
+                    <h3>🔄 Crawling Progress</h3>
+                    <div class="progress-stats">
+                        <span id="crawlerStage">Initializing...</span>
+                        <span id="crawlerTimer">00:00</span>
+                    </div>
+                </header>
+                
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="crawlerProgressFill"></div>
+                    </div>
+                    <div class="progress-text">
+                        <span id="crawlerProgressText">0% Complete</span>
+                    </div>
+                </div>
+                
+                <!-- Live Updates -->
+                <div class="live-updates" id="crawlerLiveUpdates">
+                    <div class="update-item">
+                        <span class="timestamp">00:00</span>
+                        <span class="message">Crawler initialized and ready</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Results Section -->
+            <div class="card results-card" id="crawlerResults" style="display: none;">
+                <header class="card-header">
+                    <h3>📈 Discovery Results</h3>
+                    <div class="results-actions">
+                        <button class="btn btn-success" id="downloadCrawlerResults">
+                            📥 Download CSV
+                        </button>
+                        <button class="btn btn-primary" id="viewCrawlerResults">
+                            👁️ View in Database
+                        </button>
+                    </div>
+                </header>
+                
+                <div class="results-summary" id="crawlerResultsSummary">
+                    <!-- Results will be populated here -->
+                </div>
+                
+                <div class="results-preview" id="crawlerResultsPreview">
+                    <!-- Preview table will be populated here -->
+                </div>
+            </div>
+        </section>
+    </main>
+    
+    <!-- Success/Error Messages -->
+    <div id="successMessage" class="alert alert-success" style="display: none;"></div>
+    <div id="errorMessage" class="alert alert-error" style="display: none;"></div>
+    
+    <!-- External JS -->
+    <script src="/static/lead-crawler.js"></script>
+</body>
+</html>

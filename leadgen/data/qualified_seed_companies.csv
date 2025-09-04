@@ -1,0 +1,17 @@
+name,domain,industry,employee_count,location,founded_year,technology_stack,linkedin_url,source
+Stripe,stripe.com,Fintech,80,"San Francisco, CA",,,,yc_sample
+Notion,notion.so,Productivity,90,"San Francisco, CA",,,,yc_sample
+Figma,figma.com,Design,95,"San Francisco, CA",,,,yc_sample
+Canva,canva.com,Design,75,"Sydney, AU",,,,yc_sample
+Airtable,airtable.com,Productivity,85,"San Francisco, CA",,,,yc_sample
+Zapier,zapier.com,Automation,70,Remote,,,,yc_sample
+Intercom,intercom.com,Customer Support,90,"Dublin, IE",,,,yc_sample
+Zendesk,zendesk.com,Customer Support,95,"San Francisco, CA",,,,yc_sample
+Freshworks,freshworks.com,Customer Support,85,"Chennai, IN",,,,yc_sample
+Gorgias,gorgias.com,Ecommerce,60,"San Francisco, CA",,,,yc_sample
+Help Scout,helpscout.com,Customer Support,65,"Boston, MA",,,,yc_sample
+Monday.com,monday.com,Project Management,80,"Tel Aviv, IL",,,,yc_sample
+Asana,asana.com,Project Management,90,"San Francisco, CA",,,,yc_sample
+ClickUp,clickup.com,Productivity,75,"San Diego, CA",,,,yc_sample
+Linear,linear.app,Development Tools,55,"San Francisco, CA",,,,yc_sample
+Superhuman,superhuman.com,Email,70,"San Francisco, CA",,,,yc_sample

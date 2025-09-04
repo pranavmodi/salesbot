@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎯 Lead Generation Tool</title>
+    <meta name="description" content="Build company databases and extract qualified leads with precision">
+    
+    <!-- External CSS -->
+    <link rel="stylesheet" href="/static/styles.css">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+</head>
+<body>
+    <!-- Header Section -->
+    <header class="header">
+        <h1>🎯 Lead Generation Tool</h1>
+        <p>Build company databases and extract qualified leads with precision</p>
+    </header>
+    
+    <!-- Step Navigation -->
+    <nav class="step-navigation">
+        <div class="step active" id="step1">
+            <div class="step-number">1</div>
+            <div class="step-title">Company Database</div>
+            <div class="step-subtitle">Manage & view companies</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step" id="step2">
+            <div class="step-number">2</div>
+            <div class="step-title">Filter & Generate</div>
+            <div class="step-subtitle">Apply criteria and generate leads</div>
+        </div>
+    </nav>
+    
+    <!-- Main Content -->
+    <main>
+        <!-- Step 1: Company Database -->
+        <section id="step1Content" class="step-content active">
+            <header class="step-header">
+                <h2>Step 1: Company Database</h2>
+                <p>Manage and view your company database for lead generation</p>
+            </header>
+            
+            <!-- Company List View -->
+            <div class="company-list-section" id="companyListSection">
+                <div class="card main-company-card">
+                    <header class="list-header">
+                        <h3>📊 Company Database</h3>
+                        <div class="list-stats">
+                            <span class="stat-item">
+                                <span class="stat-number" id="totalCompaniesCount">0</span>
+                                <span class="stat-label">Total Companies</span>
+                            </span>
+                            <span class="stat-item">
+                                <span class="stat-number" id="qualifiedLeadsCount">0</span>
+                                <span class="stat-label">Qualified Leads</span>
+                            </span>
+                        </div>
+                        <div class="header-actions">
+                            <button id="configBtn" class="btn btn-secondary" onclick="toggleConfigMenu()" style="margin-right: 8px;">
+                                ⚙️ Config
+                            </button>
+                            <button id="enrichMissingBtn" class="btn btn-success" onclick="enrichMissingDomains()" style="margin-right: 8px;">
+                                🔍 Enrich Missing Domains
+                            </button>
+                            <button id="scoreUnscoredBtn" class="btn btn-warning" onclick="scoreUnscoredCompanies()" style="margin-right: 8px;">
+                                🧮 Score Unscored
+                            </button>
+                            <button id="leadCrawlerBtn" class="btn btn-info" onclick="openLeadCrawler()" style="margin-right: 8px;">
+                                🕷️ Lead Crawler
+                            </button>
+                            <button id="addCompaniesBtn" class="btn btn-primary" onclick="toggleAddCompaniesMenu()">
+                                ➕ Add Companies
+                            </button>
+                        </div>
+                    </header>
+                    
+                    <!-- Filters Section -->
+                    <section class="filters-section">
+                        <div class="filter-row">
+                            <div class="filter-group">
+                                <label for="searchTerm">Search</label>
+                                <input type="text" id="searchTerm" placeholder="Company name, domain, or location..." class="form-control">
+                            </div>
+                            <div class="filter-group">
+                                <label for="industryFilter">Industry</label>
+                                <select id="industryFilter" class="form-control">
+                                    <option value="">All Industries</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label for="sourceFilter">Source</label>
+                                <select id="sourceFilter" class="form-control">
+                                    <option value="">All Sources</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="filter-row">
+                            <div class="filter-group">
+                                <label for="minEmployees">Min Employees</label>
+                                <input type="number" id="minEmployees" placeholder="50" class="form-control">
+                            </div>
+                            <div class="filter-group">
+                                <label for="maxEmployees">Max Employees</label>
+                                <input type="number" id="maxEmployees" placeholder="100" class="form-control">
+                            </div>
+                            <div class="filter-group">
+                                <label for="leadStatusFilter">Lead Status</label>
+                                <select id="leadStatusFilter" class="form-control">
+                                    <option value="">All</option>
+                                    <option value="true">Qualified Leads Only</option>
+                                    <option value="false">Not Qualified</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label for="atsStatusFilter">ATS Status</label>
+                                <select id="atsStatusFilter" class="form-control">
+                                    <option value="">All</option>
+                                    <option value="true">Scraped</option>
+                                    <option value="false">Not Scraped</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="filter-actions">
+                            <button id="applyFilters" class="btn btn-primary">🔍 Apply Filters</button>
+                            <button id="clearFilters" class="btn btn-secondary">🗑️ Clear Filters</button>
+                            <button id="refreshCompanies" class="btn btn-secondary">🔄 Refresh</button>
+                        </div>
+                    </section>
+                    
+                    <!-- Company Table -->
+                    <div class="table-container">
+                        <header class="table-header">
+                            <div class="table-row header-row">
+                                <div class="table-cell header-cell" style="width: 32px;"><input type="checkbox" id="selectAllCompanies" /></div>
+                                <div class="table-cell header-cell">Company</div>
+                                <div class="table-cell header-cell">Industry</div>
+                                <div class="table-cell header-cell">Size</div>
+                                <div class="table-cell header-cell">Location</div>
+                                <div class="table-cell header-cell">Lead Score</div>
+                                <div class="table-cell header-cell">Status</div>
+                                <div class="table-cell header-cell">Actions</div>
+                            </div>
+                        </header>
+                        
+                        <div class="table-body" id="companyTableBody">
+                            <!-- Companies will be loaded here -->
+                        </div>
+                        
+                        <!-- Loading State -->
+                        <div id="loadingState" class="loading-state" style="display: none;">
+                            <div class="spinner"></div>
+                            <p>Loading companies...</p>
+                        </div>
+                        
+                        <!-- Empty State -->
+                        <div id="emptyState" class="empty-state" style="display: none;">
+                            <div class="empty-icon">📭</div>
+                            <h4>No companies found</h4>
+                            <p>Get started by adding companies to your database.</p>
+                            <button class="btn btn-primary" onclick="toggleAddCompaniesMenu()">➕ Add Your First Companies</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Pagination -->
+                    <footer class="pagination" id="pagination">
+                        <div class="pagination-info">
+                            <span id="paginationInfo">Showing 0 of 0 companies</span>
+                        </div>
+                        <div class="pagination-controls">
+                            <button id="deleteSelected" class="btn btn-danger" style="margin-right: 8px;" disabled>🗑️ Delete Selected</button>
+                            <button id="prevPage" class="btn btn-secondary" disabled>← Previous</button>
+                            <div class="page-numbers" id="pageNumbers">
+                                <!-- Page numbers will be generated here -->
+                            </div>
+                            <button id="nextPage" class="btn btn-secondary" disabled>Next →</button>
+                        </div>
+                    </footer>
+                </div>
+            </div>
+            
+            <!-- Add Companies Menu -->
+            <div id="addCompaniesMenu" class="add-companies-menu" style="display: none;">
+                <div class="menu-overlay" onclick="closeAddCompaniesMenu()"></div>
+                <div class="menu-content">
+                    <header class="menu-header">
+                        <h3>🌱 Add Companies to Database</h3>
+                        <button class="close-btn" onclick="closeAddCompaniesMenu()">×</button>
+                    </header>
+                    
+                    <div class="seeding-options">
+                        <div class="option-card" id="apolloSeedOption">
+                            <div class="option-icon">🌍</div>
+                            <div class="option-content">
+                                <h3>Seed from Apollo.io</h3>
+                                <p>Get thousands of companies using Apollo.io's comprehensive database</p>
+                                <div class="form-group">
+                                    <input type="password" id="apolloApiKey" placeholder="Apollo.io API Key (optional)" class="form-control">
+                                </div>
+                                <button class="option-button" id="apolloSeedButton">Seed from Apollo</button>
+                            </div>
+                        </div>
+                        
+                        <div class="option-card" id="manualAddOption">
+                            <div class="option-icon">✏️</div>
+                            <div class="option-content">
+                                <h3>Add Company Manually</h3>
+                                <p>Enter company details manually for precise control</p>
+                                <button class="option-button" id="manualAddButton">Add Company</button>
+                            </div>
+                        </div>
+                        
+                        <div class="option-card" id="csvUploadOption">
+                            <div class="option-icon">📄</div>
+                            <div class="option-content">
+                                <h3>Upload CSV</h3>
+                                <p>Import your own company list from a CSV file</p>
+                                <input type="file" id="csvFileInput" accept=".csv" class="form-control">
+                                <button class="option-button" id="uploadCsvButton">Upload & Process</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Seeding Configuration -->
+                    <div id="seedingConfig" class="config-panel" style="display: none;">
+                        <h3>🌱 Seeding Configuration</h3>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="targetCount">Target Companies</label>
+                                <input type="number" id="targetCount" value="3000" min="100" max="10000">
+                            </div>
+                            <div class="form-group">
+                                <label for="seedingMinEmployees">Min Employees</label>
+                                <input type="number" id="seedingMinEmployees" value="50" min="1" max="500">
+                            </div>
+                            <div class="form-group">
+                                <label for="seedingMaxEmployees">Max Employees</label>
+                                <input type="number" id="seedingMaxEmployees" value="100" min="1" max="500">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="checkbox-group">
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="excludeAiCompanies" checked>
+                                    <label for="excludeAiCompanies">Exclude AI/ML companies</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="useYcData" checked>
+                                    <label for="useYcData">Include Y Combinator companies</label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="button-row">
+                            <button type="button" id="startSeedingButton" class="btn btn-primary">🌱 Start Seeding</button>
+                            <button type="button" id="cancelSeedingButton" class="btn btn-secondary" onclick="closeAddCompaniesMenu()">Cancel</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Manual Company Form -->
+                    <div id="manualCompanyForm" class="config-panel" style="display: none;">
+                        <h3>✏️ Add Company Manually</h3>
+                        
+                        <form id="addCompanyForm">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="companyName">Company Name *</label>
+                                    <input type="text" id="companyName" placeholder="e.g. Acme Corp" class="form-control" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="companyDomain">Website Domain *</label>
+                                    <input type="text" id="companyDomain" placeholder="e.g. acme.com" class="form-control" required>
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="companyIndustry">Industry</label>
+                                    <input type="text" id="companyIndustry" placeholder="e.g. Software, Healthcare" class="form-control">
+                                </div>
+                                <div class="form-group">
+                                    <label for="companyEmployees">Employee Count</label>
+                                    <input type="number" id="companyEmployees" placeholder="e.g. 75" class="form-control" min="1">
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="companyLocation">Location</label>
+                                    <input type="text" id="companyLocation" placeholder="e.g. San Francisco, CA" class="form-control">
+                                </div>
+                                <div class="form-group">
+                                    <label for="companyFounded">Founded Year</label>
+                                    <input type="number" id="companyFounded" placeholder="e.g. 2020" class="form-control" min="1800" max="2025">
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="companyLinkedIn">LinkedIn URL</label>
+                                <input type="url" id="companyLinkedIn" placeholder="https://linkedin.com/company/..." class="form-control">
+                            </div>
+                            
+                            <div class="button-row">
+                                <button type="submit" id="submitCompanyButton" class="btn btn-primary">✅ Add Company</button>
+                                <button type="button" id="cancelAddCompanyButton" class="btn btn-secondary">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="step-actions">
+                <button id="proceedToStep2" class="btn btn-primary" disabled>
+                    Proceed to Filtering →
+                </button>
+            </div>
+        </section>
+        
+        <!-- Step 2: Filtering & Lead Generation -->
+        <section id="step2Content" class="step-content">
+            <header class="step-header">
+                <h2>Step 2: Filter Companies & Generate Leads</h2>
+                <p>Apply filtering criteria and extract qualified leads from company data</p>
+            </header>
+            
+            <!-- Company Overview -->
+            <div class="company-overview" id="companyOverview">
+                <div class="overview-card">
+                    <div class="overview-stat">
+                        <div class="stat-number" id="totalCompanies">0</div>
+                        <div class="stat-label">Total Companies</div>
+                    </div>
+                    <div class="overview-stat">
+                        <div class="stat-number" id="estimatedLeads">0</div>
+                        <div class="stat-label">Estimated to Process</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Filtering Configuration -->
+            <div class="filtering-config">
+                <form id="scrapingForm">
+                    <div class="form-section">
+                        <h3>🔍 Filtering Criteria</h3>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="maxCompanies">Maximum Companies to Process</label>
+                            <input type="number" id="maxCompanies" value="50" min="1" max="1000" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label for="minSupportRoles">Min Support Roles Required</label>
+                            <input type="number" id="minSupportRoles" value="1" min="0" max="10" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label for="maxAiRoles">Max AI Roles (disqualifier)</label>
+                            <input type="number" id="maxAiRoles" value="0" min="0" max="5" class="form-control">
+                        </div>
+                    </div>
+                    
+                    <div class="form-section">
+                        <h3>🔗 Data Sources</h3>
+                        <div class="checkbox-group">
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="includeGreenhouse" checked>
+                                <label for="includeGreenhouse">Greenhouse</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="includeLever" checked>
+                                <label for="includeLever">Lever</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="step-actions">
+                        <button type="button" id="backToStep1" class="btn btn-secondary">← Back to Seeding</button>
+                        <button type="submit" id="startScrapingButton" class="btn btn-primary">🚀 Start Lead Generation</button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Progress Section -->
+            <div class="progress-section" id="progressSection" style="display: none;">
+                <h3>Processing Progress</h3>
+                
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-value" id="progressPercent">0%</div>
+                        <div class="stat-label">Complete</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="leadsFound">0</div>
+                        <div class="stat-label">Leads Found</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="currentCompany">-</div>
+                        <div class="stat-label">Current Company</div>
+                    </div>
+                </div>
+                
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                
+                <div class="log-area" id="logArea"></div>
+            </div>
+            
+            <!-- Logs Section -->
+            <div class="logs-section" id="logsSection" style="display: none;">
+                <div class="card">
+                    <h3>📝 Generation Logs</h3>
+                    <div class="log-area" id="logArea">
+                        <div class="log-entry">Ready to start lead generation...</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Download Section -->
+            <div class="download-section" id="downloadSection" style="display: none;">
+                <h3>✅ Processing Completed!</h3>
+                <p id="completionMessage"></p>
+                <div class="button-row">
+                    <button class="btn btn-success" id="downloadButton">📥 Download CSV</button>
+                    <button onclick="location.reload()" class="btn btn-secondary">🔄 Start New Process</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Configuration Modal -->
+    <div id="configModal" class="company-details-modal" style="display: none;">
+        <div class="modal-overlay" onclick="closeConfigModal()"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <h2>⚙️ Configuration</h2>
+                </div>
+                <button class="modal-close-btn" onclick="closeConfigModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="config-section">
+                    <h3>🏢 Tenant Creation API</h3>
+                    <div class="form-group">
+                        <label for="tenantApiUrl">API URL:</label>
+                        <input type="text" id="tenantApiUrl" class="form-control" placeholder="http://localhost:9000/api/v1/external/create-tenant">
+                    </div>
+                    <div class="config-status" id="configStatus"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeConfigModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveConfig()">💾 Save Configuration</button>
+                <button class="btn btn-success" onclick="testTenantApi()" style="margin-left: 8px;">🧪 Test API</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- External JavaScript -->
+    <script src="/static/script.js"></script>
+</body>
+</html>

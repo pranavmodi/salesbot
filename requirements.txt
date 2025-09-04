@@ -27,6 +27,13 @@ Authlib==1.3.1
 # Encryption
 cryptography==42.0.8
 
+# Leadgen Dependencies
+fastapi==0.104.1
+uvicorn==0.24.0
+websockets==12.0
+python-multipart==0.0.6
+beautifulsoup4==4.12.2
+
 # Note: WeasyPrint requires system dependencies
 # Railway will handle these automatically in production
 # Local development: brew install pango gdk-pixbuzz cairo glib
