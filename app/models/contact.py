@@ -84,7 +84,7 @@ class Contact:
                 result = conn.execute(text("""
                     SELECT email, first_name, last_name, full_name, job_title, 
                            company_name, company_domain, linkedin_profile, location, 
-                           phone, linkedin_message, company_id, created_at, updated_at
+                           phone, linkedin_message, company_id, contacted, created_at, updated_at
                     FROM contacts 
                     WHERE tenant_id = :tenant_id
                     ORDER BY created_at DESC
@@ -144,7 +144,7 @@ class Contact:
                 result = conn.execute(text("""
                     SELECT email, first_name, last_name, full_name, job_title, 
                            company_name, company_domain, linkedin_profile, location, 
-                           phone, linkedin_message, company_id, created_at, updated_at
+                           phone, linkedin_message, company_id, contacted, created_at, updated_at
                     FROM contacts 
                     WHERE tenant_id = :tenant_id
                     ORDER BY created_at DESC
