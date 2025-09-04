@@ -942,7 +942,7 @@ Hello [Name],
 
 [Opening line referencing something specific about their company/work - use research if available]
 
-I'm CEO & founder of Possible Minds - we build AI customer service platforms that free up support teams and boost satisfaction. Our team previously led product and engineering teams at Expedia and McKinsey. Healthcare companies like Precise Imaging see positive ROI from day 1.
+I'm CEO & founder of Possible Minds - we build AI customer service platforms that free up support teams and boost satisfaction. Healthcare companies like Precise Imaging see positive ROI with our product from day 1. Our team previously led product and engineering teams at Expedia and McKinsey.
 
 We created an AI chatbot custom-trained specifically for [company name] using [their company website]. Instantly test your personalized version: {demo_url}
 
