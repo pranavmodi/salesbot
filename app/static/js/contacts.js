@@ -603,17 +603,8 @@ function showComposeModal(type, contact) {
         modal = createComposeModal(type, contact);
         document.body.appendChild(modal);
     } else {
-        // Modal already exists, just regenerate content
-        const composeContent = modal.querySelector('#composeContent');
-        composeContent.innerHTML = `
-            <div class="text-center py-4">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Generating...</span>
-                </div>
-                <p class="mt-2">Generating personalized ${type} message...</p>
-            </div>
-        `;
-        generateComposedContent(type, contact, modal);
+        // Modal already exists, update for new contact
+        updateModalForNewContact(modal, type, contact);
     }
     
     const bootstrapModal = new bootstrap.Modal(modal);
@@ -678,6 +669,43 @@ function createComposeModal(type, contact) {
     `;
     
     return modal;
+}
+
+// Update existing modal for new contact
+function updateModalForNewContact(modal, type, contact) {
+    // Reset content to initial state
+    const composeContent = modal.querySelector('#composeContent');
+    composeContent.innerHTML = `
+        <div class="text-center py-4 text-muted">
+            <i class="fas fa-arrow-up fa-2x mb-2"></i>
+            <p>Enter tenant ID and campaign above, then click "Generate Message"</p>
+        </div>
+    `;
+    
+    // Update the generate button onclick to use the new contact email
+    const generateBtn = modal.querySelector('#generateContentBtn');
+    if (generateBtn) {
+        generateBtn.setAttribute('onclick', `generateContentWithConfig('${type}', '${contact.email}')`);
+    }
+    
+    // Update the regenerate button onclick
+    const regenerateBtn = modal.querySelector('#regenerateBtn');
+    if (regenerateBtn) {
+        regenerateBtn.setAttribute('onclick', `regenerateContent('${type}', '${contact.email}')`);
+        regenerateBtn.style.display = 'none'; // Hide until content is generated
+    }
+    
+    // Hide copy button until content is generated
+    const copyBtn = modal.querySelector('#copyToClipboardBtn');
+    if (copyBtn) {
+        copyBtn.style.display = 'none';
+    }
+    
+    // Clear the form fields
+    const tenantIdField = modal.querySelector('#demoTenantId');
+    const campaignField = modal.querySelector('#demoCampaign');
+    if (tenantIdField) tenantIdField.value = '';
+    if (campaignField) campaignField.value = '';
 }
 
 // Generate content with config from modal fields
