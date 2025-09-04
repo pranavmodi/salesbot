@@ -14,8 +14,43 @@ from data_ingestion_system import ContactDataIngester
 from app.services.email_service import EmailService
 from openai import OpenAI
 import os
+import requests
 
 contact_bp = Blueprint('contact_api', __name__, url_prefix='/api')
+
+def shorten_url_with_bitly(long_url):
+    """Shorten URL using bit.ly API."""
+    try:
+        bitly_token = os.getenv('BITLY_ACCESS_TOKEN')
+        if not bitly_token:
+            current_app.logger.warning("BITLY_ACCESS_TOKEN not configured, using long URL")
+            return None
+        
+        headers = {
+            'Authorization': f'Bearer {bitly_token}',
+            'Content-Type': 'application/json',
+        }
+        
+        payload = {
+            'long_url': long_url,
+            'domain': 'bit.ly'
+        }
+        
+        response = requests.post('https://api-ssl.bitly.com/v4/shorten', 
+                               json=payload, headers=headers, timeout=5)
+        
+        if response.status_code == 200 or response.status_code == 201:
+            data = response.json()
+            short_url = data.get('link')
+            current_app.logger.info(f"Shortened URL: {long_url} -> {short_url}")
+            return short_url
+        else:
+            current_app.logger.warning(f"Bit.ly API error {response.status_code}: {response.text}")
+            return None
+            
+    except Exception as e:
+        current_app.logger.error(f"Error shortening URL with bit.ly: {str(e)}")
+        return None
 
 def clean_data_for_json(data):
     """Clean pandas data for JSON serialization by handling NaN values and other types."""
@@ -877,7 +912,8 @@ def compose_email():
         if demo_config.get('tenant_id'):
             tenant_id = demo_config['tenant_id']
             campaign = demo_config.get('campaign', 'email-outreach')
-            demo_url = f"https://getpossibleminds.com/tenants/{tenant_id}/control-panel?utm_source=email&utm_medium=email&utm_campaign={campaign}"
+            long_url = f"https://getpossibleminds.com/tenants/{tenant_id}/control-panel?utm_source=email&utm_medium=email&utm_campaign={campaign}"
+            demo_url = shorten_url_with_bitly(long_url) or long_url
         
         # Initialize OpenAI client
         openai_api_key = os.getenv('OPENAI_API_KEY')
@@ -908,12 +944,13 @@ Hello [Name],
 
 I'm CEO & founder of Possible Minds - we build AI customer service platforms that free up support teams and boost satisfaction. Our team previously led product and engineering teams at Expedia and McKinsey. Healthcare companies like Precise Imaging see positive ROI from day 1.
 
-**[company name] custom AI chatbot:** [demo link]
+We created an AI chatbot custom-trained specifically for [company name] using [their company website]. Instantly test your personalized version: {demo_url}
 
 Would you be open to a quick 10-minute demo?
 
 Many thanks,
-Pranav, Founder Possible Minds
+Pranav
+Founder, Possible Minds
 https://possibleminds.in
 
 RECIPIENT INFORMATION:
@@ -998,7 +1035,8 @@ def compose_linkedin():
         if demo_config.get('tenant_id'):
             tenant_id = demo_config['tenant_id']
             campaign = demo_config.get('campaign', 'linkedin-outreach')
-            demo_url = f"https://getpossibleminds.com/tenants/{tenant_id}/control-panel?utm_source=linkedin&utm_medium=social&utm_campaign={campaign}"
+            long_url = f"https://getpossibleminds.com/tenants/{tenant_id}/control-panel?utm_source=linkedin&utm_medium=social&utm_campaign={campaign}"
+            demo_url = shorten_url_with_bitly(long_url) or long_url
         
         # Initialize OpenAI client
         openai_api_key = os.getenv('OPENAI_API_KEY')
