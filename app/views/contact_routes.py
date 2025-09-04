@@ -864,12 +864,20 @@ def compose_email():
     try:
         data = request.get_json()
         contact = data.get('contact', {})
+        demo_config = data.get('demo_config', {})
         
         if not contact.get('email'):
             return jsonify({
                 'success': False,
                 'message': 'Contact email is required'
             }), 400
+        
+        # Generate demo URL if tenant_id is provided
+        demo_url = "[demo link placeholder]"
+        if demo_config.get('tenant_id'):
+            tenant_id = demo_config['tenant_id']
+            campaign = demo_config.get('campaign', 'email-outreach')
+            demo_url = f"https://getpossibleminds.com/tenants/{tenant_id}/control-panel?utm_source=email&utm_medium=email&utm_campaign={campaign}"
         
         # Initialize OpenAI client
         openai_api_key = os.getenv('OPENAI_API_KEY')
@@ -898,16 +906,14 @@ Hello [Name],
 
 [Opening line referencing something specific about their company/work - use research if available]
 
-I'm the CEO & co-founder of Possible Minds, and we make software to build an AI customer service and intelligence platform. We help companies improve customer satisfaction and free up customer support and sales teams with our AI agents. Our products are being used by companies like Precise Imaging (precisemri.com) and they're seeing positive ROI from day 1.
+I'm CEO & founder of Possible Minds - we build AI customer service platforms that free up support teams and boost satisfaction. Our team previously led product and engineering teams at Expedia and McKinsey. Healthcare companies like Precise Imaging see positive ROI from day 1.
 
-Our team previously led product and engineering teams at top tech companies.
-
-We created an AI chatbot custom-trained specifically for [company name] using [their company website]. **Instantly test your personalized version:** [demo link]
+**[company name] custom AI chatbot:** [demo link]
 
 Would you be open to a quick 10-minute demo?
 
 Many thanks,
-Pranav
+Pranav, Founder Possible Minds
 https://possibleminds.in
 
 RECIPIENT INFORMATION:
@@ -924,8 +930,8 @@ INSTRUCTIONS:
 4. Keep the Possible Minds company description exactly as provided
 5. Replace [their company website] with their actual company domain/website
 6. Replace [company name] with their actual company name
-7. Replace [demo link] with a placeholder for the actual demo link specific to their company
-8. Make "Instantly test your personalized version:" bold text in HTML format
+7. Replace [demo link] with: {demo_url}
+8. Use plain text format - no HTML bold or brackets, just "Instantly test your personalized version:"
 9. Maintain the professional but personal tone
 10. Keep total length under 130 words
 11. Sign with "Pranav"
@@ -979,12 +985,20 @@ def compose_linkedin():
     try:
         data = request.get_json()
         contact = data.get('contact', {})
+        demo_config = data.get('demo_config', {})
         
         if not contact.get('email'):
             return jsonify({
                 'success': False,
                 'message': 'Contact email is required'
             }), 400
+        
+        # Generate demo URL if tenant_id is provided
+        demo_url = "[demo link placeholder]"
+        if demo_config.get('tenant_id'):
+            tenant_id = demo_config['tenant_id']
+            campaign = demo_config.get('campaign', 'linkedin-outreach')
+            demo_url = f"https://getpossibleminds.com/tenants/{tenant_id}/control-panel?utm_source=linkedin&utm_medium=social&utm_campaign={campaign}"
         
         # Initialize OpenAI client
         openai_api_key = os.getenv('OPENAI_API_KEY')
@@ -1016,13 +1030,13 @@ RECIPIENT INFORMATION:
 {f"COMPANY RESEARCH CONTEXT: {company_research}" if company_research else ""}
 
 ABOUT POSSIBLE MINDS:
-We build AI customer service platforms. We created a custom AI chatbot for [company name] - see your personalized demo: [demo link]
+We build AI customer service platforms. We created a custom AI chatbot for [company name] - see your personalized demo: {demo_url}
 
 INSTRUCTIONS:
 1. Use their actual name in greeting
 2. Reference something specific about their company/role (use research if available)
 3. Mention the custom chatbot built for their company
-4. Include the personalized demo link placeholder
+4. Replace [demo link] with: {demo_url}
 5. Soft call-to-action for brief chat
 6. Professional but personable tone
 7. Under 75 words for LinkedIn limits

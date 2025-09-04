@@ -4,6 +4,7 @@
 let currentContacts = [];
 let selectedContacts = [];
 let currentContactEmail = null;
+let lastComposeContact = null;
 
 // Initialize contact-related functionality
 function initializeContacts() {
@@ -595,11 +596,24 @@ function showComposeModal(type, contact) {
     const modalId = type === 'email' ? 'composeEmailModal' : 'composeLinkedInModal';
     let modal = document.getElementById(modalId);
     
+    // Remember the last contact used for composition to support legacy helpers
+    lastComposeContact = contact;
+    
     if (!modal) {
         modal = createComposeModal(type, contact);
         document.body.appendChild(modal);
     } else {
-        updateComposeModalContent(modal, type, contact);
+        // Modal already exists, just regenerate content
+        const composeContent = modal.querySelector('#composeContent');
+        composeContent.innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Generating...</span>
+                </div>
+                <p class="mt-2">Generating personalized ${type} message...</p>
+            </div>
+        `;
+        generateComposedContent(type, contact, modal);
     }
     
     const bootstrapModal = new bootstrap.Modal(modal);
@@ -625,12 +639,28 @@ function createComposeModal(type, contact) {
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <div id="composeContent">
-                        <div class="text-center py-4">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Generating...</span>
+                    <div class="mb-3 border-bottom pb-3">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label"><strong>Demo Tenant ID:</strong></label>
+                                <input type="text" class="form-control form-control-sm" id="demoTenantId" placeholder="e.g., 4fe5fee7-2733-489d-8847-a92c28e43f68">
                             </div>
-                            <p class="mt-2">Generating personalized ${type} message...</p>
+                            <div class="col-md-6">
+                                <label class="form-label"><strong>Campaign:</strong></label>
+                                <input type="text" class="form-control form-control-sm" id="demoCampaign" placeholder="e.g., cold-outreach-q4">
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <small class="text-muted">Demo URL: https://getpossibleminds.com/tenants/{tenant-id}/control-panel?utm_source=email&utm_medium=email&utm_campaign={campaign}</small>
+                            <button type="button" class="btn btn-primary btn-sm" id="generateContentBtn" onclick="generateContentWithConfig('${type}', '${contact.email}')">
+                                <i class="fas fa-magic me-1"></i>Generate Message
+                            </button>
+                        </div>
+                    </div>
+                    <div id="composeContent">
+                        <div class="text-center py-4 text-muted">
+                            <i class="fas fa-arrow-up fa-2x mb-2"></i>
+                            <p>Enter tenant ID and campaign above, then click "Generate Message"</p>
                         </div>
                     </div>
                 </div>
@@ -647,15 +677,65 @@ function createComposeModal(type, contact) {
         </div>
     `;
     
-    // Start AI generation
-    generateComposedContent(type, contact, modal);
-    
     return modal;
+}
+
+// Generate content with config from modal fields
+function generateContentWithConfig(type, email) {
+    const modal = document.getElementById(type === 'email' ? 'composeEmailModal' : 'composeLinkedInModal');
+    if (!modal) return;
+    
+    const tenantIdField = modal.querySelector('#demoTenantId');
+    const campaignField = modal.querySelector('#demoCampaign');
+    
+    if (!tenantIdField.value.trim()) {
+        alert('Please enter a Demo Tenant ID');
+        tenantIdField.focus();
+        return;
+    }
+    
+    // Get contact data
+    fetch(`/api/contacts/${encodeURIComponent(email)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            // Show loading state
+            const composeContent = modal.querySelector('#composeContent');
+            composeContent.innerHTML = `
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Generating...</span>
+                    </div>
+                    <p class="mt-2">Generating personalized ${type} message...</p>
+                </div>
+            `;
+            
+            generateComposedContent(type, data.contact, modal);
+        })
+        .catch(error => {
+            console.error('Error loading contact for composition:', error);
+            const composeContent = modal.querySelector('#composeContent');
+            composeContent.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Failed to load contact details: ${error.message}
+                </div>
+            `;
+        });
 }
 
 // Generate AI content for email or LinkedIn
 function generateComposedContent(type, contact, modal) {
     const endpoint = type === 'email' ? '/api/compose/email' : '/api/compose/linkedin';
+    
+    // Get demo configuration from modal fields
+    const tenantIdField = modal.querySelector('#demoTenantId');
+    const campaignField = modal.querySelector('#demoCampaign');
+    const tenantId = tenantIdField ? tenantIdField.value.trim() : '';
+    const campaign = campaignField ? campaignField.value.trim() : '';
     
     fetch(endpoint, {
         method: 'POST',
@@ -669,6 +749,10 @@ function generateComposedContent(type, contact, modal) {
                 company: contact.company || contact.company_name,
                 job_title: contact.job_title,
                 linkedin_url: contact.linkedin_url
+            },
+            demo_config: {
+                tenant_id: tenantId,
+                campaign: campaign
             }
         })
     })
@@ -737,6 +821,56 @@ function displayComposedContent(modal, type, data, contact) {
     // Show action buttons
     regenerateBtn.style.display = 'inline-block';
     copyBtn.style.display = 'inline-block';
+}
+
+// Legacy compatibility shim: some older code paths may call this helper.
+// Normalize various possible signatures and delegate to displayComposedContent.
+function updateComposeModalContent() {
+    // Supported patterns:
+    // 1) (type, data)
+    // 2) (modal, type, data, contact)
+    // 3) (data)
+    let modal, type, data, contact;
+    const args = Array.from(arguments);
+    
+    if (args.length >= 2 && typeof args[0] === 'string') {
+        // (type, data[, contact])
+        type = args[0];
+        data = args[1] || {};
+        contact = args[2] || lastComposeContact;
+        modal = document.getElementById(type === 'email' ? 'composeEmailModal' : 'composeLinkedInModal');
+    } else if (args.length >= 3 && args[0] && args[0].querySelector) {
+        // (modal, type, data[, contact])
+        modal = args[0];
+        type = args[1];
+        data = args[2] || {};
+        contact = args[3] || lastComposeContact;
+    } else if (args.length === 1 && typeof args[0] === 'object') {
+        // (data)
+        data = args[0] || {};
+        // Infer type from fields
+        type = 'message' in data && !('subject' in data) ? 'linkedin' : 'email';
+        modal = document.getElementById(type === 'email' ? 'composeEmailModal' : 'composeLinkedInModal');
+        contact = lastComposeContact;
+    }
+    
+    if (!modal) {
+        return;
+    }
+    
+    // Ensure minimal shape expected by displayComposedContent
+    if (type === 'email') {
+        data = {
+            subject: data.subject || '',
+            body: data.body || ''
+        };
+    } else {
+        data = {
+            message: data.message || ''
+        };
+    }
+    
+    displayComposedContent(modal, type, data, contact || { email: '' });
 }
 
 // Regenerate content
@@ -954,3 +1088,4 @@ window.composeLinkedInFromModal = composeLinkedInFromModal;
 window.regenerateContent = regenerateContent;
 window.copyComposedContent = copyComposedContent;
 window.markAsContacted = markAsContacted;
+window.generateContentWithConfig = generateContentWithConfig;
