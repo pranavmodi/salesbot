@@ -534,6 +534,265 @@ function updateContactStats(count = null) {
     }
 }
 
+// Compose email from contact modal
+function composeEmailFromModal() {
+    if (!currentContactEmail) {
+        showToast('errorToast', 'No contact selected');
+        return;
+    }
+    
+    // Get current contact data from the API
+    fetch(`/api/contacts/${encodeURIComponent(currentContactEmail)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            const contact = data.contact;
+            composeAIGeneratedEmail(contact);
+        })
+        .catch(error => {
+            console.error('Error loading contact for email composition:', error);
+            showToast('errorToast', 'Failed to load contact details for email composition');
+        });
+}
+
+// Compose LinkedIn message from contact modal
+function composeLinkedInFromModal() {
+    if (!currentContactEmail) {
+        showToast('errorToast', 'No contact selected');
+        return;
+    }
+    
+    // Get current contact data from the API
+    fetch(`/api/contacts/${encodeURIComponent(currentContactEmail)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            const contact = data.contact;
+            composeAIGeneratedLinkedInMessage(contact);
+        })
+        .catch(error => {
+            console.error('Error loading contact for LinkedIn composition:', error);
+            showToast('errorToast', 'Failed to load contact details for LinkedIn composition');
+        });
+}
+
+// AI-powered email composition
+function composeAIGeneratedEmail(contact) {
+    showComposeModal('email', contact);
+}
+
+// AI-powered LinkedIn message composition
+function composeAIGeneratedLinkedInMessage(contact) {
+    showComposeModal('linkedin', contact);
+}
+
+// Show compose modal with AI generation
+function showComposeModal(type, contact) {
+    const modalId = type === 'email' ? 'composeEmailModal' : 'composeLinkedInModal';
+    let modal = document.getElementById(modalId);
+    
+    if (!modal) {
+        modal = createComposeModal(type, contact);
+        document.body.appendChild(modal);
+    } else {
+        updateComposeModalContent(modal, type, contact);
+    }
+    
+    const bootstrapModal = new bootstrap.Modal(modal);
+    bootstrapModal.show();
+}
+
+// Create compose modal
+function createComposeModal(type, contact) {
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.id = type === 'email' ? 'composeEmailModal' : 'composeLinkedInModal';
+    
+    const title = type === 'email' ? 'Compose Email' : 'Compose LinkedIn Message';
+    const icon = type === 'email' ? 'fas fa-envelope' : 'fab fa-linkedin';
+    
+    modal.innerHTML = `
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="${icon} me-2"></i>${title}
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="composeContent">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Generating...</span>
+                            </div>
+                            <p class="mt-2">Generating personalized ${type} message...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-outline-primary" id="regenerateBtn" onclick="regenerateContent('${type}', '${contact.email}')" style="display: none;">
+                        <i class="fas fa-redo me-1"></i>Regenerate
+                    </button>
+                    <button type="button" class="btn btn-primary" id="copyToClipboardBtn" onclick="copyComposedContent()" style="display: none;">
+                        <i class="fas fa-copy me-1"></i>Copy to Clipboard
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Start AI generation
+    generateComposedContent(type, contact, modal);
+    
+    return modal;
+}
+
+// Generate AI content for email or LinkedIn
+function generateComposedContent(type, contact, modal) {
+    const endpoint = type === 'email' ? '/api/compose/email' : '/api/compose/linkedin';
+    
+    fetch(endpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            contact: {
+                email: contact.email,
+                name: contact.display_name || contact.full_name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim(),
+                company: contact.company || contact.company_name,
+                job_title: contact.job_title,
+                linkedin_url: contact.linkedin_url
+            }
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            displayComposedContent(modal, type, data, contact);
+        } else {
+            throw new Error(data.message || 'Failed to generate content');
+        }
+    })
+    .catch(error => {
+        console.error(`Error generating ${type} content:`, error);
+        const composeContent = modal.querySelector('#composeContent');
+        composeContent.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                Failed to generate ${type} content: ${error.message}
+            </div>
+        `;
+    });
+}
+
+// Display the generated content in the modal
+function displayComposedContent(modal, type, data, contact) {
+    const composeContent = modal.querySelector('#composeContent');
+    const regenerateBtn = modal.querySelector('#regenerateBtn');
+    const copyBtn = modal.querySelector('#copyToClipboardBtn');
+    
+    const displayName = contact.display_name || contact.full_name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim();
+    
+    if (type === 'email') {
+        composeContent.innerHTML = `
+            <div class="mb-3">
+                <h6><i class="fas fa-user me-2"></i>To: ${displayName} (${contact.email})</h6>
+                <small class="text-muted">${contact.company || contact.company_name || 'Unknown Company'}</small>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label"><strong>Subject:</strong></label>
+                <div class="form-control" id="generatedSubject" style="background-color: #f8f9fa;">${data.subject}</div>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label"><strong>Message:</strong></label>
+                <div class="form-control" id="generatedBody" style="background-color: #f8f9fa; min-height: 300px; white-space: pre-wrap;">${data.body}</div>
+            </div>
+        `;
+    } else {
+        composeContent.innerHTML = `
+            <div class="mb-3">
+                <h6><i class="fab fa-linkedin me-2"></i>LinkedIn Message to: ${displayName}</h6>
+                <small class="text-muted">${contact.company || contact.company_name || 'Unknown Company'}</small>
+                ${contact.linkedin_url ? `<a href="${contact.linkedin_url}" target="_blank" class="btn btn-sm btn-outline-primary ms-2">
+                    <i class="fas fa-external-link-alt me-1"></i>View Profile
+                </a>` : ''}
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label"><strong>Message:</strong></label>
+                <div class="form-control" id="generatedMessage" style="background-color: #f8f9fa; min-height: 200px; white-space: pre-wrap;">${data.message}</div>
+            </div>
+        `;
+    }
+    
+    // Show action buttons
+    regenerateBtn.style.display = 'inline-block';
+    copyBtn.style.display = 'inline-block';
+}
+
+// Regenerate content
+function regenerateContent(type, email) {
+    fetch(`/api/contacts/${encodeURIComponent(email)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            const modal = document.getElementById(type === 'email' ? 'composeEmailModal' : 'composeLinkedInModal');
+            const composeContent = modal.querySelector('#composeContent');
+            
+            composeContent.innerHTML = `
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Regenerating...</span>
+                    </div>
+                    <p class="mt-2">Regenerating ${type} content...</p>
+                </div>
+            `;
+            
+            generateComposedContent(type, data.contact, modal);
+        })
+        .catch(error => {
+            console.error('Error regenerating content:', error);
+            showToast('errorToast', 'Failed to regenerate content');
+        });
+}
+
+// Copy composed content to clipboard
+function copyComposedContent() {
+    let textToCopy = '';
+    
+    const subject = document.getElementById('generatedSubject');
+    const body = document.getElementById('generatedBody');
+    const message = document.getElementById('generatedMessage');
+    
+    if (subject && body) {
+        // Email content
+        textToCopy = `Subject: ${subject.textContent}\n\n${body.textContent}`;
+    } else if (message) {
+        // LinkedIn message content
+        textToCopy = message.textContent;
+    }
+    
+    if (textToCopy) {
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            showToast('successToast', 'Content copied to clipboard!');
+        }).catch(error => {
+            console.error('Failed to copy to clipboard:', error);
+            showToast('errorToast', 'Failed to copy to clipboard');
+        });
+    }
+}
+
 // Contact event listeners setup
 function setupContactEventListeners() {
     // Export from modal button
@@ -619,3 +878,7 @@ window.toggleSelectAll = toggleSelectAll;
 window.toggleSelectAllSearchResults = toggleSelectAllSearchResults;
 window.startBulkEmailComposition = startBulkEmailComposition;
 window.changePage = changePage;
+window.composeEmailFromModal = composeEmailFromModal;
+window.composeLinkedInFromModal = composeLinkedInFromModal;
+window.regenerateContent = regenerateContent;
+window.copyComposedContent = copyComposedContent;

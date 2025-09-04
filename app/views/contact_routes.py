@@ -12,6 +12,8 @@ from app.models.company import Company
 from app.models.email_history import EmailHistory
 from data_ingestion_system import ContactDataIngester
 from app.services.email_service import EmailService
+from openai import OpenAI
+import os
 
 contact_bp = Blueprint('contact_api', __name__, url_prefix='/api')
 
@@ -855,3 +857,178 @@ def count_filtered_contacts():
     except Exception as e:
         current_app.logger.error(f"Error counting filtered contacts: {str(e)}")
         return jsonify({'error': 'Failed to count contacts', 'count': 0}), 500
+
+@contact_bp.route('/compose/email', methods=['POST'])
+def compose_email():
+    """Generate AI-powered email content for a contact."""
+    try:
+        data = request.get_json()
+        contact = data.get('contact', {})
+        
+        if not contact.get('email'):
+            return jsonify({
+                'success': False,
+                'message': 'Contact email is required'
+            }), 400
+        
+        # Initialize OpenAI client
+        openai_api_key = os.getenv('OPENAI_API_KEY')
+        if not openai_api_key:
+            return jsonify({
+                'success': False,
+                'message': 'OpenAI API key not configured'
+            }), 500
+        
+        client = OpenAI(api_key=openai_api_key)
+        
+        # Get company research if available
+        company_research = ""
+        if contact.get('company'):
+            company_obj = Company.get_companies_by_name(contact['company'])
+            if company_obj and len(company_obj) > 0:
+                company = company_obj[0]
+                if hasattr(company, 'llm_research_step_1_basic') and company.llm_research_step_1_basic:
+                    company_research = company.llm_research_step_1_basic[:1000]  # Limit length
+        
+        # Create personalized email prompt
+        prompt = f"""You are a professional sales development representative writing a personalized cold outreach email.
+
+Contact Information:
+- Name: {contact.get('name', 'there')}
+- Email: {contact.get('email')}
+- Company: {contact.get('company', 'their company')}
+- Job Title: {contact.get('job_title', 'professional')}
+
+{f"Company Research Context: {company_research}" if company_research else ""}
+
+Write a professional, concise email that:
+1. Has a compelling subject line (max 60 characters)
+2. Personalizes the greeting using their name
+3. References their company and role specifically
+4. Mentions Possible Minds' AI chatbot solutions for their industry
+5. Includes a clear value proposition
+6. Has a soft call-to-action for a brief conversation
+7. Keeps the tone professional but warm
+8. Is under 150 words
+
+Return the response in this exact format:
+SUBJECT: [subject line]
+BODY: [email body]"""
+
+        # Generate email content using GPT-4o
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are an expert sales development representative who writes highly effective, personalized cold outreach emails."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=500
+        )
+        
+        content = response.choices[0].message.content.strip()
+        
+        # Parse subject and body
+        lines = content.split('\n', 1)
+        subject_line = ""
+        body_content = content
+        
+        if len(lines) >= 2 and lines[0].startswith('SUBJECT:'):
+            subject_line = lines[0].replace('SUBJECT:', '').strip()
+            remaining_content = lines[1].strip()
+            if remaining_content.startswith('BODY:'):
+                body_content = remaining_content.replace('BODY:', '').strip()
+            else:
+                body_content = remaining_content
+        
+        return jsonify({
+            'success': True,
+            'subject': subject_line,
+            'body': body_content
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error generating email content: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Failed to generate email content: {str(e)}'
+        }), 500
+
+@contact_bp.route('/compose/linkedin', methods=['POST'])
+def compose_linkedin():
+    """Generate AI-powered LinkedIn message content for a contact."""
+    try:
+        data = request.get_json()
+        contact = data.get('contact', {})
+        
+        if not contact.get('email'):
+            return jsonify({
+                'success': False,
+                'message': 'Contact email is required'
+            }), 400
+        
+        # Initialize OpenAI client
+        openai_api_key = os.getenv('OPENAI_API_KEY')
+        if not openai_api_key:
+            return jsonify({
+                'success': False,
+                'message': 'OpenAI API key not configured'
+            }), 500
+        
+        client = OpenAI(api_key=openai_api_key)
+        
+        # Get company research if available
+        company_research = ""
+        if contact.get('company'):
+            company_obj = Company.get_companies_by_name(contact['company'])
+            if company_obj and len(company_obj) > 0:
+                company = company_obj[0]
+                if hasattr(company, 'llm_research_step_1_basic') and company.llm_research_step_1_basic:
+                    company_research = company.llm_research_step_1_basic[:1000]  # Limit length
+        
+        # Create personalized LinkedIn message prompt
+        prompt = f"""You are a professional sales development representative writing a personalized LinkedIn connection request or message.
+
+Contact Information:
+- Name: {contact.get('name', 'there')}
+- Company: {contact.get('company', 'their company')}
+- Job Title: {contact.get('job_title', 'professional')}
+
+{f"Company Research Context: {company_research}" if company_research else ""}
+
+Write a professional LinkedIn message that:
+1. Personalizes the greeting using their name
+2. References their company and role specifically
+3. Briefly mentions Possible Minds' AI chatbot solutions
+4. Includes a clear but soft value proposition
+5. Has a natural call-to-action for connection or brief chat
+6. Keeps the tone professional but personable
+7. Is under 100 words (LinkedIn character limits)
+8. Avoids being too salesy
+
+Return only the message content, no additional formatting."""
+
+        # Generate LinkedIn message using GPT-4o
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are an expert at writing effective LinkedIn outreach messages that get responses."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=300
+        )
+        
+        message_content = response.choices[0].message.content.strip()
+        
+        return jsonify({
+            'success': True,
+            'message': message_content
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error generating LinkedIn content: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Failed to generate LinkedIn content: {str(e)}'
+        }), 500

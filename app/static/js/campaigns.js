@@ -1998,10 +1998,6 @@ function getContactStatusBadge(status) {
     return `<span class="badge ${config.class}">${config.text}</span>`;
 }
 
-// Placeholder functions for contact actions
-function viewContactDetails(contactId) {
-    showToast('infoToast', `View contact details for ID: ${contactId} (feature coming soon)`);
-}
 
 function composeEmailToContact(contactId) {
     // Navigate to compose tab and pre-select the contact
