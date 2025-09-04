@@ -793,6 +793,60 @@ function copyComposedContent() {
     }
 }
 
+// Mark contact as contacted or not contacted
+function markAsContacted(email, contacted) {
+    fetch(`/api/contacts/${encodeURIComponent(email)}/contacted`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            contacted: contacted
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Update the row visually
+            const contactRow = document.querySelector(`tr[data-contact-email="${email}"]`);
+            if (contactRow) {
+                if (contacted) {
+                    contactRow.classList.add('table-success');
+                    contactRow.setAttribute('data-contacted', 'true');
+                    showToast('successToast', 'Contact marked as contacted');
+                } else {
+                    contactRow.classList.remove('table-success');
+                    contactRow.setAttribute('data-contacted', 'false');
+                    showToast('successToast', 'Contact marked as not contacted');
+                }
+                
+                // Update the button
+                const actionCell = contactRow.querySelector('td:last-child');
+                const buttonGroup = actionCell.querySelector('.btn-group');
+                const contactedBtn = buttonGroup.querySelector('[onclick*="markAsContacted"]');
+                
+                if (contacted) {
+                    contactedBtn.className = 'btn btn-success btn-sm';
+                    contactedBtn.setAttribute('onclick', `markAsContacted('${email}', false)`);
+                    contactedBtn.setAttribute('title', 'Mark as Not Contacted');
+                    contactedBtn.innerHTML = '<i class="fas fa-check"></i>';
+                } else {
+                    contactedBtn.className = 'btn btn-outline-warning btn-sm';
+                    contactedBtn.setAttribute('onclick', `markAsContacted('${email}', true)`);
+                    contactedBtn.setAttribute('title', 'Mark as Contacted');
+                    contactedBtn.innerHTML = '<i class="fas fa-handshake"></i>';
+                }
+            }
+        } else {
+            throw new Error(data.message || 'Failed to update contact status');
+        }
+    })
+    .catch(error => {
+        console.error('Error updating contact status:', error);
+        showToast('errorToast', 'Failed to update contact status: ' + error.message);
+    });
+}
+
 // Contact event listeners setup
 function setupContactEventListeners() {
     // Export from modal button
@@ -882,3 +936,4 @@ window.composeEmailFromModal = composeEmailFromModal;
 window.composeLinkedInFromModal = composeLinkedInFromModal;
 window.regenerateContent = regenerateContent;
 window.copyComposedContent = copyComposedContent;
+window.markAsContacted = markAsContacted;

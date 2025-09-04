@@ -890,28 +890,47 @@ def compose_email():
                 if hasattr(company, 'llm_research_step_1_basic') and company.llm_research_step_1_basic:
                     company_research = company.llm_research_step_1_basic[:1000]  # Limit length
         
-        # Create personalized email prompt
-        prompt = f"""You are a professional sales development representative writing a personalized cold outreach email.
+        # Create personalized email prompt based on the template
+        prompt = f"""You are Pranav, CEO and Founder of Possible Minds, writing a personalized cold outreach email. Use this template structure but customize it with the recipient's information and company research.
 
-Contact Information:
+TEMPLATE STRUCTURE:
+Hello [Name],
+
+[Opening line referencing something specific about their company/work - use research if available]
+
+I'm the CEO & co-founder of Possible Minds, and we make software to build an AI customer service and intelligence platform. We help companies improve customer satisfaction and free up customer support and sales teams with our AI agents. Our products are being used by companies like Precise Imaging (precisemri.com) and they're seeing positive ROI from day 1.
+
+Our team previously led product and engineering teams at top tech companies.
+
+We created an AI chatbot custom-trained specifically for [company name] using [their company website]. **Instantly test your personalized version:** [demo link]
+
+Would you be open to a quick 10-minute demo?
+
+Many thanks,
+Pranav
+https://possibleminds.in
+
+RECIPIENT INFORMATION:
 - Name: {contact.get('name', 'there')}
-- Email: {contact.get('email')}
 - Company: {contact.get('company', 'their company')}
 - Job Title: {contact.get('job_title', 'professional')}
 
-{f"Company Research Context: {company_research}" if company_research else ""}
+{f"COMPANY RESEARCH CONTEXT: {company_research}" if company_research else ""}
 
-Write a professional, concise email that:
-1. Has a compelling subject line (max 60 characters)
-2. Personalizes the greeting using their name
-3. References their company and role specifically
-4. Mentions Possible Minds' AI chatbot solutions for their industry
-5. Includes a clear value proposition
-6. Has a soft call-to-action for a brief conversation
-7. Keeps the tone professional but warm
-8. Is under 150 words
+INSTRUCTIONS:
+1. Create subject line in this format: "[Name], AI chat agent custom trained for [Company Name] - try it now"
+2. Use their actual name in greeting
+3. Reference something specific about their company/role in the opening (use research if available, otherwise mention their industry/role)
+4. Keep the Possible Minds company description exactly as provided
+5. Replace [their company website] with their actual company domain/website
+6. Replace [company name] with their actual company name
+7. Replace [demo link] with a placeholder for the actual demo link specific to their company
+8. Make "Instantly test your personalized version:" bold text in HTML format
+9. Maintain the professional but personal tone
+10. Keep total length under 130 words
+11. Sign with "Pranav"
 
-Return the response in this exact format:
+Return in this exact format:
 SUBJECT: [subject line]
 BODY: [email body]"""
 
@@ -987,24 +1006,26 @@ def compose_linkedin():
                     company_research = company.llm_research_step_1_basic[:1000]  # Limit length
         
         # Create personalized LinkedIn message prompt
-        prompt = f"""You are a professional sales development representative writing a personalized LinkedIn connection request or message.
+        prompt = f"""You are Pranav, CEO & co-founder of Possible Minds, writing a personalized LinkedIn message.
 
-Contact Information:
+RECIPIENT INFORMATION:
 - Name: {contact.get('name', 'there')}
 - Company: {contact.get('company', 'their company')}
 - Job Title: {contact.get('job_title', 'professional')}
 
-{f"Company Research Context: {company_research}" if company_research else ""}
+{f"COMPANY RESEARCH CONTEXT: {company_research}" if company_research else ""}
 
-Write a professional LinkedIn message that:
-1. Personalizes the greeting using their name
-2. References their company and role specifically
-3. Briefly mentions Possible Minds' AI chatbot solutions
-4. Includes a clear but soft value proposition
-5. Has a natural call-to-action for connection or brief chat
-6. Keeps the tone professional but personable
-7. Is under 100 words (LinkedIn character limits)
-8. Avoids being too salesy
+ABOUT POSSIBLE MINDS:
+We build AI customer service and intelligence platforms that help companies improve customer satisfaction and free up support/sales teams with AI agents. Customers like Precise Imaging see positive ROI from day 1.
+
+INSTRUCTIONS:
+1. Use their actual name in greeting
+2. Reference something specific about their company/role (use research if available)
+3. Briefly mention how Possible Minds' AI solutions could benefit their industry/company
+4. Include soft call-to-action for connection or brief chat
+5. Keep professional but personable tone
+6. Under 90 words for LinkedIn limits
+7. Sign as "Pranav"
 
 Return only the message content, no additional formatting."""
 
@@ -1031,4 +1052,50 @@ Return only the message content, no additional formatting."""
         return jsonify({
             'success': False,
             'message': f'Failed to generate LinkedIn content: {str(e)}'
+        }), 500
+
+@contact_bp.route('/contacts/<email>/contacted', methods=['POST'])
+def mark_contact_contacted(email):
+    """Mark a contact as contacted or not contacted."""
+    try:
+        data = request.get_json()
+        contacted = data.get('contacted', False)
+        
+        from app.database import get_shared_engine
+        from sqlalchemy import text
+        from datetime import datetime
+        
+        engine = get_shared_engine()
+        if not engine:
+            return jsonify({
+                'success': False,
+                'message': 'Database connection error'
+            }), 500
+        
+        with engine.connect() as conn:
+            with conn.begin():
+                # Update the contacted status
+                conn.execute(text("""
+                    UPDATE contacts 
+                    SET contacted = :contacted, updated_at = :updated_at
+                    WHERE LOWER(email) = LOWER(:email) AND tenant_id = :tenant_id
+                """), {
+                    'contacted': contacted,
+                    'updated_at': datetime.now(),
+                    'email': email,
+                    'tenant_id': g.tenant_id
+                })
+        
+        current_app.logger.info(f"Updated contact contacted status: {email} -> {contacted}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Contact marked as {"contacted" if contacted else "not contacted"}'
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error updating contact contacted status: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Failed to update contact status'
         }), 500

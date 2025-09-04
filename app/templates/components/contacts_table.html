@@ -115,7 +115,7 @@
         </thead>
         <tbody>
             {% for contact in contacts %}
-            <tr class="contact-row" data-contact-email="{{ contact.email }}">
+            <tr class="contact-row {% if contact.contacted %}table-success{% endif %}" data-contact-email="{{ contact.email }}" data-contacted="{{ contact.contacted or False }}">
                 <td>
                     <div class="contact-avatar" style="width: 36px; height: 36px; font-size: 0.875rem;">
                         {{ contact.initials }}
@@ -164,6 +164,15 @@
                         <button class="btn btn-outline-primary btn-sm" onclick="viewContactDetails('{{ contact.email }}')" title="View Details">
                             <i class="fas fa-eye"></i>
                         </button>
+                        {% if contact.contacted %}
+                        <button class="btn btn-success btn-sm" onclick="markAsContacted('{{ contact.email }}', false)" title="Mark as Not Contacted">
+                            <i class="fas fa-check"></i>
+                        </button>
+                        {% else %}
+                        <button class="btn btn-outline-warning btn-sm" onclick="markAsContacted('{{ contact.email }}', true)" title="Mark as Contacted">
+                            <i class="fas fa-handshake"></i>
+                        </button>
+                        {% endif %}
                         {% if contact.linkedin_profile %}
                         <a href="{{ contact.linkedin_profile }}" target="_blank" class="btn btn-outline-info btn-sm" title="LinkedIn Profile">
                             <i class="fab fa-linkedin"></i>
