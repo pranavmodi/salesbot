@@ -65,8 +65,12 @@ function setupMainEventListeners() {
     const perPageSelect = document.getElementById('perPage');
     if (perPageSelect) {
         perPageSelect.addEventListener('change', function() {
-            addPaginationLoadingState('contactsContainer');
-            changePage(1);
+            if (typeof window.changePage === 'function') {
+                addPaginationLoadingState('contactsContainer');
+                window.changePage(1);
+            } else {
+                console.error('changePage function not available');
+            }
         });
     }
 

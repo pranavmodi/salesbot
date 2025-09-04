@@ -1016,16 +1016,17 @@ RECIPIENT INFORMATION:
 {f"COMPANY RESEARCH CONTEXT: {company_research}" if company_research else ""}
 
 ABOUT POSSIBLE MINDS:
-We build AI customer service and intelligence platforms that help companies improve customer satisfaction and free up support/sales teams with AI agents. Customers like Precise Imaging see positive ROI from day 1.
+We build AI customer service platforms. We created a custom AI chatbot for [company name] - see your personalized demo: [demo link]
 
 INSTRUCTIONS:
 1. Use their actual name in greeting
 2. Reference something specific about their company/role (use research if available)
-3. Briefly mention how Possible Minds' AI solutions could benefit their industry/company
-4. Include soft call-to-action for connection or brief chat
-5. Keep professional but personable tone
-6. Under 90 words for LinkedIn limits
-7. Sign as "Pranav"
+3. Mention the custom chatbot built for their company
+4. Include the personalized demo link placeholder
+5. Soft call-to-action for brief chat
+6. Professional but personable tone
+7. Under 75 words for LinkedIn limits
+8. Sign as "Pranav"
 
 Return only the message content, no additional formatting."""
 

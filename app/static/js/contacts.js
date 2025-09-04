@@ -864,6 +864,23 @@ function setupContactEventListeners() {
     if (bulkEmailBtn) {
         bulkEmailBtn.addEventListener('click', startBulkEmailComposition);
     }
+    
+    // Pagination click handlers
+    setupPaginationEventListeners();
+}
+
+function setupPaginationEventListeners() {
+    // Set up event delegation for pagination links
+    document.addEventListener('click', function(e) {
+        const target = e.target.closest('a[data-page]');
+        if (target && target.getAttribute('data-page')) {
+            e.preventDefault();
+            const page = parseInt(target.getAttribute('data-page'));
+            if (!isNaN(page)) {
+                changePage(page);
+            }
+        }
+    });
 }
 
 function startBulkEmailComposition() {
