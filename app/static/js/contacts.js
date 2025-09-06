@@ -162,28 +162,20 @@ function displayContactSearchResults(contacts, searchTerm) {
                 </td>
                 <td>
                     <div class="btn-group btn-group-sm" role="group">
-                        <div class="btn-group" role="group">
-                            <button type="button" class="btn btn-outline-primary btn-sm dropdown-toggle" data-bs-toggle="dropdown" title="Compose">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="#" onclick="composeEmailDirect('${contact.email}')">
-                                    <i class="fas fa-envelope me-2"></i>Email
-                                </a></li>
-                                <li><a class="dropdown-item" href="#" onclick="composeLinkedInDirect('${contact.email}')">
-                                    <i class="fab fa-linkedin me-2"></i>LinkedIn
-                                </a></li>
-                            </ul>
-                        </div>
+                        <button type="button" class="btn btn-outline-primary btn-sm" 
+                                onclick="composeEmailDirect('${contact.email}')" 
+                                title="Compose Email">
+                            <i class="fas fa-envelope"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-info btn-sm" 
+                                onclick="composeLinkedInDirect('${contact.email}')" 
+                                title="Compose LinkedIn Message">
+                            <i class="fab fa-linkedin"></i>
+                        </button>
                         <button type="button" class="btn btn-outline-secondary btn-sm" 
                                 onclick="viewContactDetails('${contact.email}')" 
                                 title="View Details">
                             <i class="fas fa-eye"></i>
-                        </button>
-                        <button type="button" class="btn btn-outline-secondary btn-sm" 
-                                onclick="exportContact('${contact.email}')" 
-                                title="Export">
-                            <i class="fas fa-download"></i>
                         </button>
                     </div>
                 </td>
@@ -355,28 +347,20 @@ function displayUncontactedContacts(data) {
                 </td>
                 <td>
                     <div class="btn-group btn-group-sm" role="group">
-                        <div class="btn-group" role="group">
-                            <button type="button" class="btn btn-outline-primary btn-sm dropdown-toggle" data-bs-toggle="dropdown" title="Compose">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="#" onclick="composeEmailDirect('${contact.email}')">
-                                    <i class="fas fa-envelope me-2"></i>Email
-                                </a></li>
-                                <li><a class="dropdown-item" href="#" onclick="composeLinkedInDirect('${contact.email}')">
-                                    <i class="fab fa-linkedin me-2"></i>LinkedIn
-                                </a></li>
-                            </ul>
-                        </div>
+                        <button type="button" class="btn btn-outline-primary btn-sm" 
+                                onclick="composeEmailDirect('${contact.email}')" 
+                                title="Compose Email">
+                            <i class="fas fa-envelope"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-info btn-sm" 
+                                onclick="composeLinkedInDirect('${contact.email}')" 
+                                title="Compose LinkedIn Message">
+                            <i class="fab fa-linkedin"></i>
+                        </button>
                         <button type="button" class="btn btn-outline-secondary btn-sm" 
                                 onclick="viewContactDetails('${contact.email}')" 
                                 title="View Details">
                             <i class="fas fa-eye"></i>
-                        </button>
-                        <button type="button" class="btn btn-outline-secondary btn-sm" 
-                                onclick="exportContact('${contact.email}')" 
-                                title="Export">
-                            <i class="fas fa-download"></i>
                         </button>
                     </div>
                 </td>
