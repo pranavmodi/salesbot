@@ -162,7 +162,20 @@ function displayContactSearchResults(contacts, searchTerm) {
                 </td>
                 <td>
                     <div class="btn-group btn-group-sm" role="group">
-                        <button type="button" class="btn btn-outline-primary btn-sm" 
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-outline-primary btn-sm dropdown-toggle" data-bs-toggle="dropdown" title="Compose">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="#" onclick="composeEmailDirect('${contact.email}')">
+                                    <i class="fas fa-envelope me-2"></i>Email
+                                </a></li>
+                                <li><a class="dropdown-item" href="#" onclick="composeLinkedInDirect('${contact.email}')">
+                                    <i class="fab fa-linkedin me-2"></i>LinkedIn
+                                </a></li>
+                            </ul>
+                        </div>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" 
                                 onclick="viewContactDetails('${contact.email}')" 
                                 title="View Details">
                             <i class="fas fa-eye"></i>
@@ -342,7 +355,20 @@ function displayUncontactedContacts(data) {
                 </td>
                 <td>
                     <div class="btn-group btn-group-sm" role="group">
-                        <button type="button" class="btn btn-outline-primary btn-sm" 
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-outline-primary btn-sm dropdown-toggle" data-bs-toggle="dropdown" title="Compose">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="#" onclick="composeEmailDirect('${contact.email}')">
+                                    <i class="fas fa-envelope me-2"></i>Email
+                                </a></li>
+                                <li><a class="dropdown-item" href="#" onclick="composeLinkedInDirect('${contact.email}')">
+                                    <i class="fab fa-linkedin me-2"></i>LinkedIn
+                                </a></li>
+                            </ul>
+                        </div>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" 
                                 onclick="viewContactDetails('${contact.email}')" 
                                 title="View Details">
                             <i class="fas fa-eye"></i>
@@ -1102,6 +1128,39 @@ if (typeof module !== 'undefined' && module.exports) {
     };
 }
 
+// Direct compose functions (called from table actions)
+function composeEmailDirect(email) {
+    fetch(`/api/contacts/${encodeURIComponent(email)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            const contact = data.contact;
+            composeAIGeneratedEmail(contact);
+        })
+        .catch(error => {
+            console.error('Error loading contact for email composition:', error);
+            showToast('errorToast', 'Failed to load contact details for email composition');
+        });
+}
+
+function composeLinkedInDirect(email) {
+    fetch(`/api/contacts/${encodeURIComponent(email)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            const contact = data.contact;
+            composeAIGeneratedLinkedInMessage(contact);
+        })
+        .catch(error => {
+            console.error('Error loading contact for LinkedIn composition:', error);
+            showToast('errorToast', 'Failed to load contact details for LinkedIn composition');
+        });
+}
+
 // Global function assignments for HTML onclick handlers
 window.clearContactSearch = clearContactSearch;
 window.viewContactDetails = viewContactDetails;
@@ -1113,6 +1172,8 @@ window.startBulkEmailComposition = startBulkEmailComposition;
 window.changePage = changePage;
 window.composeEmailFromModal = composeEmailFromModal;
 window.composeLinkedInFromModal = composeLinkedInFromModal;
+window.composeEmailDirect = composeEmailDirect;
+window.composeLinkedInDirect = composeLinkedInDirect;
 window.regenerateContent = regenerateContent;
 window.copyComposedContent = copyComposedContent;
 window.markAsContacted = markAsContacted;
