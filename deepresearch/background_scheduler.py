@@ -31,7 +31,7 @@ class DeepResearchScheduler:
     def init_app(self, app):
         """Initialize the deep research scheduler with Flask app."""
         if self._initialized:
-            logger.info("Deep research scheduler already initialized")
+            # Skip duplicate initialization
             return
             
         try:
@@ -61,7 +61,7 @@ class DeepResearchScheduler:
             
             # Start the scheduler
             self.scheduler.start()
-            logger.info("Deep research scheduler initialized and started")
+            # Scheduler started successfully
             
             # Schedule the OpenAI polling job
             self._schedule_background_jobs()
@@ -86,7 +86,7 @@ class DeepResearchScheduler:
                 coalesce=True
             )
             
-            logger.info("OpenAI background job polling scheduled (10 second interval)")
+            # Background job polling scheduled
             
         except Exception as e:
             logger.error(f"Failed to schedule deep research background jobs: {e}")

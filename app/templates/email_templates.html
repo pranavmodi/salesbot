@@ -1,0 +1,380 @@
+{% extends "base.html" %}
+
+{% block title %}Email Templates - SalesBot{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="fas fa-envelope-open-text me-2"></i>Email Templates</h2>
+                    <p class="text-muted mb-0">Configure and manage your cold outreach email templates</p>
+                </div>
+                <button class="btn btn-primary" onclick="createNewTemplate()">
+                    <i class="fas fa-plus me-2"></i>New Template
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Templates Overview -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Your Email Templates</h5>
+                    <div id="templatesContainer">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading templates...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Template Configuration Modal -->
+<div class="modal fade" id="templateConfigModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="templateModalTitle">Configure Email Template</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="templateForm">
+                    <input type="hidden" id="templateId">
+                    
+                    <!-- Basic Information -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-info-circle me-2"></i>Basic Information
+                            </h6>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="templateName" class="form-label">Template Name*</label>
+                            <input type="text" class="form-control" id="templateName" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="templateDescription" class="form-label">Description</label>
+                            <input type="text" class="form-control" id="templateDescription">
+                        </div>
+                        <div class="col-md-4 mt-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="isActive" checked>
+                                <label class="form-check-label" for="isActive">Active</label>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mt-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="isDefault">
+                                <label class="form-check-label" for="isDefault">Default Template</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Message Structure -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-cogs me-2"></i>Message Structure
+                            </h6>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="messageFramework" class="form-label">Framework</label>
+                            <select class="form-select" id="messageFramework">
+                                <option value="DIRECT">Direct</option>
+                                <option value="AIDA">AIDA (Attention, Interest, Desire, Action)</option>
+                                <option value="PAS">PAS (Problem, Agitation, Solution)</option>
+                                <option value="PROBLEM_SOLUTION">Problem-Solution</option>
+                                <option value="STORYTELLING">Storytelling</option>
+                                <option value="CONSULTATIVE">Consultative</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="toneLevel" class="form-label">Tone</label>
+                            <select class="form-select" id="toneLevel">
+                                <option value="FORMAL">Formal</option>
+                                <option value="SEMI_FORMAL">Semi-Formal</option>
+                                <option value="CASUAL">Casual</option>
+                                <option value="CONVERSATIONAL">Conversational</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="emailLength" class="form-label">Length</label>
+                            <select class="form-select" id="emailLength">
+                                <option value="SHORT">Short (50-100 words)</option>
+                                <option value="MEDIUM">Medium (100-200 words)</option>
+                                <option value="LONG">Long (200+ words)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Subject Lines -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-heading me-2"></i>Subject Lines
+                            </h6>
+                        </div>
+                        <div class="col-12">
+                            <label for="subjectTemplates" class="form-label">Subject Line Templates</label>
+                            <small class="form-text text-muted">One per line. Use variables like {first_name}, {company}, {pain_point}</small>
+                            <textarea class="form-control" id="subjectTemplates" rows="4" 
+                                placeholder="Quick question about {company}&#10;{first_name}, thought you'd find this interesting&#10;Helping {company} with {pain_point}"></textarea>
+                        </div>
+                        <div class="col-12 mt-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="subjectAbTest">
+                                <label class="form-check-label" for="subjectAbTest">Enable A/B testing for subject lines</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Opening & Personalization -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-user-circle me-2"></i>Opening & Personalization
+                            </h6>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="openingStyle" class="form-label">Opening Style</label>
+                            <select class="form-select" id="openingStyle">
+                                <option value="personal">Personal</option>
+                                <option value="direct">Direct</option>
+                                <option value="question">Question-based</option>
+                                <option value="compliment">Compliment</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mt-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="usePersonalConnection" checked>
+                                    <label class="form-check-label" for="usePersonalConnection">Use personal connections</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="referenceCompanyResearch" checked>
+                                    <label class="form-check-label" for="referenceCompanyResearch">Reference company research</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 mt-3">
+                            <label for="openingTemplates" class="form-label">Opening Templates</label>
+                            <textarea class="form-control" id="openingTemplates" rows="3"
+                                placeholder="Hi {first_name},&#10;Hello {first_name}, hope your week is going well.&#10;{first_name},"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Product & Value Propositions -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-gift me-2"></i>Product & Value Propositions
+                            </h6>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="productName" class="form-label">Product Name</label>
+                            <input type="text" class="form-control" id="productName" placeholder="Your Product">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="productDescription" class="form-label">Product Description</label>
+                            <input type="text" class="form-control" id="productDescription" placeholder="Brief product description">
+                        </div>
+                        <div class="col-12 mt-3">
+                            <label for="valuePropositions" class="form-label">Value Propositions</label>
+                            <small class="form-text text-muted">One per line. Use variables like {industry}, {role_focus}</small>
+                            <textarea class="form-control" id="valuePropositions" rows="4"
+                                placeholder="We help {industry} companies reduce costs by 30%&#10;Our solution increases {role_focus} efficiency by 40%&#10;Companies like yours see ROI within 90 days"></textarea>
+                        </div>
+                        <div class="col-12 mt-3">
+                            <label for="socialProofElements" class="form-label">Social Proof Elements</label>
+                            <textarea class="form-control" id="socialProofElements" rows="3"
+                                placeholder="We've helped over 500 companies like {company}&#10;{similar_company} saw 40% improvement in 3 months&#10;Featured in {industry_publication} for innovation"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Call-to-Action -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-mouse-pointer me-2"></i>Call-to-Action
+                            </h6>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="ctaType" class="form-label">CTA Type</label>
+                            <select class="form-select" id="ctaType">
+                                <option value="MEETING">Meeting</option>
+                                <option value="DEMO">Demo</option>
+                                <option value="CALL">Call</option>
+                                <option value="TRIAL">Trial</option>
+                                <option value="DOWNLOAD">Download</option>
+                                <option value="WEBSITE">Website Visit</option>
+                                <option value="REPLY">Reply</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="calendarBookingUrl" class="form-label">Calendar Booking URL</label>
+                            <input type="url" class="form-control" id="calendarBookingUrl" placeholder="https://calendly.com/yourname">
+                        </div>
+                        <div class="col-12 mt-3">
+                            <label for="ctaTemplates" class="form-label">CTA Templates</label>
+                            <textarea class="form-control" id="ctaTemplates" rows="3"
+                                placeholder="Would you be open to a 15-minute chat to explore how this could help {company}?&#10;Could we schedule a brief call to discuss your {pain_point} challenges?&#10;Would you have 15 minutes next week for a quick demo?"></textarea>
+                        </div>
+                        <div class="col-12 mt-3">
+                            <label class="form-label">Meeting Duration Options (minutes)</label>
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input meeting-duration" type="checkbox" value="15" id="duration15">
+                                        <label class="form-check-label" for="duration15">15 minutes</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input meeting-duration" type="checkbox" value="30" id="duration30">
+                                        <label class="form-check-label" for="duration30">30 minutes</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input meeting-duration" type="checkbox" value="45" id="duration45">
+                                        <label class="form-check-label" for="duration45">45 minutes</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input meeting-duration" type="checkbox" value="60" id="duration60">
+                                        <label class="form-check-label" for="duration60">60 minutes</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sender Information -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-user me-2"></i>Sender Information
+                            </h6>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="senderName" class="form-label">Name</label>
+                            <input type="text" class="form-control" id="senderName" placeholder="John Doe">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="senderTitle" class="form-label">Title</label>
+                            <input type="text" class="form-control" id="senderTitle" placeholder="Account Executive">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="senderCompany" class="form-label">Company</label>
+                            <input type="text" class="form-control" id="senderCompany" placeholder="Your Company">
+                        </div>
+                        <div class="col-12 mt-3">
+                            <label for="signatureTemplate" class="form-label">Email Signature</label>
+                            <textarea class="form-control" id="signatureTemplate" rows="3" 
+                                placeholder="Best regards,&#10;{sender_name}&#10;{sender_title} | {sender_company}"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Compliance -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-shield-alt me-2"></i>Compliance & Legal
+                            </h6>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="includeUnsubscribe" checked>
+                                <label class="form-check-label" for="includeUnsubscribe">Include unsubscribe footer</label>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label for="gdprComplianceText" class="form-label">GDPR Compliance Text</label>
+                            <textarea class="form-control" id="gdprComplianceText" rows="3"
+                                placeholder="You received this email because you may be interested in our services. Reply STOP to unsubscribe."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- A/B Testing -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">
+                                <i class="fas fa-chart-line me-2"></i>A/B Testing
+                            </h6>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="enableAbTesting">
+                                <label class="form-check-label" for="enableAbTesting">Enable A/B testing for this template</label>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="testTemplateBtn" onclick="testTemplate()">
+                    <i class="fas fa-flask me-2"></i>Test Template
+                </button>
+                <button type="button" class="btn btn-primary" onclick="saveTemplate()">
+                    <i class="fas fa-save me-2"></i>Save Template
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Test Email Modal -->
+<div class="modal fade" id="testEmailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Test Email Generation</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="testContactEmail" class="form-label">Test Contact Email</label>
+                        <input type="email" class="form-control" id="testContactEmail" placeholder="contact@company.com">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="testTenantId" class="form-label">Demo Tenant ID (optional)</label>
+                        <input type="text" class="form-control" id="testTenantId" placeholder="tenant-uuid">
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <button type="button" class="btn btn-primary" onclick="generateTestEmail()">
+                            <i class="fas fa-magic me-2"></i>Generate Test Email
+                        </button>
+                    </div>
+                </div>
+                <div id="testEmailResult" style="display: none;">
+                    <hr>
+                    <h6>Generated Email:</h6>
+                    <div class="mb-2">
+                        <strong>Subject:</strong>
+                        <div class="form-control" id="testSubject" style="background-color: #f8f9fa;"></div>
+                    </div>
+                    <div class="mb-2">
+                        <strong>Body:</strong>
+                        <div class="form-control" id="testBody" style="background-color: #f8f9fa; min-height: 200px; white-space: pre-wrap;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/static/js/email_templates.js"></script>
+{% endblock %}

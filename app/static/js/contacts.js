@@ -621,7 +621,7 @@ function showComposeModal(type, contact) {
     bootstrapModal.show();
 }
 
-// Create compose modal
+// Create compose modal with template selection
 function createComposeModal(type, contact) {
     const modal = document.createElement('div');
     modal.className = 'modal fade';
@@ -642,17 +642,23 @@ function createComposeModal(type, contact) {
                 <div class="modal-body">
                     <div class="mb-3 border-bottom pb-3">
                         <div class="row">
-                            <div class="col-md-6">
+                            <div class="col-md-4">
+                                <label class="form-label"><strong>Email Template:</strong></label>
+                                <select class="form-select form-select-sm" id="templateSelect">
+                                    <option value="">Loading templates...</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
                                 <label class="form-label"><strong>Demo Tenant ID:</strong></label>
                                 <input type="text" class="form-control form-control-sm" id="demoTenantId" placeholder="e.g., 4fe5fee7-2733-489d-8847-a92c28e43f68">
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-4">
                                 <label class="form-label"><strong>Campaign:</strong></label>
                                 <input type="text" class="form-control form-control-sm" id="demoCampaign" placeholder="e.g., cold-outreach-q4">
                             </div>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mt-2">
-                            <small class="text-muted">Demo URL: https://getpossibleminds.com/tenants/{tenant-id}/control-panel?utm_source=email&utm_medium=email&utm_campaign={campaign}</small>
+                            <small class="text-muted">Demo URL will be auto-generated based on tenant ID and campaign</small>
                             <button type="button" class="btn btn-primary btn-sm" id="generateContentBtn" onclick="generateContentWithConfig('${type}', '${contact.email}')">
                                 <i class="fas fa-magic me-1"></i>Generate Message
                             </button>
@@ -661,12 +667,15 @@ function createComposeModal(type, contact) {
                     <div id="composeContent">
                         <div class="text-center py-4 text-muted">
                             <i class="fas fa-arrow-up fa-2x mb-2"></i>
-                            <p>Enter tenant ID and campaign above, then click "Generate Message"</p>
+                            <p>Select a template and configure options above, then click "Generate Message"</p>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <a href="/templates" target="_blank" class="btn btn-outline-info btn-sm">
+                        <i class="fas fa-cog me-1"></i>Manage Templates
+                    </a>
                     <button type="button" class="btn btn-outline-primary" id="regenerateBtn" onclick="regenerateContent('${type}', '${contact.email}')" style="display: none;">
                         <i class="fas fa-redo me-1"></i>Regenerate
                     </button>
@@ -678,7 +687,38 @@ function createComposeModal(type, contact) {
         </div>
     `;
     
+    // Load templates after modal is created
+    loadEmailTemplatesForSelect(modal);
+    
     return modal;
+}
+
+// Load email templates for the select dropdown
+function loadEmailTemplatesForSelect(modal) {
+    const templateSelect = modal.querySelector('#templateSelect');
+    
+    fetch('/api/email-templates')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                templateSelect.innerHTML = '<option value="">Use Default Template</option>';
+                data.templates.forEach(template => {
+                    const option = document.createElement('option');
+                    option.value = template.id;
+                    option.textContent = `${template.name} ${template.is_default ? '(Default)' : ''}`;
+                    if (template.is_default) {
+                        option.selected = true;
+                    }
+                    templateSelect.appendChild(option);
+                });
+            } else {
+                templateSelect.innerHTML = '<option value="">No templates available</option>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading email templates:', error);
+            templateSelect.innerHTML = '<option value="">Error loading templates</option>';
+        });
 }
 
 // Update existing modal for new contact
@@ -688,7 +728,7 @@ function updateModalForNewContact(modal, type, contact) {
     composeContent.innerHTML = `
         <div class="text-center py-4 text-muted">
             <i class="fas fa-arrow-up fa-2x mb-2"></i>
-            <p>Enter tenant ID and campaign above, then click "Generate Message"</p>
+            <p>Select a template and configure options above, then click "Generate Message"</p>
         </div>
     `;
     
@@ -716,6 +756,9 @@ function updateModalForNewContact(modal, type, contact) {
     const campaignField = modal.querySelector('#demoCampaign');
     if (tenantIdField) tenantIdField.value = '';
     if (campaignField) campaignField.value = '';
+    
+    // Reload templates in case they changed
+    loadEmailTemplatesForSelect(modal);
 }
 
 // Generate content with config from modal fields
@@ -723,88 +766,59 @@ function generateContentWithConfig(type, email) {
     const modal = document.getElementById(type === 'email' ? 'composeEmailModal' : 'composeLinkedInModal');
     if (!modal) return;
     
+    const templateSelect = modal.querySelector('#templateSelect');
     const tenantIdField = modal.querySelector('#demoTenantId');
     const campaignField = modal.querySelector('#demoCampaign');
     
-    if (!tenantIdField.value.trim()) {
-        alert('Please enter a Demo Tenant ID');
-        tenantIdField.focus();
-        return;
+    // Show loading state
+    const composeContent = modal.querySelector('#composeContent');
+    composeContent.innerHTML = `
+        <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Generating...</span>
+            </div>
+            <p class="mt-2">Generating personalized ${type} message...</p>
+        </div>
+    `;
+    
+    // Prepare request data
+    const requestData = {
+        contact_email: email
+    };
+    
+    // Add template ID if selected
+    if (templateSelect && templateSelect.value) {
+        requestData.template_id = parseInt(templateSelect.value);
     }
     
-    // Get contact data
-    fetch(`/api/contacts/${encodeURIComponent(email)}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                throw new Error(data.error);
-            }
-            
-            // Show loading state
-            const composeContent = modal.querySelector('#composeContent');
-            composeContent.innerHTML = `
-                <div class="text-center py-4">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Generating...</span>
-                    </div>
-                    <p class="mt-2">Generating personalized ${type} message...</p>
-                </div>
-            `;
-            
-            generateComposedContent(type, data.contact, modal);
-        })
-        .catch(error => {
-            console.error('Error loading contact for composition:', error);
-            const composeContent = modal.querySelector('#composeContent');
-            composeContent.innerHTML = `
-                <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    Failed to load contact details: ${error.message}
-                </div>
-            `;
-        });
-}
-
-// Generate AI content for email or LinkedIn
-function generateComposedContent(type, contact, modal) {
-    const endpoint = type === 'email' ? '/api/compose/email' : '/api/compose/linkedin';
+    // Add demo configuration if provided
+    if (tenantIdField && tenantIdField.value.trim()) {
+        requestData.demo_config = {
+            tenant_id: tenantIdField.value.trim(),
+            campaign: campaignField && campaignField.value.trim() ? campaignField.value.trim() : 'cold-outreach'
+        };
+    }
     
-    // Get demo configuration from modal fields
-    const tenantIdField = modal.querySelector('#demoTenantId');
-    const campaignField = modal.querySelector('#demoCampaign');
-    const tenantId = tenantIdField ? tenantIdField.value.trim() : '';
-    const campaign = campaignField ? campaignField.value.trim() : '';
+    // Use the new configurable API endpoint
+    const endpoint = type === 'email' ? '/api/compose/email/configurable' : '/api/compose/linkedin';
     
     fetch(endpoint, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-            contact: {
-                email: contact.email,
-                name: contact.display_name || contact.full_name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim(),
-                company: contact.company || contact.company_name,
-                job_title: contact.job_title,
-                linkedin_url: contact.linkedin_url
-            },
-            demo_config: {
-                tenant_id: tenantId,
-                campaign: campaign
-            }
-        })
+        body: JSON.stringify(requestData)
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            displayComposedContent(modal, type, data, contact);
+            displayComposedContent(modal, type, data, { email: email });
         } else {
-            throw new Error(data.message || 'Failed to generate content');
+            throw new Error(data.error || 'Failed to generate content');
         }
     })
     .catch(error => {
         console.error(`Error generating ${type} content:`, error);
-        const composeContent = modal.querySelector('#composeContent');
         composeContent.innerHTML = `
             <div class="alert alert-danger">
                 <i class="fas fa-exclamation-triangle me-2"></i>
@@ -812,6 +826,12 @@ function generateComposedContent(type, contact, modal) {
             </div>
         `;
     });
+}
+
+// Legacy function - now redirects to configurable system
+function generateComposedContent(type, contact, modal) {
+    console.warn('generateComposedContent is deprecated, using generateContentWithConfig instead');
+    generateContentWithConfig(type, contact.email);
 }
 
 // Display the generated content in the modal
@@ -913,30 +933,8 @@ function updateComposeModalContent() {
 
 // Regenerate content
 function regenerateContent(type, email) {
-    fetch(`/api/contacts/${encodeURIComponent(email)}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                throw new Error(data.error);
-            }
-            const modal = document.getElementById(type === 'email' ? 'composeEmailModal' : 'composeLinkedInModal');
-            const composeContent = modal.querySelector('#composeContent');
-            
-            composeContent.innerHTML = `
-                <div class="text-center py-4">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Regenerating...</span>
-                    </div>
-                    <p class="mt-2">Regenerating ${type} content...</p>
-                </div>
-            `;
-            
-            generateComposedContent(type, data.contact, modal);
-        })
-        .catch(error => {
-            console.error('Error regenerating content:', error);
-            showToast('errorToast', 'Failed to regenerate content');
-        });
+    // Use the new configurable generation system
+    generateContentWithConfig(type, email);
 }
 
 // Copy composed content to clipboard

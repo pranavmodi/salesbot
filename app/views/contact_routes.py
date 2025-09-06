@@ -12,6 +12,7 @@ from app.models.company import Company
 from app.models.email_history import EmailHistory
 from data_ingestion_system import ContactDataIngester
 from app.services.email_service import EmailService
+from app.services.email_template_service import EmailTemplateService
 from openai import OpenAI
 import os
 import requests
@@ -895,122 +896,87 @@ def count_filtered_contacts():
 
 @contact_bp.route('/compose/email', methods=['POST'])
 def compose_email():
-    """Generate AI-powered email content for a contact."""
+    """Generate AI-powered email content for a contact using configurable templates."""
     try:
         data = request.get_json()
-        contact = data.get('contact', {})
+        contact_data = data.get('contact', {})
         demo_config = data.get('demo_config', {})
+        template_id = data.get('template_id')  # Optional: specify which template to use
         
-        if not contact.get('email'):
+        if not contact_data.get('email'):
             return jsonify({
                 'success': False,
                 'message': 'Contact email is required'
             }), 400
         
-        # Generate demo URL if tenant_id is provided
-        demo_url = "[demo link placeholder]"
-        if demo_config.get('tenant_id'):
-            tenant_id = demo_config['tenant_id']
-            campaign = demo_config.get('campaign', 'email-outreach')
-            long_url = f"https://getpossibleminds.com/tenants/{tenant_id}/control-panel?utm_source=email&utm_medium=email&utm_campaign={campaign}"
-            demo_url = shorten_url_with_bitly(long_url) or long_url
-        
-        # Initialize OpenAI client
-        openai_api_key = os.getenv('OPENAI_API_KEY')
-        if not openai_api_key:
+        # Get tenant_id from the current context
+        tenant_id = getattr(g, 'tenant_id', None)
+        if not tenant_id:
             return jsonify({
                 'success': False,
-                'message': 'OpenAI API key not configured'
-            }), 500
+                'message': 'Tenant context required'
+            }), 400
         
-        client = OpenAI(api_key=openai_api_key)
+        # Find the contact in our database
+        contact = Contact.query.filter_by(
+            email=contact_data['email'],
+            tenant_id=tenant_id
+        ).first()
         
-        # Get company research if available
-        company_research = ""
-        if contact.get('company'):
-            company_obj = Company.get_companies_by_name(contact['company'])
-            if company_obj and len(company_obj) > 0:
-                company = company_obj[0]
-                if hasattr(company, 'llm_research_step_1_basic') and company.llm_research_step_1_basic:
-                    company_research = company.llm_research_step_1_basic[:1000]  # Limit length
+        if not contact:
+            return jsonify({
+                'success': False,
+                'message': 'Contact not found in database'
+            }), 404
         
-        # Create personalized email prompt based on the template
-        prompt = f"""You are Pranav, CEO and Founder of Possible Minds, writing a personalized cold outreach email. Use this template structure but customize it with the recipient's information and company research.
-
-TEMPLATE STRUCTURE:
-Hello [Name],
-
-[Opening line referencing something specific about their company/work - use research if available]
-
-I'm CEO & founder of Possible Minds - we build AI customer service platforms that free up support teams and boost satisfaction. Healthcare companies like Precise Imaging see positive ROI with our product from day 1. Our team previously led product and engineering teams at Expedia and McKinsey.
-
-We created an AI chatbot custom-trained specifically for [company name] using [their company website]. Instantly test your personalized version: {demo_url}
-
-Would you be open to a quick 10-minute demo?
-
-Many thanks,
-Pranav
-Founder, Possible Minds
-https://possibleminds.in
-
-RECIPIENT INFORMATION:
-- Name: {contact.get('name', 'there')}
-- Company: {contact.get('company', 'their company')}
-- Job Title: {contact.get('job_title', 'professional')}
-
-{f"COMPANY RESEARCH CONTEXT: {company_research}" if company_research else ""}
-
-INSTRUCTIONS:
-1. Create subject line in this format: "[Name], AI chat agent custom trained for [Company Name] - try it now"
-2. Use their actual name in greeting
-3. Reference something specific about their company/role in the opening (use research if available, otherwise mention their industry/role)
-4. Keep the Possible Minds company description exactly as provided
-5. Replace [their company website] with their actual company domain/website
-6. Replace [company name] with their actual company name
-7. Replace [demo link] with: {demo_url}
-8. Use plain text format - no HTML bold or brackets, just "Instantly test your personalized version:"
-9. Maintain the professional but personal tone
-10. Keep total length under 130 words
-11. Sign with "Pranav"
-
-Return in this exact format:
-SUBJECT: [subject line]
-BODY: [email body]"""
-
-        # Generate email content using GPT-4o
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": "You are an expert sales development representative who writes highly effective, personalized cold outreach emails."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,
-            max_tokens=500
+        # Initialize email template service
+        template_service = EmailTemplateService()
+        
+        # Get the email template to use
+        if template_id:
+            from app.models.email_template import EmailTemplate
+            template = EmailTemplate.query.filter_by(
+                id=template_id,
+                tenant_id=tenant_id,
+                is_active=True
+            ).first()
+            
+            if not template:
+                return jsonify({
+                    'success': False,
+                    'message': 'Template not found or inactive'
+                }), 404
+        else:
+            # Use default template or create one if it doesn't exist
+            template = template_service.get_default_template(tenant_id)
+            if not template:
+                current_app.logger.info(f"Creating default email template for tenant: {tenant_id}")
+                template = template_service.create_default_template(tenant_id)
+        
+        # Generate personalized email using the configurable system
+        result = template_service.generate_personalized_email(
+            contact=contact,
+            template=template,
+            demo_config=demo_config,
+            ab_test_variant=data.get('ab_test_variant')
         )
         
-        content = response.choices[0].message.content.strip()
-        
-        # Parse subject and body
-        lines = content.split('\n', 1)
-        subject_line = ""
-        body_content = content
-        
-        if len(lines) >= 2 and lines[0].startswith('SUBJECT:'):
-            subject_line = lines[0].replace('SUBJECT:', '').strip()
-            remaining_content = lines[1].strip()
-            if remaining_content.startswith('BODY:'):
-                body_content = remaining_content.replace('BODY:', '').strip()
-            else:
-                body_content = remaining_content
+        if not result.get('success'):
+            return jsonify({
+                'success': False,
+                'message': result.get('error', 'Failed to generate email')
+            }), 500
         
         return jsonify({
             'success': True,
-            'subject': subject_line,
-            'body': body_content
+            'subject': result['subject'],
+            'body': result['body'],
+            'template_id': result.get('template_id'),
+            'ab_test_variant': result.get('ab_test_variant')
         })
         
     except Exception as e:
-        current_app.logger.error(f"Error generating email content: {str(e)}")
+        current_app.logger.error(f"Error generating configurable email content: {str(e)}")
         return jsonify({
             'success': False,
             'message': f'Failed to generate email content: {str(e)}'

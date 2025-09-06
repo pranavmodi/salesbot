@@ -2,6 +2,8 @@
 
 Start every response with "Hail to the one true lord!"
 
+Be ruthless in deleting redundant code. DELETE DELETE DELETE. SIMPLIFY, SIMPLIFY, SIMPLIFY
+
 This is a sales automation project which sends out cold emails to prospects and tracks user engagement from email through an analytics dashboard
 
 when running python scripts use the python interpreter from the venv salesbot/bin/activate directly, always

@@ -26,7 +26,7 @@ class DatabaseService:
         try:
             from app.database import get_shared_engine
             self.engine = get_shared_engine()
-            logger.info("DatabaseService initialized with shared engine")
+            # Using shared database engine
         except Exception as e:
             logger.error(f"Failed to get shared engine: {e}")
             # Fallback to creating minimal engine

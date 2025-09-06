@@ -20,6 +20,7 @@ class Contact:
         self.location = data.get('location', '') or data.get('Location', '')
         self.linkedin_profile = data.get('linkedin_profile', '') or data.get('LinkedIn Profile', '')
         self.company_domain = data.get('company_domain', '') or data.get('Company Domain', '')
+        self.phone = data.get('phone', '') or data.get('Phone', '')
         self.contacted = data.get('contacted', False)
         self.raw_data = data
 
@@ -336,6 +337,7 @@ class Contact:
             'location': self.location,
             'linkedin_profile': self.linkedin_profile,
             'company_domain': self.company_domain,
+            'phone': self.phone,
             'contacted': self.contacted,
             'initials': self.initials,
             'display_name': self.display_name

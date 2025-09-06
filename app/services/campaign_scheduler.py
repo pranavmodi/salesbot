@@ -946,7 +946,7 @@ class CampaignScheduler:
         # Prevent multiple initialization in development mode
         if self.scheduler is not None:
             from flask import current_app
-            current_app.logger.info("Campaign scheduler already initialized, skipping")
+            # Skip duplicate initialization
             return
             
         with app.app_context():

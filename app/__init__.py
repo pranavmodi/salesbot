@@ -32,6 +32,7 @@ def create_app():
     from app.views.contact_routes import contact_bp
     from app.views.company_routes import company_bp
     from app.views.email_routes import email_bp
+    from app.views.email_template_routes import email_template_bp
     from app.views.campaign_routes import campaign_bp
     from app.views.api import api_bp
     from app.views.settings_routes import settings_bp
@@ -43,6 +44,7 @@ def create_app():
     app.register_blueprint(contact_bp)
     app.register_blueprint(company_bp)
     app.register_blueprint(email_bp)
+    app.register_blueprint(email_template_bp)
     app.register_blueprint(campaign_bp)
     app.register_blueprint(api_bp)
     app.register_blueprint(settings_bp)
@@ -231,7 +233,7 @@ def create_app():
         try:
             from deepresearch.background_scheduler import deep_research_scheduler
             deep_research_scheduler.init_app(app)
-            app.logger.info("Deep research scheduler initialized successfully")
+            # Deep research scheduler ready
         except Exception as e:
             app.logger.error(f"Failed to initialize deep research scheduler: {e}")
         
@@ -242,7 +244,7 @@ def create_app():
             # Create a temporary instance just for startup recovery
             startup_service = LLMDeepResearchService()
             startup_service.check_and_recover_background_jobs()
-            app.logger.info("Background job recovery check completed on startup")
+            # Background job recovery completed
         except Exception as e:
             app.logger.error(f"Failed to check for orphaned background jobs on startup: {e}")
     

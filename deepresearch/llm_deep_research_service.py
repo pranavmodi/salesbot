@@ -56,8 +56,7 @@ class LLMDeepResearchService:
         self.fallback_openai_key = os.getenv("OPENAI_API_KEY") 
         self.fallback_perplexity_key = os.getenv("PERPLEXITY_API_KEY")
         
-        # Log initialization status
-        logger.info("LLMDeepResearchService initialized - will use tenant-specific API keys when available")
+        # Service initialized with tenant-specific API key support
         
         # Mark as initialized to prevent repeated initialization
         self._initialized = True
@@ -1265,7 +1264,7 @@ Use your deep research capabilities to gather comprehensive, current information
             from deepresearch.database_service import DatabaseService
             from sqlalchemy import text
             
-            logger.info("Checking for orphaned background research jobs on startup...")
+            # Checking for orphaned background research jobs
             
             db_service = DatabaseService()
             with db_service.engine.connect() as conn:
