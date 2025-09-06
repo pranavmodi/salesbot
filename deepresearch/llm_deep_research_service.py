@@ -1277,7 +1277,7 @@ Use your deep research capabilities to gather comprehensive, current information
                 """))
                 
                 background_jobs = result.fetchall()
-                logger.info(f"Found {len(background_jobs)} jobs in 'background_job_running' state")
+                # Found background jobs in running state
                 
                 # EXPANDED: Also check for jobs with OpenAI-specific statuses (queued, in_progress, etc.)
                 result2 = conn.execute(text("""
@@ -1289,7 +1289,7 @@ Use your deep research capabilities to gather comprehensive, current information
                 """))
                 
                 all_openai_jobs = result2.fetchall()
-                logger.info(f"Found {len(all_openai_jobs)} total jobs with OpenAI response IDs")
+                # Found jobs with OpenAI response IDs
                 
                 # Combine results (deduplicate by company_id)
                 seen_companies = set()
@@ -1303,7 +1303,8 @@ Use your deep research capabilities to gather comprehensive, current information
                 orphaned_jobs = combined_jobs
                 
                 if not orphaned_jobs:
-                    logger.info("No orphaned background jobs found")
+                    # No orphaned background jobs found
+                    pass
                 else:
                     logger.info(f"Found {len(orphaned_jobs)} orphaned background jobs, attempting recovery...")
                     
@@ -1324,7 +1325,7 @@ Use your deep research capabilities to gather comprehensive, current information
                 
                 # Mark recovery as completed
                 LLMDeepResearchService._startup_recovery_completed = True
-                logger.info("Background job recovery check completed")
+                # Background job recovery check completed
                         
         except Exception as e:
             logger.error(f"Error checking for orphaned background jobs: {e}")

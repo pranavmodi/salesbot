@@ -1119,7 +1119,7 @@ class CampaignScheduler:
                     coalesce=True
                 )
                 
-                current_app.logger.info("Log cleanup job scheduled (daily at 2 AM)")
+                # Log cleanup job scheduled
                 
             except Exception as cleanup_error:
                 current_app.logger.warning(f"Failed to schedule log cleanup job: {cleanup_error}")
@@ -1156,7 +1156,7 @@ class CampaignScheduler:
         if self.scheduler and not self.scheduler.running:
             try:
                 self.scheduler.start()
-                current_app.logger.info("Campaign scheduler started")
+                # Campaign scheduler started
             except Exception as e:
                 if "can't start new thread" in str(e).lower():
                     current_app.logger.warning("Thread limit reached - scheduler cannot start automatically")
